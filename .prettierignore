@@ -1,0 +1,5 @@
+dist/
+coverage/
+.pack/
+package-lock.json
+CHANGELOG.md

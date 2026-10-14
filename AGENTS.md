@@ -1,0 +1,150 @@
+# AGENTS.md
+
+How to work in `tassyir/apps-sdk`. This file is for any coding agent (Claude
+Code, Codex, Cursor, …) and any person. AI coding agents are also first-class
+**users** of these packages: many apps on Tassyir are built with one. Write
+APIs, errors and READMEs that an agent can act on without guessing.
+
+## What this repo is
+
+The public packages for building Tassyir apps (one section each in the
+[README](README.md)). The **contract** they implement (manifest, scopes,
+tokens, Admin API, events, webhooks, bridge) is §3 of
+`docs/APPS_PLATFORM_PLAN.md` in `tassyir/backend`. That document wins over
+anything here: a contract change goes there first.
+
+The plan is also the memory between sessions (D13): one ticket (`AP-K1.x`) is
+one session and one PR here. When it is done, a second **docs-only** PR in
+`tassyir/backend` updates the ticket's row in §9 and adds a dated note at the
+top of §10. Make that PR from a fresh worktree of `origin/master`, and never
+switch branches in a shared checkout.
+
+## Ground rules
+
+- **The repo is public.** Never commit a secret, a token, an `.env`, customer
+  data or an internal URL. `.npmrc` holds settings only: no registry, no
+  credential (`npm run check:repo` enforces it).
+- **Never publish by hand.** No `npm publish` and no `changeset publish` from a
+  laptop. Releases go through `.github/workflows/release.yml`
+  ([docs/RELEASING.md](docs/RELEASING.md)). The one exception is the owner's
+  `0.0.0` stub for a new name, described there.
+- **A name on public npm is permanent.** Only the names in
+  `PLANNED_PUBLIC_PACKAGES` ([scripts/lib/policy.mjs](scripts/lib/policy.mjs))
+  may be public, and that list mirrors the plan. Any other package stays
+  `"private": true`.
+- **Stay inside the ticket.** Write what you notice outside it into the plan's
+  §10, not into the diff.
+- **On a laptop, run installs, builds and tests one at a time.** Several heavy
+  jobs at once (several agent sessions, say) can bring the machine down.
+
+## Setup and commands
+
+Node 22 (`.nvmrc`; the build tool needs 22.18 or later). Install with `npm ci`.
+
+| Command                  | What it does                                                         |
+| ------------------------ | -------------------------------------------------------------------- |
+| `npm run verify`         | Every gate below, in CI's order. Run it before you push.             |
+| `npm run check:repo`     | Publishing rules: public names, package fields, exact dev versions   |
+| `npm run lint`           | ESLint, type-aware (`strictTypeChecked`), zero warnings              |
+| `npm run format:check`   | Prettier (`npm run format` writes)                                   |
+| `npm run typecheck`      | `tsc` on the repo scripts and on every package                       |
+| `npm test`               | Vitest, every `*.test.ts` / `*.test.mjs`                             |
+| `npm run build`          | tsdown, every package → `dist/`                                      |
+| `npm run check:packages` | publint, attw, and the packed tarball loaded with `require`/`import` |
+| `npm run pack:dry-run`   | `npm pack --dry-run` of every package                                |
+| `npx changeset`          | Record a change for the next release                                 |
+
+## Layout
+
+```
+packages/<folder>/          one package; <folder> = the name without its scope
+  src/index.ts              the public entry point
+  src/*.test.ts             tests next to the code
+  package.json, tsconfig.json, tsdown.config.ts, README.md
+  dist/                     build output (ignored by git)
+scripts/                    repo checks and the GitHub Packages mirror
+  lib/                      their pure parts, with tests
+.changeset/                 pending changesets and the Changesets config
+.github/workflows/          ci.yml (every PR), release.yml (main)
+docs/RELEASING.md           how a release runs; the owner's one-time setup
+```
+
+`packages/pipeline-check` is a private placeholder that proves the pipeline. It
+is never published. Delete it in the PR that adds the first real package
+(AP-K1.2).
+
+## Module format and build
+
+- Source is strict TypeScript (`tsconfig.base.json`: `strict`,
+  `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, …) and ESM with
+  `NodeNext` resolution, so relative imports end in `.js`
+  (`import { x } from './x.js'`).
+- tsdown builds each package into `dist/index.js` + `dist/index.d.ts` (ESM) and
+  `dist/index.cjs` + `dist/index.d.cts` (CJS). Copy the placeholder's
+  `package.json` fields (`main`, `types`, `exports`, `files`, `sideEffects`).
+- **Why CJS too:** `tassyir/backend` is a CommonJS NestJS app and installs
+  `@tassyir/app-manifest`. Its TypeScript (`"module": "commonjs"`) resolves
+  types the node10 way, which reads the top-level `types` field and ignores
+  `exports`. Its Jest 29 cannot `require()` an ES module. So a package the
+  backend installs ships both builds, and `types` points to the `.d.cts`. A
+  browser-only package (`@tassyir/app-bridge`, `@tassyir/ui`) may ship ESM only:
+  drop the `require` branch and the `.cjs` output, point `main`/`types` at the
+  ESM files, and add `.attw.json` with `{ "profile": "esm-only" }`.
+- **Named exports only**, no `export default`: a CommonJS consumer would get
+  `{ default: … }`.
+- `npm run check:packages` proves the result: publint, attw (node10, node16
+  CJS and ESM, bundler), and the packed tarball loading through `require` and
+  `import` with the same exports.
+
+## Adding a package
+
+1. The name must be in the plan and in `PLANNED_PUBLIC_PACKAGES`.
+2. `cp -R packages/pipeline-check packages/<folder>`, then in `package.json`
+   set `name`, `description`, `repository.directory`, `version: "0.0.0"` and the
+   dependencies, and remove `"private": true`. `check:repo` lists anything
+   missing.
+3. Write the code, its tests and the package README (install, one complete
+   example). Update the package's section in the root README.
+4. `npm install` (links the workspace), then `npm run verify`.
+5. `npx changeset`: `minor`, "First release" (0.0.0 → 0.1.0).
+6. Before that first release, the owner publishes the `0.0.0` stub and adds the
+   trusted publisher ([docs/RELEASING.md](docs/RELEASING.md), "once per new
+   package name"). For a package the backend installs, the owner also grants
+   `tassyir/backend` read access on GitHub Packages after the release.
+
+## Dependencies
+
+- **Dev dependencies are pinned to one exact version, released at least 14
+  days ago.** `.npmrc` sets `save-exact`. Use `--before` so npm also resolves
+  the transitive tree no newer than that date:
+  `npm install -D <name>@<version> --before=$(date -v-14d +%F)` (macOS; on Linux
+  `--before=$(date -d '14 days ago' +%F)`). `check:repo` refuses ranges.
+- A published package's runtime dependencies may use caret ranges. Keep them
+  few. Use a `peerDependency` when the consumer must share the instance.
+- No dependency may need an install script: CI installs with
+  `--ignore-scripts`.
+- GitHub Actions are pinned to a commit SHA, with the release in a comment.
+  Pick a release at least 14 days old.
+
+## Tests
+
+Vitest, next to the code, never touching the network or a registry. Test the
+rules a package promises, and its error codes and messages: they are part of
+the API an agent reads.
+
+## Changesets
+
+Every user-visible change to a public package needs a changeset
+(`npx changeset`). Under `0.x`, a breaking change is a `minor`. Private
+packages are ignored. Merging to `main` opens the Version Packages PR, and
+merging that PR releases ([docs/RELEASING.md](docs/RELEASING.md)).
+
+## Writing for agents
+
+- An error says what failed and how to fix it. Follow the backend's shape
+  `{ code, path, message, fix }`, where `code` is stable and `fix` is one
+  sentence an agent can act on.
+- The same input gives the same output, errors in the same order.
+- CLIs (AP-K1.6) offer `--json` everywhere.
+- Each package README starts with what the package is for, then install, then
+  one complete example. The full guides live on developers.tassyir.io (AP-K1.9).
