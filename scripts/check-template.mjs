@@ -156,7 +156,7 @@ try {
     manifestPath,
     `${JSON.stringify(withTarballs(manifest, tarballs), null, 2)}\n`,
   );
-  run('npm', INSTALL_FLAGS, { cwd: project });
+  npmInstall(project);
   step('installed (@tassyir/* from the tarballs, the rest from npm)');
 
   // 4. The project's own checks.
@@ -184,6 +184,29 @@ try {
 } finally {
   if (keep) console.log(`Kept ${scratch}`);
   else rmSync(scratch, { recursive: true, force: true });
+}
+
+/**
+ * `npm install` in the project; on failure, the error carries the end of
+ * npm's own debug log (its stack trace), which npm prints only as a path.
+ * @param {string} project
+ */
+function npmInstall(project) {
+  try {
+    run('npm', INSTALL_FLAGS, { cwd: project });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const log = /A complete log of this run can be found in: (\S+)/.exec(
+      message,
+    )?.[1];
+    const tail =
+      log && existsSync(log)
+        ? readFileSync(log, 'utf8').split('\n').slice(-80).join('\n')
+        : '';
+    throw new Error(`${message}\n--- npm debug log (end) ---\n${tail}`, {
+      cause: error,
+    });
+  }
 }
 
 /** @param {string} project */
