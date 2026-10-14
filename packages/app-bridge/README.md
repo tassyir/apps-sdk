@@ -1,0 +1,325 @@
+# @tassyir/app-bridge
+
+App Bridge lets your app's page talk to the [Tassyir](https://tassyir.io)
+dashboard. The page runs inside the dashboard's frame. With this package it
+can get ID tokens, show toasts and modals, use the save bar and title bar,
+navigate, pick products, collections or customers, and follow the dashboard's
+language, direction and theme.
+
+It runs in the browser only. It is ESM only, has no runtime dependency, and
+works with any framework or none. It collects no analytics and uses no
+browser storage.
+
+## Install
+
+```bash
+npm install @tassyir/app-bridge
+```
+
+## Example
+
+The whole loop: the page asks the bridge for an ID token, sends it to your
+server, and your server verifies it with [`@tassyir/app`](https://github.com/tassyir/apps-sdk/tree/main/packages/app) before it
+calls the Admin API.
+
+The page (your manifest's `admin.page`):
+
+```ts
+import { createAppBridge, isAppBridgeError } from '@tassyir/app-bridge';
+
+// Create it once, as early as the page loads: its first message tells the
+// dashboard the page is up.
+const bridge = createAppBridge();
+
+// Each request to your server carries a NEW ID token. Never keep one: it
+// lives 60 seconds and the token endpoint accepts it once.
+async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const { token } = await bridge.idToken();
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  const response = await fetch(path, { ...init, headers });
+  if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+  return (await response.json()) as T;
+}
+
+// The frame cannot see the dashboard's language, direction or theme.
+bridge.on('context.changed', ({ locale, dir, theme }) => {
+  document.documentElement.lang = locale;
+  document.documentElement.dir = dir;
+  document.documentElement.dataset['theme'] = theme;
+});
+
+await bridge.titleBar.set({ title: 'Pending orders' });
+const orders = await api<{ orderNumber: string; total: string }[]>(
+  '/api/pending-orders',
+);
+document.querySelector('#count')!.textContent = String(orders.length);
+
+document.querySelector('#feature')!.addEventListener('click', async () => {
+  try {
+    const { selection } = await bridge.resource.pick({
+      type: 'product',
+      multiple: true,
+    });
+    if (selection.length === 0) return; // the merchant cancelled
+    await api('/api/featured', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(selection.map((product) => product.id)),
+    });
+    await bridge.toast.show({
+      message: `${selection.length} products featured`,
+      tone: 'success',
+    });
+  } catch (error) {
+    if (!isAppBridgeError(error)) throw error;
+    // error.code is stable; error.fix says what to do about it.
+    await bridge.toast.show({ message: error.message, tone: 'error' });
+  }
+});
+```
+
+Your server (here a Fetch handler; the [`@tassyir/app` README](https://github.com/tassyir/apps-sdk/tree/main/packages/app#example)
+has the Express version with a token store):
+
+```ts
+import { createTassyirApp, TassyirVerificationError } from '@tassyir/app';
+
+const tassyir = createTassyirApp({
+  clientId: process.env.TASSYIR_CLIENT_ID!, // app_…
+  clientSecret: process.env.TASSYIR_CLIENT_SECRET!, // tsy_cs_…
+});
+
+export async function pendingOrders(request: Request): Promise<Response> {
+  const idToken =
+    request.headers.get('authorization')?.replace(/^Bearer /, '') ?? '';
+  try {
+    // Verifies the token (signature, your client id, 60 seconds), then reuses
+    // the installation's stored offline token or exchanges this ID token for one.
+    const session = await tassyir.authenticate(idToken);
+    const admin = tassyir.admin(session.idToken.installationId);
+    const { data } = await admin.get('/orders', {
+      query: { status: 'pending', limit: 50, fields: ['orderNumber', 'total'] },
+    });
+    return Response.json(data);
+  } catch (error) {
+    if (error instanceof TassyirVerificationError) {
+      return new Response(null, { status: 401 });
+    }
+    throw error;
+  }
+}
+```
+
+To know who is looking without calling the API, verify only:
+`const who = await tassyir.verifyIdToken(idToken)` gives `userId`,
+`businessId`, `installationId`, `sessionId` and `locale`.
+
+## Who is looking
+
+**Only the ID token says who is looking.** The dashboard loads your page at
+`admin.page`, plus the app path and the dashboard's own query string. Tassyir
+vouches for nothing in that address. Never read a business, a user or a store
+from it to decide what to show or allow. `context` is for display only. To
+learn who is looking, send `idToken()`'s token to your server and verify it
+there with `@tassyir/app` (`verifyIdToken`, or `authenticate` to also get an
+Admin API token). A token that has not been verified proves nothing.
+
+The dashboard never sends your page a Tassyir credential. The ID token is the
+only one, it is minted for your app and this installation, and it expires
+after 60 seconds.
+
+## Calls
+
+Every call posts one message to the dashboard. It resolves with the payload
+of the dashboard's reply, or rejects with an `AppBridgeError`. Payloads are
+the ones the Tassyir App Bridge protocol defines. The SDK checks them before
+posting, so most mistakes are refused without a round trip.
+
+| Call                                  | Resolves with                       | Refusals besides `INVALID_PAYLOAD`, `RATE_LIMITED`                             |
+| ------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| `idToken()`                           | `{ token }`                         | `ID_TOKEN_UNAVAILABLE`, `APP_UNAVAILABLE`, `PERMISSION_DENIED`, `FAILED`       |
+| `toast.show({ message, tone? })`      | nothing                             |                                                                                |
+| `modal.open({ path, title?, size? })` | `{ closedBy: 'app' \| 'merchant' }` | `BUSY`, `INVALID_DESTINATION`, `NOT_ALLOWED_HERE`                              |
+| `modal.close()`                       | nothing                             | `NO_MODAL`                                                                     |
+| `navigate({ path, replace? })`        | nothing                             | `INVALID_DESTINATION`, `NOT_ALLOWED_HERE`                                      |
+| `navigate({ dashboard, id? })`        | nothing                             | `INVALID_DESTINATION`, `NOT_ALLOWED_HERE`                                      |
+| `saveBar.show({ saving? })`           | nothing                             | `NOT_ALLOWED_HERE`                                                             |
+| `saveBar.hide()`                      | nothing                             | `NOT_ALLOWED_HERE`                                                             |
+| `titleBar.set({ title })`             | nothing                             | `NOT_ALLOWED_HERE`                                                             |
+| `resource.pick({ type, multiple? })`  | `{ selection }`                     | `SCOPE_REQUIRED`, `PERMISSION_DENIED`, `STORE_NOT_ALLOWED`, `NO_STORE`, `BUSY` |
+| `context.get()`                       | the context                         |                                                                                |
+
+- **`idToken`** mints a new token on every call; the SDK never caches one.
+  Send each token to your server once.
+- **`toast.show`**: `tone` is `info` (default), `success` or `error`. The
+  dashboard signs the toast with your app's name and shows `message` as text:
+  control and bidi characters become spaces, white space is folded, and it is
+  cut to 150 characters. More than 2,000 characters is refused.
+- **`modal.open`** shows one of your pages (`path`, the app-path rules below)
+  in a dashboard modal and resolves when the modal closes. `title` follows the
+  toast rules and is cut to 80 characters; `""` is refused, `null` means none.
+  `size` is `small`, `medium` (default) or `large`. The modal's page may call
+  `idToken`, `toast.show`, `modal.close`, `resource.pick` and `context.get`
+  only; anything else is `NOT_ALLOWED_HERE`.
+- **App paths** (`navigate`, `modal.open`) are relative to `admin.page` and
+  start with one `/`: `/reviews/2?tab=sent`. No scheme or host, no backslash,
+  white space, control or bidi character, fragment, or `.`, `..` or empty
+  segment (percent-encoded ones too). At most 1,024 characters before the
+  `?`, 2,048 in all, and a query of at most 1,024 characters once written the
+  way `URLSearchParams` writes it.
+- **`navigate({ path })`** says your app moved to another of its pages. The
+  frame is not reloaded (show the page yourself, for example with your
+  router); the dashboard's address follows, as a new history entry or, with
+  `replace: true`, in place.
+- **`navigate({ dashboard })`** leaves your app: `home`, `orders`,
+  `order` (with `id`), `customers`, `customer` (with `id`), `tracking`,
+  `inventory`, `products` (the current store's) or `apps`.
+- **`saveBar.show`** shows the dashboard's save bar, busy while `saving` is
+  true. Its buttons send `saveBar.save` and `saveBar.discard`. It stays until
+  `saveBar.hide`, and it does not stop the merchant from leaving the page.
+- **`titleBar.set`** sets your page's title beside the app's name; `null` or
+  `""` clears it.
+- **`resource.pick`** opens the dashboard's picker for `product`,
+  `collection` or `customer` and resolves when the merchant closes it:
+  `selection` is empty when cancelled, one item unless `multiple`, 50 at most.
+  Products are `{ id, name, image }`, collections `{ id, name }`, customers
+  `{ id, provinceCode }`, plus `name` and `phone` only when the installation
+  holds `read_customer_contact`. It needs `read_products` (products,
+  collections) or `read_customers` (customers) in your manifest.
+
+`modal.open` and `resource.pick` wait for the merchant as long as the dialog
+stays open. Every other call times out after 10 seconds (`timeoutMs` per
+bridge or per call), and any call takes an `AbortSignal` (`signal`).
+
+## Events and context
+
+```ts
+const stop = bridge.on('context.changed', (context) => {});
+bridge.on('saveBar.save', () => {});
+bridge.on('saveBar.discard', () => {});
+stop();
+```
+
+The context is `{ locale: 'ar' | 'en', dir: 'rtl' | 'ltr', theme: 'light' |
+'dark', storeId: string | null }`. `storeId` is the dashboard's current store,
+or `null` when there is none or your installation is limited to other stores.
+`bridge.context.current` holds the latest one (`null` until the dashboard has
+sent it), and `context.changed` listeners hear real changes only.
+
+## How the bridge talks to the dashboard
+
+- Messages go to `https://app.tassyir.io` only, never `*`. A message is taken
+  only when it comes from the page's parent window **and** from that origin.
+  Replies are matched to calls by id.
+- **Ready.** `createAppBridge()` says hello at once (a `context.get`), which
+  is what makes the dashboard count the page as loaded, and it repeats it with
+  a back-off until the dashboard answers: a message posted before the
+  dashboard listens is lost. Calls made meanwhile wait and are sent in order
+  once it answers.
+- **Leaving the page.** On `pagehide` the bridge clears the title and hides the
+  save bar (`titleBar.set({ title: null })`, `saveBar.hide()`), so neither
+  outlives the page that set them. It does not when the page is kept in the
+  back/forward cache, because the whole dashboard is kept with it.
+- **Limits.** The dashboard counts calls per installation over a sliding
+  minute and refuses more with `RATE_LIMITED`. Past 240 messages a minute it
+  drops them without answering. The bridge counts what this page sends and
+  refuses (`RATE_LIMITED`, `source: 'sdk'`) instead of posting what the
+  dashboard would refuse or drop.
+
+| Call            | Per minute |
+| --------------- | ---------- |
+| `idToken`       | 30         |
+| `toast.show`    | 20         |
+| `modal.open`    | 10         |
+| `modal.close`   | 30         |
+| `navigate`      | 30         |
+| `saveBar.show`  | 60         |
+| `saveBar.hide`  | 60         |
+| `titleBar.set`  | 60         |
+| `resource.pick` | 10         |
+| `context.get`   | 60         |
+
+A page that makes more than 30 requests a minute to your server cannot ask
+for a token per request: batch the requests, or have your server open its own
+short session once it has verified a token.
+
+## Errors
+
+Every refusal is an `AppBridgeError` with:
+
+- `code`: stable; act on it, never on `message`;
+- `call`: the call that failed;
+- `source`: `dashboard` (the dashboard's reply) or `sdk` (refused or failed
+  before an answer);
+- `path`: the payload field at fault, for the SDK's own `INVALID_PAYLOAD`;
+- `message` for people, and `fix`, one sentence saying what to do.
+
+`isAppBridgeError(error, code?)` narrows an unknown error.
+
+| Code                   | Source       | Meaning                                                              |
+| ---------------------- | ------------ | -------------------------------------------------------------------- |
+| `INVALID_PAYLOAD`      | both         | The payload breaks the call's rules.                                 |
+| `RATE_LIMITED`         | both         | Over the call's limit for the minute.                                |
+| `ID_TOKEN_UNAVAILABLE` | dashboard    | Tassyir cannot sign ID tokens now; the dashboard tells the merchant. |
+| `APP_UNAVAILABLE`      | dashboard    | The installation cannot be opened any more (uninstalled, suspended). |
+| `PERMISSION_DENIED`    | dashboard    | The signed-in member may not do this.                                |
+| `SCOPE_REQUIRED`       | dashboard    | The installation lacks the scope a pick needs.                       |
+| `STORE_NOT_ALLOWED`    | dashboard    | The installation is limited to other stores than the current one.    |
+| `NO_STORE`             | dashboard    | A collection pick with no current store.                             |
+| `BUSY`                 | dashboard    | A modal or picker is already open.                                   |
+| `NO_MODAL`             | dashboard    | `modal.close` with no modal open.                                    |
+| `NOT_ALLOWED_HERE`     | dashboard    | A call the modal's page may not make.                                |
+| `INVALID_DESTINATION`  | dashboard    | A place the dashboard cannot open now.                               |
+| `FAILED`               | both         | Anything else (or a code this version does not know); try again.     |
+| `NOT_EMBEDDED`         | sdk          | The page is not inside a frame.                                      |
+| `TIMEOUT`              | sdk          | No answer in time.                                                   |
+| `ABORTED`              | sdk          | The call's `signal` fired.                                           |
+| `DESTROYED`            | sdk          | `bridge.destroy()` was called.                                       |
+| `INVALID_REPLY`        | sdk          | The dashboard answered in a shape this version does not read.        |
+| `NOT_IN_BROWSER`       | sdk (thrown) | `createAppBridge()` ran without a browser window (server rendering). |
+| `INVALID_ARGUMENT`     | sdk          | A bad `dashboardOrigin`, `timeoutMs` or event name.                  |
+
+## Options
+
+```ts
+const bridge = createAppBridge({
+  timeoutMs: 10_000, // default timeout of each call
+  dashboardOrigin: 'http://localhost:3000', // a local or staging dashboard only
+});
+```
+
+Leave `dashboardOrigin` unset in production. Set it only to run your page
+inside a dashboard on your machine or on staging, and never from the page's
+address. It must be an exact origin (https, or http on localhost); `*` is
+refused.
+
+`bridge.destroy()` stops listening and rejects waiting calls with
+`DESTROYED`. `bridge.embedded` is false when the page is not in a frame (every
+call then rejects `NOT_EMBEDDED`), and `bridge.connected` turns true once the
+dashboard has answered.
+
+## Size
+
+About 7 kB gzipped once minified (17.7 kB minified, 32 kB as shipped). Half
+of it is the error messages and fix sentences.
+
+## Not here yet
+
+React hooks (a provider, `useAppBridge`, `useBridgeContext`) come in a later
+release. `bridge.context.current` and `bridge.on('context.changed', …)` are
+built for `useSyncExternalStore` meanwhile.
+
+## Checking against the dashboard
+
+`src/frontend-crosscheck.test.ts` runs the dashboard's own bridge host code
+(`lib/apps/bridge-protocol.ts` in the private `tassyir/frontend` repository)
+against what this package sends: the constants, about 24,000 payloads, and
+every call end to end. CI cannot reach that repository, so it runs locally:
+
+```bash
+TASSYIR_FRONTEND_DIR=../frontend npm run crosscheck -w @tassyir/app-bridge
+```
+
+It reads `origin/main` (or `TASSYIR_FRONTEND_REF`) with `git show`; run
+`git -C ../frontend fetch origin` first.

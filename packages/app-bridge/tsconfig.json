@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The library runs in the browser, inside the dashboard's iframe: it is
+    // typed against the DOM. Specs (happy-dom) and the frontend cross-check
+    // also use Node; eslint.config.mjs keeps Node out of the library code.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src", "tsdown.config.ts"]
+}
