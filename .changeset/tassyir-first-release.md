@@ -1,0 +1,5 @@
+---
+'tassyir': minor
+---
+
+First release: the Tassyir developer CLI. `tassyir login` signs in with the OAuth device grant (a code you approve in the dashboard) and keeps a developer token, valid on the developer API only, in the OS keychain when one answers (macOS `security`, Linux `secret-tool`) or else in a 0600 file; the token is never printed, and `TASSYIR_TOKEN` serves CI. Then `logout`, `whoami`, `app init` (the create-tassyir-app starter), `app create`, `app list`, `validate` (the API's own validator, offline), `deploy` (the manifest as a new version), `secrets list | create | rotate | revoke` (a secret is shown once, or written to `.env` with `--write-env`, never replacing a value silently), `store create | list` (seeded dev stores), `webhook trigger | deliveries | replay`, and `dev` (the checklist). `logs --tail` and `submit` answer `COMMAND_NOT_AVAILABLE` until Tassyir Hosting and the marketplace open. `--json` on every command; errors carry `{ code, message, fix }` and documented exit codes.

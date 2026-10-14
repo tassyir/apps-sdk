@@ -1,0 +1,54 @@
+{
+  "name": "tassyir",
+  "version": "0.0.0",
+  "description": "The Tassyir developer CLI: sign in, create apps, validate and deploy tassyir.app.toml, manage client secrets, dev stores and test webhooks. --json on every command.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/cli#readme",
+  "keywords": [
+    "tassyir",
+    "tassyir-app",
+    "cli",
+    "developer",
+    "deploy",
+    "webhooks"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "tassyir": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tassyir/app-manifest": "^0.0.0",
+    "create-tassyir-app": "^0.0.0",
+    "smol-toml": "^1.9.0"
+  }
+}

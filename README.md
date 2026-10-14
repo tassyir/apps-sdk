@@ -6,10 +6,11 @@ shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
 **Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and four packages whose first
+workspace, CI and release pipeline (AP-K1.1) and five packages whose first
 release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
-(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4) and `create-tassyir-app`
-(AP-K1.7). The other packages arrive one ticket at a time.
+(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), the `tassyir` CLI (AP-K1.6) and
+`create-tassyir-app` (AP-K1.7). The other packages arrive one ticket at a
+time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -70,10 +71,18 @@ any framework, or none.
 
 ### `tassyir`
 
-_Planned: AP-K1.6._ The CLI: `login`, `app init`, `dev`, `validate`, `deploy`,
-`logs --tail`, `webhook trigger`, `store seed` and `submit`. Every command can
-print `--json`, and every error says how to fix it (RFC 9457 problem details
-with a `fix`). Published to npm only.
+[`packages/cli`](packages/cli) (AP-K1.6). The developer CLI. `tassyir login`
+signs in with a code you approve in the dashboard (the OAuth device grant)
+and keeps a developer token that works on the developer API only, in the OS
+keychain when one answers, otherwise in a file only you can read; it is never
+printed. Then: `app init` (the starter), `app create`, `app list`, `validate`
+(offline, the API's own validator), `deploy` (the manifest as a new version),
+`secrets create | rotate | revoke` (a secret is shown once, or written to
+`.env` only when asked), `store create | list` (seeded dev stores), and
+`webhook trigger | deliveries | replay`. `dev` prints the checklist for now;
+`logs --tail` waits for Tassyir Hosting and `submit` for the marketplace.
+Every command prints `--json`, every error has a stable `code` and a `fix`,
+and the exit codes are documented. Published to npm only.
 
 ### `create-tassyir-app`
 

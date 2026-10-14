@@ -67,7 +67,9 @@ export interface AdminClientOptions {
    * `BUSINESS_RATE_LIMITED`, 503 `API_BUSY` and `IDEMPOTENCY_UNAVAILABLE`
    * (nothing was done). For requests safe to repeat (reads, and writes with
    * an `Idempotency-Key`): any other 503, network errors, 502 and 504. Also
-   * 409 `IDEMPOTENCY_KEY_IN_USE`, and 500 for reads only.
+   * 409 `IDEMPOTENCY_KEY_IN_USE`, and 500 for reads only. Never 429
+   * `IMAGE_QUOTA_REACHED` (`POST /images`): it throws at once, with its
+   * `per`, `window` and `retryAfter` in `problem`, for the app to decide.
    */
   retries?: boolean | number | RetryOptions;
   /** Per attempt. Default 30 seconds. */
@@ -489,7 +491,9 @@ export class AdminClient {
     const retryable =
       // RATE_LIMITED (the installation's bucket) and BUSINESS_RATE_LIMITED
       // (the ceiling the business's apps share) refuse before the route runs.
-      status === 429 ||
+      // IMAGE_QUOTA_REACHED (POST /images) is left to the app: a daily quota
+      // is not worth retrying, and `problem.window` says which one is full.
+      (status === 429 && code !== 'IMAGE_QUOTA_REACHED') ||
       // API_BUSY (the process's in-flight cap) and IDEMPOTENCY_UNAVAILABLE
       // refuse before the write is attempted: safe to repeat even without a key.
       (status === 503 &&
