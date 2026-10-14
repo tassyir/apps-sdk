@@ -67,11 +67,8 @@ scripts/                    repo checks and the GitHub Packages mirror
 .changeset/                 pending changesets and the Changesets config
 .github/workflows/          ci.yml (every PR), release.yml (main)
 docs/RELEASING.md           how a release runs; the owner's one-time setup
+docs/APP_MANIFEST.md        how @tassyir/app-manifest stays equal to the API
 ```
-
-`packages/pipeline-check` is a private placeholder that proves the pipeline. It
-is never published. Delete it in the PR that adds the first real package
-(AP-K1.2).
 
 ## Module format and build
 
@@ -80,7 +77,7 @@ is never published. Delete it in the PR that adds the first real package
   `NodeNext` resolution, so relative imports end in `.js`
   (`import { x } from './x.js'`).
 - tsdown builds each package into `dist/index.js` + `dist/index.d.ts` (ESM) and
-  `dist/index.cjs` + `dist/index.d.cts` (CJS). Copy the placeholder's
+  `dist/index.cjs` + `dist/index.d.cts` (CJS). Copy `packages/app-manifest`'s
   `package.json` fields (`main`, `types`, `exports`, `files`, `sideEffects`).
 - **Why CJS too:** `tassyir/backend` is a CommonJS NestJS app and installs
   `@tassyir/app-manifest`. Its TypeScript (`"module": "commonjs"`) resolves
@@ -99,9 +96,10 @@ is never published. Delete it in the PR that adds the first real package
 ## Adding a package
 
 1. The name must be in the plan and in `PLANNED_PUBLIC_PACKAGES`.
-2. `cp -R packages/pipeline-check packages/<folder>`, then in `package.json`
-   set `name`, `description`, `repository.directory`, `version: "0.0.0"` and the
-   dependencies, and remove `"private": true`. `check:repo` lists anything
+2. Copy `package.json`, `tsconfig.json`, `tsdown.config.ts` and `LICENSE` from
+   `packages/app-manifest` into `packages/<folder>`, then in `package.json` set
+   `name`, `description`, `repository.directory`, `version: "0.0.0"`, `files`,
+   `exports`, `scripts` and the dependencies. `check:repo` lists anything
    missing.
 3. Write the code, its tests and the package README (install, one complete
    example). Update the package's section in the root README.

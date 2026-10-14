@@ -3,3 +3,5 @@ coverage/
 .pack/
 package-lock.json
 CHANGELOG.md
+# Generated, byte-for-byte the API's copy (npm run schemas -w @tassyir/app-manifest).
+packages/app-manifest/schemas/
