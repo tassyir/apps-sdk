@@ -1,0 +1,47 @@
+{
+  "name": "@tassyir/app-bridge",
+  "version": "0.0.0",
+  "description": "App Bridge for Tassyir apps: the embedded page's side of the dashboard bridge (ID tokens, toasts, modals, navigation, save bar, title bar, resource pickers, context).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git",
+    "directory": "packages/app-bridge"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge#readme",
+  "keywords": [
+    "tassyir",
+    "tassyir-app",
+    "app-bridge",
+    "postmessage",
+    "iframe",
+    "embedded-app"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "crosscheck": "vitest run --root ../.. packages/app-bridge/src/frontend-crosscheck.test.ts"
+  }
+}

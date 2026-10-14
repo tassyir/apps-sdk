@@ -6,9 +6,10 @@ shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
 **Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and its first package,
-`@tassyir/app-manifest` (AP-K1.2), whose first release (0.1.0) is pending. The
-other packages arrive one ticket at a time.
+workspace, CI and release pipeline (AP-K1.1) and three packages whose first
+release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
+(AP-K1.3) and `@tassyir/app-bridge` (AP-K1.4). The other packages arrive one
+ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -50,12 +51,16 @@ Helpers for apps on Tassyir Hosting come once that hosting exists.
 
 ### `@tassyir/app-bridge`
 
-_Planned: AP-K1.4._ The embedded page's side of the dashboard bridge. An app
-page runs inside the Tassyir dashboard and talks to it through `postMessage`.
+[`packages/app-bridge`](packages/app-bridge) (AP-K1.4). The embedded page's
+side of the dashboard bridge. An app page runs inside the Tassyir dashboard
+and talks to it through `postMessage`, to the dashboard's exact origin only.
 With this package it can get an ID token, show toasts and modals, use the save
 bar and title bar, navigate, pick products, collections or customers, and
-follow locale, direction (RTL or LTR) and theme changes. The dashboard never
-sends the page a Tassyir credential.
+follow locale, direction (RTL or LTR) and theme changes. Every refusal is a
+typed error with a stable code and a fix. The dashboard never sends the page a
+Tassyir credential: the ID token, verified on the app's server with
+`@tassyir/app`, is the only proof of who is looking. Browser only, ESM only,
+no runtime dependency.
 
 ### `@tassyir/ui`
 

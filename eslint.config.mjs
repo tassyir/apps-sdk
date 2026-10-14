@@ -73,6 +73,46 @@ export default defineConfig(
     },
   },
   {
+    // @tassyir/app-bridge runs in the browser, inside the dashboard's iframe:
+    // its library code uses web APIs only. Specs and their harness may use
+    // Node (the frontend cross-check reads a git checkout).
+    files: ['packages/app-bridge/src/**/*.ts'],
+    ignores: [
+      'packages/app-bridge/src/**/*.test.ts',
+      'packages/app-bridge/src/**/*.test-harness.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(node:|(assert|buffer|child_process|crypto|fs|http|https|net|os|path|stream|url|util|zlib)(/|$))',
+              message:
+                'Library code runs in the browser: use web APIs (postMessage, URL, crypto).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'Buffer',
+        'process',
+        'require',
+        '__dirname',
+        '__filename',
+        'global',
+        // No browser storage (document.cookie included) and no analytics
+        // (AP-K1.4); the bridge never touches the page itself.
+        'localStorage',
+        'sessionStorage',
+        'indexedDB',
+        'document',
+      ],
+    },
+  },
+  {
     // Package code is a library: it never prints.
     files: ['packages/*/src/**/*.ts'],
     ignores: ['packages/*/src/**/*.test.ts'],
