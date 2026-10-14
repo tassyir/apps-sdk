@@ -370,6 +370,31 @@ describe('AdminClient retries', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('never retries 429 IMAGE_QUOTA_REACHED, even a short minute window (AP-B1.19)', async () => {
+    const { admin, calls } = client(
+      () =>
+        problem(
+          429,
+          'IMAGE_QUOTA_REACHED',
+          { per: 'installation', window: 'minute', limit: 30, retryAfter: 1 },
+          { 'retry-after': '1' },
+        ),
+      { retries: 3 },
+    );
+    await expect(
+      admin.post('/images', {
+        body: { url: 'https://example.com/a.png' },
+        idempotencyKey: 'image-1',
+      }),
+    ).rejects.toMatchObject({
+      status: 429,
+      code: 'IMAGE_QUOTA_REACHED',
+      retryAfterSeconds: 1,
+      problem: { per: 'installation', window: 'minute', limit: 30 },
+    });
+    expect(calls).toHaveLength(1);
+  });
+
   it('gives up when Retry-After is longer than maxDelayMs', async () => {
     const { admin, calls } = client(
       () => problem(503, 'SERVICE_UNAVAILABLE', {}, { 'retry-after': '120' }),
@@ -498,6 +523,10 @@ describe('AdminClient types (checked by tsc)', () => {
     >();
     expectTypeOf<'BUSINESS_RATE_LIMITED' | 'API_BUSY'>().toExtend<
       AdminApiErrorCode<'get', '/business'>
+    >();
+    // AP-B1.19: image uploads and their quota.
+    expectTypeOf<'IMAGE_QUOTA_REACHED' | 'IMAGE_FETCH_FAILED'>().toExtend<
+      AdminApiErrorCode<'post', '/images'>
     >();
 
     // Compiled, never run.

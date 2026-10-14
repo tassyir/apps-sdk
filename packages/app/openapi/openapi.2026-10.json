@@ -58,6 +58,10 @@
       "description": "Typed values the app keeps on the business, its stores, products, orders and customers, under keys its manifest declares."
     },
     {
+      "name": "Images",
+      "description": "Images re-hosted on the Tassyir CDN, for the product and collection writes."
+    },
+    {
       "name": "Webhooks",
       "description": "What Tassyir POSTs to the app."
     }
@@ -9669,6 +9673,291 @@
         }
       }
     },
+    "/apps/2026-10/images": {
+      "post": {
+        "operationId": "uploadImage",
+        "tags": [
+          "Images"
+        ],
+        "summary": "Upload an image from an address",
+        "description": "Downloads the image at `url` and stores it on the Tassyir CDN; the answer's `url` is what product and collection writes accept. https on port 443 only, a public host name; a JPEG, PNG, GIF or WebP image (read from its bytes, never its name or `Content-Type`; SVG refused) of at most 10,000,000 bytes, 12,000 pixels on a side and 100 megapixels. Quota: 1,000 a UTC day per installation, 2,000 per business (every app together; a dev store 100 and 200), 30 a minute per installation. Send an `Idempotency-Key`: a retry then answers the same image without uploading it again.\n\nNeeds the `write_products` scope (permission `products:create`).\n\nReference: docs/api/apps/images.md.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadImageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `IMAGE_FETCH_FAILED`, `IMAGE_TOO_LARGE`, `IMAGE_TYPE_NOT_ALLOWED`, `IMAGE_URL_NOT_ALLOWED`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "IMAGE_FETCH_FAILED",
+                            "IMAGE_TOO_LARGE",
+                            "IMAGE_TYPE_NOT_ALLOWED",
+                            "IMAGE_URL_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited: `BUSINESS_RATE_LIMITED`, `IMAGE_QUOTA_REACHED`, `RATE_LIMITED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 429
+                        },
+                        "code": {
+                          "enum": [
+                            "BUSINESS_RATE_LIMITED",
+                            "IMAGE_QUOTA_REACHED",
+                            "RATE_LIMITED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "products:create",
+        "x-tassyir-scope": "write_products"
+      }
+    },
     "/apps/oauth/token": {
       "post": {
         "operationId": "requestAccessToken",
@@ -14198,6 +14487,72 @@
           "length"
         ]
       },
+      "Image": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The image's id: its entry in the merchant's media library."
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https:\\/\\/cdn\\.tassyir\\.io\\/",
+            "description": "The image on the Tassyir CDN, in the business's variant. Put it as it is in a product's `images` or `variants[].image`, a collection's `image`, or an `<img>` of a description."
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/gif",
+              "image/webp"
+            ],
+            "description": "What the downloaded bytes are, read from the file itself."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "The size of the downloaded file in bytes."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12000,
+            "description": "Width in pixels, from the file header."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12000,
+            "description": "Height in pixels, from the file header."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "contentType",
+          "sizeBytes",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false,
+        "description": "An image uploaded to the Tassyir CDN (API 2026-10)."
+      },
+      "ImageResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Image"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "Installation": {
         "type": "object",
         "properties": {
@@ -16828,6 +17183,20 @@
           }
         },
         "additionalProperties": false
+      },
+      "UploadImageInput": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "maxLength": 2048,
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ]
       },
       "VariantOptionInput": {
         "type": "object",

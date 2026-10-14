@@ -301,7 +301,11 @@ const created = await admin.request('post', '/orders', { body }); // created.sta
   nothing). It retries 409 `IDEMPOTENCY_KEY_IN_USE`, and any other 503,
   network errors, 502 and 504 for requests that are safe to repeat (reads,
   and writes with a key). It retries 500 only for reads. A 401
-  `APP_TOKEN_INVALID` gets a new token and one more try.
+  `APP_TOKEN_INVALID` gets a new token and one more try. It never retries
+  429 `IMAGE_QUOTA_REACHED` (`POST /images`): a daily quota is not worth
+  retrying, so it throws at once and the error's `problem` says which quota
+  is full (`per`, `window`: `day` or `minute`, `limit`, `retryAfter`), for
+  the app to wait or stop.
 - **Pagination.** `admin.paginate(path, { query })` walks the keyset cursors
   and yields items.
 - **`fields`** takes a list of field names, typed per resource:
