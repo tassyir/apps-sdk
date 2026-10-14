@@ -46,6 +46,7 @@ const REQUIRED_FILES = [
   '.gitignore',
   '.npmrc',
   '.env.example',
+  'package-lock.json',
   'AGENTS.md',
   'CLAUDE.md',
   'README.md',

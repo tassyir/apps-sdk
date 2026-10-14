@@ -93,6 +93,41 @@ describe.each(available)('the $name template', ({ name }) => {
     }
   });
 
+  it('locks every dependency but @tassyir/* to the npm registry (npm run template:lock)', async () => {
+    const files = await filesOf(root);
+    const manifest = JSON.parse(files.get('package.json') ?? '{}') as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const lock = JSON.parse(files.get('package-lock.json') ?? '{}') as {
+      lockfileVersion: number;
+      packages: Record<
+        string,
+        {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+          resolved?: string;
+          integrity?: string;
+        }
+      >;
+    };
+    const unscoped = (group: Record<string, string>) =>
+      Object.fromEntries(
+        Object.entries(group).filter(([name]) => !name.startsWith('@tassyir/')),
+      );
+    expect(lock.lockfileVersion).toBe(3);
+    const { '': project, ...installed } = lock.packages;
+    expect(project?.dependencies).toEqual(unscoped(manifest.dependencies));
+    expect(project?.devDependencies).toEqual(
+      unscoped(manifest.devDependencies),
+    );
+    for (const [path, entry] of Object.entries(installed)) {
+      expect(path, path).not.toContain('@tassyir/');
+      expect(entry.resolved, path).toMatch(/^https:\/\/registry\.npmjs\.org\//);
+      expect(entry.integrity, path).toMatch(/^sha512-/);
+    }
+  });
+
   it('has a manifest the Tassyir API accepts', async () => {
     const result = validateManifest(
       parse((await filesOf(root)).get('tassyir.app.toml') ?? ''),

@@ -60,3 +60,23 @@ export function withTarballs(manifest, tarballs) {
     devDependencies: swap(manifest.devDependencies),
   };
 }
+
+/**
+ * The template's package.json without the @tassyir/* packages: what its
+ * package-lock.json locks (scripts/template-lock.mjs).
+ * @param {ProjectManifest} manifest
+ * @returns {ProjectManifest}
+ */
+export function withoutWorkspaceDependencies(manifest) {
+  /** @param {Record<string, string> | undefined} group */
+  const keep = (group) =>
+    group &&
+    Object.fromEntries(
+      Object.entries(group).filter(([name]) => !name.startsWith('@tassyir/')),
+    );
+  return {
+    ...manifest,
+    dependencies: keep(manifest.dependencies),
+    devDependencies: keep(manifest.devDependencies),
+  };
+}

@@ -78,7 +78,11 @@ generates a project with the packed CLI, installs it with this repo's
 tarballs, and runs its own validate, typecheck, test and build, then starts
 it. npm leaves `.gitignore` and `.npmrc` out of a tarball, and this repo's
 `.gitignore` ignores `.env.*`, so the template stores them as `gitignore`,
-`npmrc` and `env.example`, and the generator renames them.
+`npmrc` and `env.example`, and the generator renames them. A template's
+`package-lock.json` locks every dependency but the `@tassyir/*` packages (npm
+adds those when the project installs): after changing a template's
+`package.json`, run `npm run template:lock`, which resolves the tree no newer
+than 14 days ago.
 
 A package that imports another workspace package by name typechecks and
 tests against that package's source (`paths` in its tsconfig, the alias in

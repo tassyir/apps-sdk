@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { generatedDependencyProblems, withTarballs } from './template.mjs';
+import {
+  generatedDependencyProblems,
+  withTarballs,
+  withoutWorkspaceDependencies,
+} from './template.mjs';
 
 const VERSIONS = { '@tassyir/app': '0.1.0', '@tassyir/app-bridge': '0.1.2' };
 
@@ -56,5 +60,21 @@ describe('withTarballs', () => {
       },
     });
     expect(manifest.dependencies['@tassyir/app']).toBe('^0.1.0');
+  });
+});
+
+describe('withoutWorkspaceDependencies', () => {
+  it('drops the @tassyir/* packages, which the lockfile leaves to npm', () => {
+    expect(
+      withoutWorkspaceDependencies({
+        name: 'my-app',
+        dependencies: { '@tassyir/app': '*', hono: '4.13.11' },
+        devDependencies: { '@tassyir/app-bridge': '*', vitest: '4.1.11' },
+      }),
+    ).toEqual({
+      name: 'my-app',
+      dependencies: { hono: '4.13.11' },
+      devDependencies: { vitest: '4.1.11' },
+    });
   });
 });
