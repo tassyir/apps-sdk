@@ -99,8 +99,15 @@ event schema, validate a manifest or a storefront block, scaffold an app,
 trigger a test webhook, tail logs, seed a dev store and run the review checks.
 It comes with a Claude Code plugin.
 
-The developer docs, with Markdown mirrors, `llms.txt` and `llms-full.txt`,
-will be at [developers.tassyir.io](https://developers.tassyir.io) (AP-K1.9).
+## Developer guides
+
+[docs/guides](docs/guides/index.md) (AP-B1.17): one guide per topic, from
+getting started to webhooks, the Admin API's conventions, every resource, dev
+stores and compliance, plus an error reference generated from the OpenAPI
+document. Every code sample is typechecked against the packed packages. The
+developer docs site, with Markdown mirrors, `llms.txt` and `llms-full.txt`,
+will publish them at [developers.tassyir.io](https://developers.tassyir.io)
+(AP-K1.9).
 
 ## Contributing
 

@@ -60,6 +60,11 @@ jobs:
       - name: Packages as a consumer sees them (publint, attw, require and import)
         run: npm run check:packages
 
+      # Every TypeScript sample of docs/guides, typechecked against this
+      # commit's tarballs (the rest of the guides' checks run in npm test).
+      - name: Developer guides' code samples
+        run: npm run check:guides
+
       # The packed create-tassyir-app generates a project, which installs
       # (@tassyir/* from this commit's tarballs, the rest from npm), then
       # passes its own validate, typecheck, test and build, and starts.
