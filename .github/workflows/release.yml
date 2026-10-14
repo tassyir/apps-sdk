@@ -1,0 +1,193 @@
+name: Release
+
+# Keep this file's name: each package's npm trusted publisher names
+# `release.yml` and the `npm` environment (docs/RELEASING.md). Renamed, npm
+# refuses the publish.
+#
+# On every push to main, Changesets picks a mode:
+#   version  changesets are waiting: open or update the "Version Packages" PR.
+#   publish  a package's version is not on npm yet (that PR was merged):
+#            verify, pack, publish to npm through trusted publishing (OIDC, no
+#            token; npm adds provenance), push tags, create GitHub releases.
+#   none     nothing to publish.
+# Unless the mode is `version`, the last job mirrors each public @tassyir/*
+# package's current version from npm to GitHub Packages (D11), the same
+# tarball. It skips what GitHub Packages already has, so the next run (or
+# "Run workflow" on this workflow) repairs a mirror that failed.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  select-mode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+      publish-plan-artifact-id: ${{ steps.select-mode.outputs.publish-plan-artifact-id }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Select Changesets mode
+        id: select-mode
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  version:
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # commit the version changes
+      pull-requests: write # open the Version Packages PR
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Version packages and open or update the PR
+        uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  pack:
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # Every CI gate again, on the exact commit being released: a PR opened
+      # by GITHUB_TOKEN (the Version Packages PR) triggers no CI run.
+      - name: Verify (repo rules, lint, format, typecheck, tests, build, package checks, pack)
+        run: npm run verify
+
+      - name: Pack
+        id: pack
+        uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+
+  publish-npm:
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    permissions:
+      contents: write # push tags, create GitHub releases
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - name: Install npm 11
+        run: npm install -g npm@11.20.0 && npm --version
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      # npm sends a scoped package to its scope's registry. Nothing here may
+      # point @tassyir at GitHub Packages, or the "npm" publish would go there.
+      - name: Check that @tassyir publishes to npm
+        run: |
+          registry="$(npm config get registry)"
+          scope_registry="$(npm config get @tassyir:registry)"
+          echo "registry=$registry @tassyir:registry=$scope_registry"
+          test "$registry" = "https://registry.npmjs.org/"
+          case "$scope_registry" in
+            "" | undefined | null | https://registry.npmjs.org/) ;;
+            *) echo "::error::@tassyir:registry is $scope_registry"; exit 1 ;;
+          esac
+
+      - name: Publish to npm, tag, release
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
+          create-github-releases: true
+
+  mirror-github-packages:
+    needs: [select-mode, pack, publish-npm]
+    if: >-
+      always() &&
+      needs.select-mode.result == 'success' &&
+      needs.select-mode.outputs.mode != 'version' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write # publish to npm.pkg.github.com with GITHUB_TOKEN
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # The script uses Node built-ins and the npm CLI only: no install.
+      - name: Mirror npm releases to GitHub Packages
+        run: node scripts/mirror-to-github-packages.mjs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

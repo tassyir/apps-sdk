@@ -1,0 +1,46 @@
+{
+  "name": "tassyir-apps-sdk",
+  "private": true,
+  "description": "Monorepo of the Tassyir Apps SDK packages. Not published itself.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:repo": "node scripts/check-repo.mjs",
+    "check:packages": "node scripts/check-packages.mjs",
+    "pack:dry-run": "npm pack --dry-run --workspaces",
+    "verify": "npm run check:repo && npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run check:packages && npm run pack:dry-run",
+    "changeset": "changeset",
+    "mirror:github-packages": "node scripts/mirror-to-github-packages.mjs"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/cli": "3.0.3",
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.4",
+    "eslint": "10.11.0",
+    "globals": "17.12.0",
+    "prettier": "3.9.9",
+    "publint": "0.3.24",
+    "tsdown": "0.23.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "4.1.11"
+  }
+}
