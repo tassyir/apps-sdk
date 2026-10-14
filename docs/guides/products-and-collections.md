@@ -119,42 +119,21 @@ PNG, GIF or WebP, stores it on its CDN in the merchant's media library, and
 answers the URL the catalogue writes accept.
 
 ```ts
-/**
- * POST /images. This release of @tassyir/app does not type the route yet, so
- * call it with fetch and a token from the token manager. Reuse the same
- * idempotency key when you retry the same image.
- */
+/** One Idempotency-Key per image: a retry with the same key never uploads it twice. */
 export async function uploadImage(
-  installationId: string,
   sourceUrl: string,
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string,
 ): Promise<string> {
-  const accessToken = await tassyir.tokens.getAccessToken(installationId);
-  const response = await fetch('https://api.tassyir.io/apps/2026-10/images', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
-    },
-    body: JSON.stringify({ url: sourceUrl }),
+  const { data } = await admin.post('/images', {
+    body: { url: sourceUrl },
+    idempotencyKey,
   });
-  const body = (await response.json()) as {
-    data?: { id: string; url: string };
-    code?: string;
-    fix?: string;
-  };
-  if (!response.ok || body.data === undefined) {
-    throw new Error(
-      `${body.code ?? String(response.status)}: ${body.fix ?? ''}`,
-    );
-  }
-  return body.data.url; // https://cdn.tassyir.io/images/…
+  return data.url; // https://cdn.tassyir.io/images/…
 }
 
 const image = await uploadImage(
-  installationId,
   'https://images.example-shop.com/p/red-shoe.jpg',
+  'image:red-shoe:main',
 );
 await admin.post('/products', {
   body: {
@@ -203,8 +182,15 @@ image already on `https://cdn.tassyir.io/` needs no upload.
 
 A download that was attempted counts, whatever it found. Send an
 `Idempotency-Key` per image: a retry with the same key answers the same image
-without downloading or counting it again. A raw file upload (multipart) is
-not offered yet: host the file somewhere first.
+without downloading or counting it again.
+
+`@tassyir/app` never retries 429 `IMAGE_QUOTA_REACHED`, even with retries
+on: the error comes back at once, and its `problem` says which quota is full
+(`per`, `window`: `day` or `minute`, `limit`, `retryAfter`), so your app can
+wait out a minute window or stop for the day.
+
+A raw file upload (multipart) is not offered yet: host the file somewhere
+first.
 
 ## Create a product
 
