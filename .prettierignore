@@ -3,3 +3,4 @@ coverage/
 .pack/
 package-lock.json
 CHANGELOG.md
+packages/app/openapi/
