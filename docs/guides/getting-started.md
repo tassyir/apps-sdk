@@ -1,0 +1,179 @@
+---
+title: Getting started
+description: Create an app with npm create tassyir-app, run it behind an https tunnel, and install it on a dev store.
+order: 20
+---
+
+# Getting started
+
+You want an app running on your machine, installed on a test business, with
+its page open in the Tassyir dashboard. This guide gets you there in about
+fifteen minutes. The app you start from shows a business's pending orders,
+keeps one setting in Tassyir, and logs the webhooks it receives.
+
+## What you need
+
+- **Node 22.18 or later.** The starter runs its TypeScript directly on Node.
+- **A Tassyir account** at [app.tassyir.io](https://app.tassyir.io).
+- **A tunnel** that gives your machine a public **https** address on port
+  443, such as
+  [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)
+  or [ngrok](https://ngrok.com). Tassyir only calls https addresses on port
+  443 with a public hostname: never `localhost`, an IP address or another
+  port.
+
+A command-line tool, `tassyir`, is coming to do the console steps below from
+a terminal. Until it ships, this guide uses the developer console in the
+dashboard.
+
+## 1. Create the project
+
+```bash
+npm create tassyir-app@latest review-requests
+```
+
+It writes `review-requests/` and prints the next steps. The handle (the
+folder's name by default) is your app's permanent, unique name on Tassyir: it
+becomes the `handle` in `tassyir.app.toml`. Pass options after `--`:
+
+```bash
+npm create tassyir-app@latest review-requests -- --name "Review Requests" --json
+```
+
+The project is ready for coding agents: it has an `AGENTS.md`, a `CLAUDE.md`
+and a Claude Code skill that explains the Tassyir contract.
+
+Then install and set up:
+
+```bash
+cd review-requests
+npm install
+npm run setup
+```
+
+`npm run setup` writes `.env` from `.env.example`, with a new random key that
+encrypts the tokens the app stores.
+
+## 2. Give your server a public address
+
+Start the tunnel to port 3000 and leave it running:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Copy the https address it prints into `hosting.url` in `tassyir.app.toml`
+(no trailing `/`), then check the manifest with the Tassyir API's own
+validator:
+
+```bash
+npm run validate
+```
+
+A quick tunnel's address changes every time it starts, and every change is a
+new version of your manifest that the dev store must accept again. A tunnel
+that keeps its hostname (a named tunnel on your own domain, a reserved ngrok
+domain) saves that.
+
+## 3. Create the app in the developer console
+
+1. Open [app.tassyir.io/en/developers](https://app.tassyir.io/en/developers)
+   and turn on developer mode. It is free, on every plan.
+2. **Create an app** and choose "Your own server". Its handle must be exactly
+   the `handle` of `tassyir.app.toml`. It never changes afterwards.
+3. In the app's **Credentials** tab, create a client secret. It is shown
+   once: copy it now.
+4. Fill in `.env`:
+   - `TASSYIR_CLIENT_ID`: the client id (`app_…`), on the Credentials tab;
+   - `TASSYIR_CLIENT_SECRET`: the secret (`tsy_cs_…`);
+   - `TASSYIR_APP_ID`: the app's numeric id, the number at the end of the
+     app's address in the console (`/developers/apps/<id>`). Webhooks name
+     your app by this id; it is not the client id.
+5. In the **Versions** tab, upload `tassyir.app.toml`. Your first version is
+   current at once: custom apps are not reviewed.
+
+Never commit `.env`, and never put the secret in your page or a URL.
+
+## 4. Create a dev store
+
+In the console, open **Dev stores** and create one. A dev store is a business
+for testing: about 30 products, 200 orders in every state across the 58
+wilayas, and buyers with fake phone numbers. It costs nothing, and nothing it
+does reaches the outside world: carriers, ad pixels, WhatsApp and payments
+are switched off, and its storefront takes no orders. See
+[Dev stores](dev-stores.md).
+
+## 5. Start the server
+
+```bash
+npm run dev
+```
+
+It listens on `http://localhost:3000`, restarts when `src/` changes, and
+rebuilds the page. If a setting is missing, it names it and says where to
+find it.
+
+## 6. Install the app
+
+On the app's **Overview** tab in the console, copy the install link, open it,
+pick your dev store, and install. The install screen lists the scopes your
+manifest asks for, with your reason for each ([Scopes and
+consent](scopes-and-consent.md)).
+
+The dashboard then opens your page: the dev store's pending orders, and a
+setting saved in Tassyir through the dashboard's save bar. Your page asked App
+Bridge for an ID token, your server verified it and exchanged it for an
+access token, then called the Admin API ([Tokens](tokens.md)).
+
+## 7. Watch webhooks
+
+Create an order in the dev store's dashboard: your server logs
+`orders/created`. In the console, the **Installs** tab sends a test delivery
+to your endpoint, and the **Webhook deliveries** tab shows every attempt and
+replays one ([Webhooks](webhooks.md)).
+
+## Changing the manifest
+
+Whenever you change `tassyir.app.toml` (a scope, a webhook topic, the
+address):
+
+1. `npm run validate`;
+2. upload it in the **Versions** tab as a new version;
+3. accept the update on the dev store: **Apps**, **Installed apps**,
+   **Update**.
+
+An installation stays on the version it accepted until someone accepts the
+new one, and a version that adds a scope or a new address asks for consent
+again. See [Scopes and consent](scopes-and-consent.md#new-versions-and-updates).
+
+## Deploying
+
+Any host that runs Node 22.18 or later behind https on port 443 works:
+
+1. on the host, `npm ci`, `npm run build`, then `npm start`, with the
+   variables of `.env` set in the host's environment (never upload `.env`);
+2. set `hosting.url` to the host's address, upload the manifest, and accept
+   the update.
+
+The starter keeps its tokens in one file on disk, so run one process with a
+persistent disk. To run several, move the tokens to a shared database and
+add a refresh lock ([Tokens](tokens.md#refresh-safely)).
+
+## When something fails
+
+| You see                                                   | Do                                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| The page says "Open this page from the Tassyir dashboard" | It runs outside the dashboard's frame: open it from **Apps** in the dashboard.                       |
+| The dashboard says the app did not load                   | Is the tunnel up, and is its address the manifest's `hosting.url`, uploaded and accepted?            |
+| `ID_TOKEN_UNAVAILABLE` in the browser console             | Tassyir cannot sign ID tokens right now; nothing in your app can fix it. Try again later.            |
+| `invalid_client` from the token endpoint                  | Check the client id and secret. A revoked secret, or one rotated more than 24 hours ago, is refused. |
+| 403 `PERMISSION_DENIED`                                   | Add the scope its `fix` names to `[access]`, upload, and accept the update.                          |
+| Webhooks refused with `WEBHOOK_WRONG_APP`                 | `TASSYIR_APP_ID` must be the numeric app id, not the client id.                                      |
+| Webhooks refused with `WEBHOOK_UNKNOWN_INSTALLATION`      | Open the app's page once, or wait for `app/installed`: Tassyir delivers the refused event again.     |
+
+## Next
+
+- [The manifest](manifest.md): every field of `tassyir.app.toml`.
+- [Admin API conventions](admin-api.md): lists, errors, retries and rate
+  limits, before you call more of the API.
+- [Webhooks](webhooks.md): the topics, and handling them safely.

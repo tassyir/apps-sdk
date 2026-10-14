@@ -1,0 +1,209 @@
+---
+title: The manifest
+description: Describe your app in tassyir.app.toml, validate it with the API's own validator, and upload it as a version.
+order: 30
+---
+
+# The manifest
+
+Your app is described by one file, `tassyir.app.toml`: its name and handle,
+the scopes it asks for and why, where it runs, its page in the dashboard, the
+webhooks it receives and the values it keeps in Tassyir. You upload the file
+as a **version**; merchants consent to a version, and their installation
+stays on it until they accept a newer one.
+
+## An example
+
+An app on your own server with a page in the dashboard:
+
+```toml
+name        = "Review Requests"
+handle      = "review-requests"
+api_version = "2026-10"
+
+[access]
+scopes          = ["read_orders", "read_products"]
+optional_scopes = ["read_customer_contact"]
+
+[access.scope_reasons]
+read_orders           = "Find delivered orders to ask for a review"
+read_products         = "Show the product in the review request"
+read_customer_contact = "Send the review request to the buyer's phone"
+
+[hosting]
+mode = "external"
+url  = "https://reviews.example.com"
+
+[admin]
+page = "/"
+
+[[webhooks]]
+topics = ["orders/delivered", "app/uninstalled"]
+uri    = "/webhooks"
+
+[[webhooks]]
+topics = ["customers/data_request", "customers/redact", "business/redact"]
+uri    = "/webhooks/privacy"
+
+[[data.definitions]]
+owner      = "product"
+key        = "rating"
+type       = "json"
+visibility = "app"
+```
+
+A headless app (no page) gets its first tokens from an install code sent to
+its `auth.callback_url`, and may send a webhook to another host:
+
+```toml
+name        = "Sheets Sync"
+handle      = "sheets-sync"
+api_version = "2026-10"
+
+[access]
+scopes        = ["write_orders", "read_products"]
+scope_reasons = { write_orders = "Create orders from the rows of your sheet", read_products = "Match sheet rows to your products" }
+
+[hosting]
+mode = "external"
+url  = "https://sync.example.com/tassyir"
+
+[auth]
+callback_url = "https://sync.example.com/tassyir/callback"
+
+[[webhooks]]
+topics = ["orders/created", "products/updated"]
+uri    = "/hooks"
+
+[[webhooks]]
+topics = ["customers/data_request", "customers/redact", "business/redact"]
+uri    = "https://privacy.example.com/tassyir"
+```
+
+## Fields
+
+| Field                    | Rule                                                                                                                                                                                                                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                   | Required. 1 to 50 characters on one line: no control, line-break or invisible characters (bidi controls, zero-width), no spaces around it. Arabic and English listing names are set in the console.                                                                                                             |
+| `handle`                 | Required. 3 to 40 lowercase letters and digits, in runs joined by single hyphens. Unique on Tassyir, never changes, and must equal the handle of the app in the console. Some names are reserved (`www`, `api`, `tassyir`, …).                                                                                  |
+| `api_version`            | Required. `2026-10`.                                                                                                                                                                                                                                                                                            |
+| `access.scopes`          | The scopes the app needs ([Scopes and consent](scopes-and-consent.md)). Each once.                                                                                                                                                                                                                              |
+| `access.optional_scopes` | Scopes the merchant may tick. Never also in `scopes`, and never one a required scope already implies.                                                                                                                                                                                                           |
+| `access.scope_reasons`   | One sentence per requested scope, required and optional, shown on the install screen: 10 to 200 characters, the `name` text rules. No reason for a scope you do not request.                                                                                                                                    |
+| `hosting.mode`           | Required. `external`: the app runs on your server. `tassyir` (Tassyir Hosting) is refused until hosting opens.                                                                                                                                                                                                  |
+| `hosting.url`            | Required for `external`. `https://host` or `https://host/path`, at most 512 characters: no port (443 only), no user or password, no query, fragment or trailing `/`. The host is a public lowercase hostname: no IP address, no private name (`localhost`, `.local`, `.test`, …), nothing on Tassyir's domains. |
+| `auth.callback_url`      | Optional, `external` only. Where a headless app receives its install code ([Tokens](tokens.md#headless-apps-the-install-code)). The `hosting.url` rules, but a trailing `/` is allowed.                                                                                                                         |
+| `admin.page`             | Optional. Your page in the dashboard: a path on `hosting.url`, starting with `/` (not `//`), at most 256 characters, no query, fragment, backslash, space, `.` / `..` / empty segment or encoded slash. Omit it for a headless app.                                                                             |
+| `webhooks`               | At most 10 entries, each `topics` (one or more) and `uri`. A topic is subscribed once in the whole manifest, and needs the scope that reads its resource ([Webhooks](webhooks.md#topics)). `uri` is a path on `hosting.url` (the `admin.page` rules), or an absolute https URL (the `hosting.url` rules).       |
+| `data.definitions`       | At most 50 keys of [app data](app-data.md): `owner` (`business`, `store`, `product`, `order`, `customer`), `key` (`[a-z][a-z0-9_]{0,63}`, unique per owner), `type` (`string`, `number`, `integer`, `boolean`, `json`), `visibility` (`app`, `merchant`, `storefront`).                                         |
+| `storefront.blocks`      | Part of the format, refused until storefront blocks open.                                                                                                                                                                                                                                                       |
+
+- **Every table is strict:** a key that is not a manifest field is an error,
+  and the error's `fix` names the field you probably meant.
+- **Size:** at most 64 KB once parsed into JSON. Lengths count UTF-16 code
+  units.
+- **Paths are joined to `hosting.url`**, its own path kept: with
+  `url = "https://sync.example.com/tassyir"`, `uri = "/hooks"` is
+  `https://sync.example.com/tassyir/hooks`.
+- **Every host your data reaches** (`hosting.url`, an absolute webhook `uri`,
+  `auth.callback_url`) is shown to the merchant on the install screen.
+
+## Validate before you upload
+
+`@tassyir/app-manifest` is the validator the Tassyir API runs on every upload,
+so a manifest it accepts is one the API accepts, with the same errors in the
+same order. Parse the TOML with any TOML 1.0 parser, then validate:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { parse } from 'smol-toml';
+import { validateManifest } from '@tassyir/app-manifest';
+
+const result = validateManifest(
+  parse(readFileSync('tassyir.app.toml', 'utf8')),
+);
+
+if (!result.ok) {
+  for (const error of result.errors) {
+    console.error(
+      `${error.code} at ${error.path || '(document)'}: ${error.fix}`,
+    );
+  }
+  process.exit(1);
+}
+
+console.log(result.manifest.access.scopes); // in catalogue order
+```
+
+A project made with `create-tassyir-app` runs this as `npm run validate`
+(`-- --json` for tools).
+
+It returns every error at once, never throws, and reads no file, clock or
+network. Each error has:
+
+| Field     | Meaning                                                                          |
+| --------- | -------------------------------------------------------------------------------- |
+| `code`    | Stable: `MANIFEST_TOPIC_SCOPE_MISSING`, `MANIFEST_URL_INVALID`, … Never renamed. |
+| `path`    | The field in the file: `webhooks[0].topics[1]`, `""` for the whole document.     |
+| `message` | What is wrong, quoting at most 60 characters of your input.                      |
+| `fix`     | One sentence saying what to change.                                              |
+
+```json
+{
+  "code": "MANIFEST_TOPIC_SCOPE_MISSING",
+  "path": "webhooks[0].topics[1]",
+  "message": "\"products/updated\" carries data that needs the \"read_products\" scope, which the manifest does not request.",
+  "fix": "Add \"read_products\" to `access.scopes` (or `access.optional_scopes`), or remove \"products/updated\"."
+}
+```
+
+The same document always gives the same errors in the same order, whatever
+the order of its keys: one per field, at most 50, then
+`MANIFEST_TOO_MANY_ERRORS`. The package README lists every
+[error code](https://github.com/tassyir/apps-sdk/tree/main/packages/app-manifest#what-you-get-back).
+
+To check one field as it is typed (a handle in a form, say), use
+`validateManifestField('handle', value)`.
+
+### In your editor
+
+The JSON Schema of the manifest ships with the package. In an editor that
+reads schema directives (Taplo, Even Better TOML), start the file with:
+
+```toml
+#:schema ./node_modules/@tassyir/app-manifest/schemas/manifest.2026-10.schema.json
+```
+
+The schema states the shape; the validator also checks the rules across
+fields and the exact URL and hostname rules, so a file the schema accepts can
+still be refused.
+
+## Upload a version
+
+In the developer console, open your app's **Versions** tab and upload the
+file. The console sends the parsed manifest to the API, which validates it
+again and:
+
+- refuses it with every validator error (`APP_MANIFEST_INVALID`, each error in
+  the shape above);
+- refuses a `handle` other than the app's (`APP_MANIFEST_HANDLE_MISMATCH`), a
+  manifest identical to the latest version (`APP_VERSION_UNCHANGED`), and
+  `hosting.mode = "tassyir"` while hosting is closed
+  (`APP_HOSTING_NOT_AVAILABLE`);
+- otherwise numbers it (`1`, `2`, …) and makes it current at once. Custom
+  apps are not reviewed: they install only on your own businesses and the one
+  business you name.
+
+Limits per developer account: 50 apps (apps are never deleted), 30 version
+uploads an hour, and an upload of at most 128 KB.
+
+**Installations do not move by themselves.** A new version is offered to each
+installation as an update, and applies only when a member of that business
+accepts it. A version that adds a scope or a new host asks for consent again.
+See [Scopes and consent](scopes-and-consent.md#new-versions-and-updates).
+
+## Versions of the format
+
+The manifest's shape belongs to an API version. Within a version, only new
+optional fields can be added; a release of `@tassyir/app-manifest` ships them,
+and an older release refuses them until you update it.

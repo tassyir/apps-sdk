@@ -25,9 +25,11 @@
     "check:repo": "node scripts/check-repo.mjs",
     "check:packages": "node scripts/check-packages.mjs",
     "check:template": "node scripts/check-template.mjs",
+    "check:guides": "node scripts/check-guides.mjs",
+    "guides:errors": "node scripts/guides-errors.mjs",
     "template:lock": "node scripts/template-lock.mjs",
     "pack:dry-run": "npm pack --dry-run --workspaces",
-    "verify": "npm run check:repo && npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run check:packages && npm run check:template && npm run pack:dry-run",
+    "verify": "npm run check:repo && npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run check:packages && npm run check:guides && npm run check:template && npm run pack:dry-run",
     "changeset": "changeset",
     "mirror:github-packages": "node scripts/mirror-to-github-packages.mjs"
   },
