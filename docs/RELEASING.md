@@ -134,9 +134,9 @@ npx changeset publish-plan         # what npm would receive now
 node scripts/mirror-to-github-packages.mjs --dry-run --from-workspace --include-private
 ```
 
-CI runs the last two on every pull request. To rehearse a whole first release
-before AP-K1.2, work in a scratch copy of the repo (never in your checkout):
-make the placeholder public as `@tassyir/app-manifest`, then run
+CI runs the last two on every pull request. To rehearse a whole release, work
+in a scratch copy of the repo (never in your checkout) with a pending
+changeset, then run
 `npx changeset version`, `npx changeset publish-plan --output plan.json`,
 `npx changeset pack --from-publish-plan plan.json --out-dir pack`, and
 `npm publish pack/packages/*.tgz --dry-run --registry=https://registry.npmjs.org/ --@tassyir:registry=https://registry.npmjs.org/`.
