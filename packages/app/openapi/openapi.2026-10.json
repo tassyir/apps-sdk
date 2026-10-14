@@ -4,7 +4,7 @@
     "title": "Tassyir Admin API",
     "version": "2026-10",
     "summary": "The API installed apps call to read and change a Tassyir business, and the webhooks they receive.",
-    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Generated from the code by `npm run apps:openapi`; the developer reference is docs/api/apps/.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence and a `requestId`. Each operation lists every code it can answer. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
+    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Generated from the code by `npm run apps:openapi`; the developer reference is docs/api/apps/.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence and a `requestId`. Each operation lists every code it can answer. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`. All the apps of one business also share a ceiling, by default 20 requests a second: 429 `BUSINESS_RATE_LIMITED` with `Retry-After`. An API process that is already running its maximum of app requests answers 503 `API_BUSY` with `Retry-After`, having done nothing.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
   },
   "servers": [
     {
@@ -764,7 +764,7 @@
             }
           },
           "429": {
-            "description": "Rate limited: `DEV_STORE_ORDER_LIMIT_REACHED`, `RATE_LIMITED`.",
+            "description": "Rate limited: `BUSINESS_RATE_LIMITED`, `DEV_STORE_ORDER_LIMIT_REACHED`, `RATE_LIMITED`.",
             "headers": {
               "RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimit-Limit"
@@ -796,6 +796,7 @@
                         },
                         "code": {
                           "enum": [
+                            "BUSINESS_RATE_LIMITED",
                             "DEV_STORE_ORDER_LIMIT_REACHED",
                             "RATE_LIMITED"
                           ]
@@ -11789,7 +11790,7 @@
           "Webhooks"
         ],
         "summary": "business/redact",
-        "description": "Delete what you hold about this business (48 h after uninstall).\n\nA compliance topic: every installation that subscribes receives it, whatever its scopes.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "Delete what you hold about this business: the app was uninstalled 48 h ago and Tassyir has deleted its app data.\n\nA compliance topic: sent to that uninstalled installation only, when its version subscribes; never to another app.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
         "security": [],
         "parameters": [
           {
@@ -11915,7 +11916,7 @@
     },
     "headers": {
       "RateLimit-Limit": {
-        "description": "The installation's request bucket (default 40). Absent when a request is refused before it reaches a route (an unparsable body).",
+        "description": "The installation's request bucket (default 40); on a 429 `BUSINESS_RATE_LIMITED`, the business's ceiling (default 20 a second). Absent when a request is refused before the rate limits run (an unparsable body, a 503 `API_BUSY`).",
         "schema": {
           "type": "integer",
           "minimum": 1
@@ -12092,7 +12093,7 @@
         }
       },
       "RateLimited": {
-        "description": "Rate limited: `RATE_LIMITED`.",
+        "description": "Rate limited: `BUSINESS_RATE_LIMITED`, `RATE_LIMITED`.",
         "headers": {
           "RateLimit-Limit": {
             "$ref": "#/components/headers/RateLimit-Limit"
@@ -12124,6 +12125,7 @@
                     },
                     "code": {
                       "enum": [
+                        "BUSINESS_RATE_LIMITED",
                         "RATE_LIMITED"
                       ]
                     }
@@ -12175,7 +12177,7 @@
         }
       },
       "Unavailable": {
-        "description": "Unavailable: `SERVICE_UNAVAILABLE`.",
+        "description": "Unavailable: `API_BUSY`, `SERVICE_UNAVAILABLE`.",
         "headers": {
           "RateLimit-Limit": {
             "$ref": "#/components/headers/RateLimit-Limit"
@@ -12207,6 +12209,7 @@
                     },
                     "code": {
                       "enum": [
+                        "API_BUSY",
                         "SERVICE_UNAVAILABLE"
                       ]
                     }
@@ -12218,7 +12221,7 @@
         }
       },
       "UnavailableForWrite": {
-        "description": "Unavailable: `IDEMPOTENCY_UNAVAILABLE`, `SERVICE_UNAVAILABLE`.",
+        "description": "Unavailable: `API_BUSY`, `IDEMPOTENCY_UNAVAILABLE`, `SERVICE_UNAVAILABLE`.",
         "headers": {
           "RateLimit-Limit": {
             "$ref": "#/components/headers/RateLimit-Limit"
@@ -12250,6 +12253,7 @@
                     },
                     "code": {
                       "enum": [
+                        "API_BUSY",
                         "IDEMPOTENCY_UNAVAILABLE",
                         "SERVICE_UNAVAILABLE"
                       ]
@@ -17356,7 +17360,7 @@
         ],
         "additionalProperties": false,
         "title": "business/redact (2026-10)",
-        "description": "Delete what you hold about this business (48 h after uninstall)."
+        "description": "Delete what you hold about this business: the app was uninstalled 48 h ago and Tassyir has deleted its app data."
       },
       "WebhookCustomersDataRequest": {
         "type": "object",

@@ -305,6 +305,71 @@ describe('AdminClient retries', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('waits Retry-After on 429 BUSINESS_RATE_LIMITED, like RATE_LIMITED, writes included', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { admin, calls } = client(
+      (_url, _init, index) =>
+        index === 0
+          ? problem(
+              429,
+              'BUSINESS_RATE_LIMITED',
+              { limit: 20, retryAfter: 1 },
+              { 'retry-after': '1' },
+            )
+          : jsonResponse(200, { data: ORDER }),
+      { retries: 3 },
+    );
+    const result = admin.post('/orders/{id}/confirm', {
+      path: { id: '1' },
+      idempotencyKey: false,
+    });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toMatchObject({ data: { id: ORDER.id } });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('retries 503 API_BUSY after Retry-After even for a write without a key (nothing was done)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { admin, calls } = client(
+      (_url, _init, index) =>
+        index === 0
+          ? problem(
+              503,
+              'API_BUSY',
+              { limit: 24, retryAfter: 1 },
+              { 'retry-after': '1' },
+            )
+          : jsonResponse(200, { data: ORDER }),
+      { retries: 3 },
+    );
+    const result = admin.post('/orders/{id}/confirm', {
+      path: { id: '1' },
+      idempotencyKey: false,
+    });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toMatchObject({ data: { id: ORDER.id } });
+    expect(calls).toHaveLength(2);
+    expect(headerOf(calls[0], 'idempotency-key')).toBeUndefined();
+  });
+
+  it('never retries another 503 for a write without a key', async () => {
+    const { admin, calls } = client(
+      () => problem(503, 'SERVICE_UNAVAILABLE', {}, { 'retry-after': '1' }),
+      { retries: 3 },
+    );
+    await expect(
+      admin.post('/orders/{id}/confirm', {
+        path: { id: '1' },
+        idempotencyKey: false,
+      }),
+    ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    expect(calls).toHaveLength(1);
+  });
+
   it('gives up when Retry-After is longer than maxDelayMs', async () => {
     const { admin, calls } = client(
       () => problem(503, 'SERVICE_UNAVAILABLE', {}, { 'retry-after': '120' }),
@@ -426,6 +491,13 @@ describe('AdminClient types (checked by tsc)', () => {
     >();
     expectTypeOf<'RATE_LIMITED'>().toExtend<
       AdminApiErrorCode<'get', '/orders'>
+    >();
+    // AP-B1.11: the business ceiling and the in-flight cap, on every operation.
+    expectTypeOf<'BUSINESS_RATE_LIMITED' | 'API_BUSY'>().toExtend<
+      AdminApiErrorCode<'post', '/orders/{id}/confirm'>
+    >();
+    expectTypeOf<'BUSINESS_RATE_LIMITED' | 'API_BUSY'>().toExtend<
+      AdminApiErrorCode<'get', '/business'>
     >();
 
     // Compiled, never run.

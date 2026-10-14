@@ -295,8 +295,11 @@ const created = await admin.request('post', '/orders', { body }); // created.sta
 - **Rate limits.** Every answer's `RateLimit-*` headers reach `onResponse` and
   `ApiResponse.rateLimit`.
 - **Retries** are off by default; turn them on with `retries: 3`. When on, the
-  SDK retries 429 and 503 after `Retry-After`, 409 `IDEMPOTENCY_KEY_IN_USE`,
-  and network errors, 502 and 504 for requests that are safe to repeat (reads,
+  SDK waits `Retry-After` and retries, writes included, 429 `RATE_LIMITED`
+  (the installation's bucket), 429 `BUSINESS_RATE_LIMITED` (the ceiling all
+  the business's apps share) and 503 `API_BUSY` (the API was too busy and did
+  nothing). It retries 409 `IDEMPOTENCY_KEY_IN_USE`, and any other 503,
+  network errors, 502 and 504 for requests that are safe to repeat (reads,
   and writes with a key). It retries 500 only for reads. A 401
   `APP_TOKEN_INVALID` gets a new token and one more try.
 - **Pagination.** `admin.paginate(path, { query })` walks the keyset cursors

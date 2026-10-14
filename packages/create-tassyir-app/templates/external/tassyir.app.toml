@@ -1,0 +1,50 @@
+#:schema ./node_modules/@tassyir/app-manifest/schemas/manifest.2026-10.schema.json
+#
+# The app's manifest (Tassyir manifest v1, API version 2026-10). Check it with
+# `npm run validate`, then upload it in the developer console (your app,
+# Versions, Upload version) after every change. An installation stays on the
+# version it consented to until a member of the business accepts the update.
+
+name        = "My Tassyir App"
+handle      = "my-tassyir-app"   # permanent and unique on Tassyir: the app's handle in the console
+api_version = "2026-10"
+
+[access]
+# What the app may read and change. A scope added later needs the merchant's
+# consent again.
+scopes = ["read_orders"]
+
+[access.scope_reasons]
+# One sentence per requested scope, shown on the install screen.
+read_orders = "Show the store's pending orders on the app's page"
+
+[hosting]
+mode = "external"
+# Your server's public address: https, port 443, no trailing slash. While
+# developing, a tunnel to http://localhost:3000 (see README.md).
+url = "https://my-tassyir-app.example.com"
+
+[admin]
+# The embedded page, on the server above (src/page).
+page = "/"
+
+[[webhooks]]
+# Signed deliveries to POST https://<url>/webhooks (src/webhooks.ts). Each
+# topic needs the scope that reads its resource (orders/* need read_orders).
+topics = [
+  "app/installed",
+  "app/uninstalled",
+  "app/scopes_updated",
+  "orders/created",
+  "customers/data_request",
+  "customers/redact",
+  "business/redact",
+]
+uri = "/webhooks"
+
+[[data.definitions]]
+# Values the app keeps in Tassyir (app data): its settings, per business.
+owner      = "business"
+key        = "settings"
+type       = "json"
+visibility = "app"

@@ -60,6 +60,12 @@ jobs:
       - name: Packages as a consumer sees them (publint, attw, require and import)
         run: npm run check:packages
 
+      # The packed create-tassyir-app generates a project, which installs
+      # (@tassyir/* from this commit's tarballs, the rest from npm), then
+      # passes its own validate, typecheck, test and build, and starts.
+      - name: Generated project (create-tassyir-app)
+        run: npm run check:template
+
       - name: npm pack --dry-run of every package
         run: npm run pack:dry-run
 

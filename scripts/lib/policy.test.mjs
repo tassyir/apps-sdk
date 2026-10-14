@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   PLANNED_PUBLIC_PACKAGES,
   REPOSITORY_URL,
+  STARTER_PACKAGE,
+  changesetReleases,
   devDependencyProblems,
   mirrorsToGitHubPackages,
   npmrcProblems,
   publicPackageProblems,
+  starterChangesetProblems,
 } from './policy.mjs';
 
 /** @returns {import('./policy.mjs').PackageJson} */
@@ -171,5 +174,58 @@ describe('npmrcProblems', () => {
     expect(npmrcProblems(`save-exact=true\n${line}\n`)).toEqual([
       expect.stringMatching(/^\.npmrc:2:/),
     ]);
+  });
+});
+
+describe('changesetReleases', () => {
+  it('reads the front matter, quoted or not', () => {
+    expect(
+      changesetReleases(
+        '---\n\'@tassyir/app\': minor\n"@tassyir/ui": patch\ncreate-tassyir-app: major\n---\n\nText: minor\n',
+      ),
+    ).toEqual({
+      '@tassyir/app': 'minor',
+      '@tassyir/ui': 'patch',
+      'create-tassyir-app': 'major',
+    });
+    expect(changesetReleases('no front matter')).toEqual({});
+  });
+});
+
+describe('starterChangesetProblems', () => {
+  const STARTER = ['@tassyir/app', '@tassyir/app-bridge'];
+
+  it('wants a create-tassyir-app changeset beside a minor or major of a package its template names', () => {
+    expect(
+      starterChangesetProblems(
+        [{ file: 'a.md', releases: { '@tassyir/app': 'minor' } }],
+        STARTER,
+      ),
+    ).toEqual([
+      /** @type {string} */ (
+        expect.stringContaining('@tassyir/app (minor) leaves the version range')
+      ),
+    ]);
+    expect(
+      starterChangesetProblems(
+        [
+          { file: 'a.md', releases: { '@tassyir/app': 'minor' } },
+          { file: 'b.md', releases: { [STARTER_PACKAGE]: 'patch' } },
+        ],
+        STARTER,
+      ),
+    ).toEqual([]);
+  });
+
+  it('lets patches and other packages through', () => {
+    expect(
+      starterChangesetProblems(
+        [
+          { file: 'a.md', releases: { '@tassyir/app': 'patch' } },
+          { file: 'b.md', releases: { '@tassyir/ui': 'minor' } },
+        ],
+        STARTER,
+      ),
+    ).toEqual([]);
   });
 });

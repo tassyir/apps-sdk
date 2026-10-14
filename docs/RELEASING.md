@@ -114,6 +114,11 @@ A name on public npm is permanent.
   npm trust github @tassyir/app-manifest --repo tassyir/apps-sdk --file release.yml --env npm --allow-publish --registry=https://registry.npmjs.org/
   ```
 
+  For an unscoped name (`create-tassyir-app`, `tassyir`), use the same steps
+  with that name, `"directory": "packages/<folder>"`, and only
+  `--registry=https://registry.npmjs.org/` on the `npm publish`, `npm deprecate`
+  and `npm trust` commands.
+
 - [ ] _Settings → Publishing access_: **Require two-factor authentication and
       disallow tokens**.
 - [ ] Within 2 days, merge the Version Packages PR. The first CI publish

@@ -1,0 +1,54 @@
+{
+  "name": "create-tassyir-app",
+  "version": "0.0.0",
+  "description": "Start a Tassyir app: npm create tassyir-app@latest. A Node server with an embedded page, webhooks and the Admin API, ready for AI coding agents (AGENTS.md, CLAUDE.md, a Claude Code skill).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git",
+    "directory": "packages/create-tassyir-app"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/create-tassyir-app#readme",
+  "keywords": [
+    "tassyir",
+    "tassyir-app",
+    "create",
+    "starter",
+    "template",
+    "scaffold"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "create-tassyir-app": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tassyir/app-manifest": "^0.0.0",
+    "smol-toml": "^1.9.0"
+  }
+}
