@@ -62,10 +62,12 @@ export interface AdminClientOptions {
   apiOrigin?: string;
   fetch?: FetchLike;
   /**
-   * Retries, off by default. `true` or a number of retries turns them on:
-   * 429 and 503 after `Retry-After`, 409 `IDEMPOTENCY_KEY_IN_USE`, network
-   * errors, 502 and 504 for requests safe to repeat (reads, and writes with
-   * an `Idempotency-Key`), 500 for reads only.
+   * Retries, off by default. `true` or a number of retries turns them on.
+   * After `Retry-After`, writes included: 429 `RATE_LIMITED` and
+   * `BUSINESS_RATE_LIMITED`, 503 `API_BUSY` and `IDEMPOTENCY_UNAVAILABLE`
+   * (nothing was done). For requests safe to repeat (reads, and writes with
+   * an `Idempotency-Key`): any other 503, network errors, 502 and 504. Also
+   * 409 `IDEMPOTENCY_KEY_IN_USE`, and 500 for reads only.
    */
   retries?: boolean | number | RetryOptions;
   /** Per attempt. Default 30 seconds. */
@@ -485,7 +487,11 @@ export class AdminClient {
     if (attempt >= this.#retries.maxRetries) return undefined;
     const { status, code } = error;
     const retryable =
+      // RATE_LIMITED (the installation's bucket) and BUSINESS_RATE_LIMITED
+      // (the ceiling the business's apps share) refuse before the route runs.
       status === 429 ||
+      // API_BUSY (the process's in-flight cap) and IDEMPOTENCY_UNAVAILABLE
+      // refuse before the write is attempted: safe to repeat even without a key.
       (status === 503 &&
         (safeToRepeat ||
           code === 'IDEMPOTENCY_UNAVAILABLE' ||
