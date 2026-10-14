@@ -29,14 +29,20 @@ export async function receiveWebhook(
   request: Request,
   deps: WebhookDeps,
 ): Promise<Response> {
+  // Read here, trusted only inside the installation check below, which the
+  // SDK runs once the signature (which covers webhook-id) has verified.
+  const webhookId = request.headers.get('webhook-id') ?? '';
   let delivery: VerifiedWebhook;
   try {
     delivery = await deps.tassyir.verifyWebhook(request, {
       // An installation is ours once app/installed or a page visit recorded
       // it. A delivery that overtakes app/installed is refused (400) and
-      // Tassyir delivers it again later.
+      // Tassyir delivers it again later. A delivery already handled passes,
+      // so it is acknowledged below: business/redact deletes the
+      // installation, and its redelivery must not be refused for 3 days.
       installationId: (installationId, event) =>
         event.type === 'app/installed' ||
+        deps.store.hasHandled(webhookId) ||
         deps.store.installation(installationId) !== undefined,
       // "Send test" in the developer console: verified, then acknowledged.
       testDeliveries: 'accept',

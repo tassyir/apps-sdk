@@ -122,14 +122,20 @@ describe('POST /webhooks', () => {
       server.store.installation(INSTALLATION_ID)?.uninstalledAt,
     ).not.toBeNull();
 
+    const redact = envelope('business/redact', {
+      business: { id: BUSINESS_ID },
+    });
     expect(
-      await send(
-        delivery(
-          server.keys,
-          envelope('business/redact', { business: { id: BUSINESS_ID } }),
-        ),
-      ),
+      await send(delivery(server.keys, redact, { id: 'dlv_redact' })),
     ).toBe(200);
     expect(server.store.installation(INSTALLATION_ID)).toBeUndefined();
+
+    // Delivered again (at least once): acknowledged although the
+    // installation is gone, so Tassyir stops retrying it.
+    expect(
+      await send(delivery(server.keys, redact, { id: 'dlv_redact' })),
+    ).toBe(200);
+    // Any other delivery for the forgotten installation is still refused.
+    expect(await send(delivery(server.keys, redact))).toBe(400);
   });
 });

@@ -220,7 +220,7 @@ async function renderTemplate(
       PLACEHOLDERS,
       (literal) =>
         literal === PLACEHOLDER.url
-          ? values.url
+          ? escape(values.url)
           : literal === PLACEHOLDER.name
             ? escape(values.name)
             : values.handle,
@@ -229,6 +229,19 @@ async function renderTemplate(
     files.set(target, text);
   }
   return files;
+}
+
+/** The inside of a TOML basic string: backslash, quote and controls escaped. */
+function tomlString(value: string): string {
+  let escaped = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (character === '\\' || character === '"') escaped += `\\${character}`;
+    else if (code < 0x20 || code === 0x7f) {
+      escaped += `\\u${code.toString(16).padStart(4, '0')}`;
+    } else escaped += character;
+  }
+  return escaped;
 }
 
 async function listFiles(directory: string): Promise<string[]> {
@@ -241,10 +254,13 @@ async function listFiles(directory: string): Promise<string[]> {
   return found;
 }
 
-/** The display name lands inside a TOML or JSON string, or in HTML. */
+/**
+ * The display name and the URL land inside a TOML or JSON string, or in
+ * HTML. They are escaped so any input stays one string value, which the
+ * manifest's validator then judges (a quote never ends the TOML string).
+ */
 function escaperFor(path: string): (value: string) => string {
-  if (path.endsWith('.toml'))
-    return (value) => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  if (path.endsWith('.toml')) return tomlString;
   if (path.endsWith('.json'))
     return (value) => JSON.stringify(value).slice(1, -1);
   if (path.endsWith('.html')) {

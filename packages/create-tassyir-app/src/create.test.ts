@@ -204,6 +204,19 @@ describe('createProject', () => {
     );
     expect(http).toMatchObject({ code: 'MANIFEST_URL_INVALID', path: '--url' });
 
+    // A quote cannot end the TOML string: the validator judges the whole input.
+    const quoted = await refusal(
+      createProject({
+        directory: join(scratch, 'q'),
+        handle: 'my-app',
+        url: 'https://example.org/"\n[auth]\ncallback_url = "https://example.net',
+      }),
+    );
+    expect(quoted).toMatchObject({
+      code: 'MANIFEST_URL_INVALID',
+      path: '--url',
+    });
+
     const local = await refusal(
       createProject({
         directory: join(scratch, 'b'),
