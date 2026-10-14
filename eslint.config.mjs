@@ -30,8 +30,47 @@ export default defineConfig(
   },
   {
     // Repo scripts run on Node and may print.
-    files: ['scripts/**/*.mjs', '*.config.*', 'packages/*/tsdown.config.ts'],
+    files: [
+      'scripts/**/*.mjs',
+      'packages/*/scripts/**/*.mjs',
+      '*.config.*',
+      'packages/*/tsdown.config.ts',
+    ],
     languageOptions: { globals: globals.node },
+  },
+  {
+    // @tassyir/app also runs on Workers-like runtimes: its library code uses
+    // web APIs only (fetch, WebCrypto, atob). Specs and their helpers may use
+    // Node.
+    files: ['packages/app/src/**/*.ts'],
+    ignores: [
+      'packages/app/src/**/*.test.ts',
+      'packages/app/src/**/*.test-helpers.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(node:|(assert|buffer|child_process|crypto|fs|http|https|net|os|path|stream|url|util|zlib)(/|$))',
+              message:
+                'Library code must run outside Node: use web APIs (fetch, crypto.subtle, TextEncoder).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'Buffer',
+        'process',
+        'require',
+        '__dirname',
+        '__filename',
+        'global',
+      ],
+    },
   },
   {
     // Package code is a library: it never prints.

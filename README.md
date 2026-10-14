@@ -31,17 +31,22 @@ is checked. Ships as ESM and CommonJS.
 
 ### `@tassyir/app`
 
-_Planned: AP-K1.3._ The server side of an app:
+[`packages/app`](packages/app) (AP-K1.3). The server side of an app. No
+runtime dependency: it runs on Node 22 and on Workers-like runtimes. It
+provides:
 
-- a typed Admin API client (`https://api.tassyir.io/apps/2026-10/`), generated
-  from the API's OpenAPI 3.1 document;
-- token exchange and storage, with a lock so that only one refresh runs at a
-  time;
-- webhook verification: Standard Webhooks headers and Ed25519 `v1a`
-  signatures, checked against Tassyir's published keys;
+- token exchange (ID token, install code) and refresh, with a store you
+  provide and a lock so that only one refresh runs at a time;
 - verification of the ID token that the dashboard hands to an embedded page
-  (JWKS);
-- helpers for apps on Tassyir Hosting.
+  (Ed25519, keys from the JWKS);
+- webhook verification: Standard Webhooks headers and Ed25519 `v1a`
+  signatures, checked against Tassyir's published keys, then the envelope's
+  app and installation;
+- a typed Admin API client (`https://api.tassyir.io/apps/2026-10/`), generated
+  from the API's OpenAPI 3.1 document, with typed errors, opt-in retries,
+  idempotency keys and pagination.
+
+Helpers for apps on Tassyir Hosting come once that hosting exists.
 
 ### `@tassyir/app-bridge`
 
