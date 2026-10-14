@@ -114,8 +114,9 @@ import { isTassyirError, TassyirVerificationError } from '@tassyir/app';
 /** Where you keep installations and handled deliveries. */
 export interface WebhookState {
   isInstallation(installationId: string): Promise<boolean>;
-  /** Records a webhook-id; false when it was already recorded. */
-  markHandled(webhookId: string): Promise<boolean>;
+  hasHandled(webhookId: string): Promise<boolean>;
+  /** Records a webhook-id, once its event is handled (or durably queued). */
+  markHandled(webhookId: string): Promise<void>;
 }
 
 // POST /webhooks
@@ -141,8 +142,9 @@ export async function receive(
   if (delivery.test) return new Response(null, { status: 200 });
 
   // At least once: a webhook-id you already handled is answered and skipped.
-  if (!(await state.markHandled(delivery.id)))
+  if (await state.hasHandled(delivery.id)) {
     return new Response(null, { status: 200 });
+  }
 
   switch (delivery.event.type) {
     case 'orders/delivered': {
@@ -156,6 +158,8 @@ export async function receive(
       await tassyir.tokens.forget(delivery.installationId);
       break;
   }
+  // Only now: if handling threw, Tassyir retries, and the retry is handled.
+  await state.markHandled(delivery.id);
   return new Response(null, { status: 200 });
 }
 ```
@@ -215,6 +219,10 @@ arrive twice (a retry after your answer was lost, a replay), and
 - Deduplicate on `webhook-id`: it is the same on every retry and replay of a
   delivery. Keep the ids for at least a week (replays are possible for 7
   days).
+- Record a `webhook-id` only once its event is handled, or saved to a durable
+  queue that will handle it. An id recorded before a failed attempt makes the
+  retry look handled, and the event is lost. Two copies of one delivery can
+  still race: make what an event does safe to do twice.
 - Never rely on order: compare the resource's `updatedAt` with what you
   hold, and read it again when unsure.
 - An event for an installation you do not know yet (it overtook

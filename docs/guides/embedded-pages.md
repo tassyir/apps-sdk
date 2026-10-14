@@ -156,7 +156,7 @@ document.querySelector('form')!.addEventListener('input', () => {
 bridge.on('saveBar.save', async () => {
   await bridge.saveBar.show({ saving: true });
   const { token } = await bridge.idToken();
-  await fetch('/api/settings', {
+  const response = await fetch('/api/settings', {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -164,6 +164,12 @@ bridge.on('saveBar.save', async () => {
     },
     body: JSON.stringify(draft),
   });
+  if (!response.ok) {
+    // Keep the draft and the bar, so the merchant can save again.
+    await bridge.saveBar.show({ saving: false });
+    await bridge.toast.show({ message: 'Not saved, try again', tone: 'error' });
+    return;
+  }
   await bridge.saveBar.hide();
   await bridge.toast.show({ message: 'Saved', tone: 'success' });
 });

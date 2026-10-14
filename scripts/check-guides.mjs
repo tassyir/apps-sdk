@@ -185,8 +185,9 @@ try {
       cwd: scratch,
       allowFailure: true,
     });
-    errors.push(...located(`${result.stdout}${result.stderr}`, origins));
-    if (result.status !== 0 && errors.length === 0) {
+    const found = located(`${result.stdout}${result.stderr}`, origins);
+    errors.push(...found);
+    if (result.status !== 0 && found.length === 0) {
       throw new Error(
         `tsc -p ${project} failed:\n${result.stdout}${result.stderr}`,
       );

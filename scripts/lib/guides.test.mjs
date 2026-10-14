@@ -89,6 +89,32 @@ describe('codeBlocks', () => {
     ]);
   });
 
+  it('closes a fence by CommonMark rules: same character, a run at least as long', () => {
+    const body = [
+      '````md',
+      '```ts',
+      'inner',
+      '```',
+      '````  ',
+      '~~~toml',
+      'a = 1',
+      '```',
+      '~~~',
+      '  ```json',
+      '  {}',
+      '  ```',
+      '``` not`a fence',
+    ].join('\n');
+    expect(codeBlocks(body, 1)).toEqual([
+      { lang: 'md', meta: '', code: '```ts\ninner\n```', line: 2 },
+      { lang: 'toml', meta: '', code: 'a = 1\n```', line: 7 },
+      { lang: 'json', meta: '', code: '{}', line: 11 },
+    ]);
+    expect([
+      ...headingAnchors('````md\n```\n## Inside\n````\n## Out\n'),
+    ]).toEqual(['out']);
+  });
+
   it('throws on a fence that never closes', () => {
     expect(() => codeBlocks('```ts\nx\n', 1)).toThrow(/never closes/);
   });

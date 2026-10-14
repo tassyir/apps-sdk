@@ -135,36 +135,91 @@ export function guideSetProblems(guides) {
 }
 
 /**
- * The fenced code blocks of a Markdown body (``` fences only), with the
- * line of their first code line in the file.
+ * @typedef {{
+ *   open: number,
+ *   close: number,
+ *   info: string,
+ *   indent: number,
+ * }} Fence
+ */
+
+/**
+ * The fenced code blocks of Markdown lines, by CommonMark's rules: an opener
+ * is 3 or more backticks or tildes, indented at most 3 spaces (a backtick
+ * opener's info string holds no backtick); it closes on a line of the same
+ * character, a run at least as long and nothing after it but white space.
+ * @param {string[]} lines
+ * @param {number} [firstLine] the file line of lines[0], for errors
+ * @returns {Fence[]}
+ */
+function fences(lines, firstLine = 1) {
+  /** @type {Fence[]} */
+  const found = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const open = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(lines[index] ?? '');
+    if (!open) continue;
+    const [, indent = '', marker = '', info = ''] = open;
+    if (marker.startsWith('`') && info.includes('`')) continue;
+    let close = index + 1;
+    while (close < lines.length) {
+      const end = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(lines[close] ?? '');
+      const run = end?.[1] ?? '';
+      if (run[0] === marker[0] && run.length >= marker.length) break;
+      close += 1;
+    }
+    if (close === lines.length) {
+      throw new Error(
+        `a code fence opened at line ${String(firstLine + index)} never closes`,
+      );
+    }
+    found.push({
+      open: index,
+      close,
+      info: info.trim(),
+      indent: indent.length,
+    });
+    index = close;
+  }
+  return found;
+}
+
+/**
+ * The indexes of the lines that belong to a fenced block, its fences
+ * included.
+ * @param {string[]} lines
+ * @returns {Set<number>}
+ */
+function fencedLines(lines) {
+  /** @type {Set<number>} */
+  const fenced = new Set();
+  for (const { open, close } of fences(lines)) {
+    for (let index = open; index <= close; index += 1) fenced.add(index);
+  }
+  return fenced;
+}
+
+/**
+ * The fenced code blocks of a Markdown body, with the line of their first
+ * code line in the file.
  * @param {string} body
  * @param {number} [firstLine] the file line of the body's first line
  * @returns {CodeBlock[]}
  */
 export function codeBlocks(body, firstLine = 1) {
-  /** @type {CodeBlock[]} */
-  const blocks = [];
   const lines = body.split('\n');
-  for (let index = 0; index < lines.length; index += 1) {
-    const open = /^```(\S*)\s*(.*)$/.exec(lines[index] ?? '');
-    if (!open) continue;
-    const start = index + 1;
-    let end = start;
-    while (end < lines.length && lines[end] !== '```') end += 1;
-    if (end === lines.length) {
-      throw new Error(
-        `a code fence opened at line ${firstLine + index} never closes`,
-      );
-    }
-    blocks.push({
-      lang: open[1] ?? '',
-      meta: (open[2] ?? '').trim(),
-      code: lines.slice(start, end).join('\n'),
-      line: firstLine + start,
-    });
-    index = end;
-  }
-  return blocks;
+  return fences(lines, firstLine).map(({ open, close, info, indent }) => {
+    const [lang = '', ...meta] = info.split(/\s+/);
+    const strip = new RegExp(`^ {0,${String(indent)}}`);
+    return {
+      lang,
+      meta: meta.join(' '),
+      code: lines
+        .slice(open + 1, close)
+        .map((line) => line.replace(strip, ''))
+        .join('\n'),
+      line: firstLine + open + 1,
+    };
+  });
 }
 
 /**
@@ -175,16 +230,12 @@ export function codeBlocks(body, firstLine = 1) {
  * @returns {string}
  */
 export function proseOf(body) {
-  let inFence = false;
-  return body
-    .split('\n')
-    .map((line) => {
-      if (/^```/.test(line)) {
-        inFence = !inFence;
-        return '';
-      }
-      return inFence ? '' : line.replace(/`[^`]*`/g, '``');
-    })
+  const lines = body.split('\n');
+  const fenced = fencedLines(lines);
+  return lines
+    .map((line, index) =>
+      fenced.has(index) ? '' : line.replace(/`[^`]*`/g, '``'),
+    )
     .join('\n');
 }
 
@@ -199,16 +250,16 @@ export function headingAnchors(body) {
   const anchors = new Set();
   /** @type {Map<string, number>} */
   const seen = new Map();
-  let inFence = false;
-  for (const line of body.split('\n')) {
-    if (/^```/.test(line)) inFence = !inFence;
-    if (inFence) continue;
+  const lines = body.split('\n');
+  const fenced = fencedLines(lines);
+  for (const [index, line] of lines.entries()) {
+    if (fenced.has(index)) continue;
     const heading = /^#{1,6}\s+(.*)$/.exec(line);
     if (!heading) continue;
     const base = anchorOf(heading[1] ?? '');
     const count = seen.get(base) ?? 0;
     seen.set(base, count + 1);
-    anchors.add(count === 0 ? base : `${base}-${count}`);
+    anchors.add(count === 0 ? base : `${base}-${String(count)}`);
   }
   return anchors;
 }
