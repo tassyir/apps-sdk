@@ -4,9 +4,10 @@
 //      "module": "commonjs"), node16 CJS and ESM, and bundlers. A package may
 //      narrow the check with its own .attw.json (an ESM-only browser package:
 //      { "profile": "esm-only" });
-//   3. the packed tarball, installed into a scratch project, loads with
-//      require() and import(), from the files package.json names, and both
-//      expose the same exports.
+//   3. the packed tarball, installed into a scratch project (with the
+//      tarballs of the workspace packages it depends on, which may not be on
+//      npm yet), loads with require() and import(), from the files
+//      package.json names, and both expose the same exports.
 // Usage: npm run build && npm run check:packages
 
 import {
@@ -18,7 +19,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { ROOT, packedTarball, run, workspaces } from './lib/workspace.mjs';
 
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
@@ -87,6 +88,15 @@ const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'tassyir-sdk-check-')));
 const failures = [];
 
 try {
+  /** @type {Map<string, string>} name → its packed tarball */
+  const tarballs = new Map();
+  for (const { dir, folder, manifest } of packages) {
+    const packed = packedTarball(
+      run('npm', ['pack', dir, '--pack-destination', scratch, '--json']).stdout,
+    );
+    tarballs.set(manifest.name ?? folder, join(scratch, packed.filename));
+  }
+
   for (const { dir, folder, manifest } of packages) {
     const name = manifest.name ?? folder;
     const label = `${name} (packages/${folder})`;
@@ -101,10 +111,10 @@ try {
         cwd: dir,
       });
 
-      const packed = packedTarball(
-        run('npm', ['pack', dir, '--pack-destination', scratch, '--json'])
-          .stdout,
-      );
+      const tarball = tarballs.get(name) ?? '';
+      const workspaceDependencies = Object.keys(manifest.dependencies ?? {})
+        .map((dependency) => tarballs.get(dependency))
+        .filter((path) => path !== undefined);
       const consumer = join(scratch, folder);
       mkdirSync(consumer);
       writeFileSync(join(consumer, 'package.json'), '{ "private": true }\n');
@@ -112,7 +122,8 @@ try {
         'npm',
         [
           'install',
-          join(scratch, packed.filename),
+          tarball,
+          ...workspaceDependencies,
           '--no-audit',
           '--no-fund',
           '--no-package-lock',
@@ -147,7 +158,7 @@ try {
         );
       }
       console.log(
-        `✓ ${label}: publint, attw, ${packed.filename} loads with ${modes.join(' and ')} (${String(first?.length ?? 0)} exports)`,
+        `✓ ${label}: publint, attw, ${basename(tarball)} loads with ${modes.join(' and ')} (${String(first?.length ?? 0)} exports)`,
       );
     } catch (error) {
       failures.push(

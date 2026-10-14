@@ -1,0 +1,34 @@
+{
+  "name": "my-tassyir-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Tassyir app on its own server: an embedded page, webhooks and the Admin API.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.ts",
+    "dev": "node scripts/dev.ts",
+    "build": "node scripts/build.ts",
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "validate": "node scripts/validate.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/page/tsconfig.json",
+    "test": "vitest run",
+    "check": "npm run validate && npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.3",
+    "@tassyir/app": "*",
+    "hono": "4.13.11"
+  },
+  "devDependencies": {
+    "@tassyir/app-bridge": "*",
+    "@tassyir/app-manifest": "*",
+    "@types/node": "22.20.4",
+    "esbuild": "0.28.2",
+    "smol-toml": "1.9.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}

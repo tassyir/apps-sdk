@@ -6,7 +6,14 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/.pack/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.pack/**',
+      // A generated project's files, with its own dependencies and
+      // tsconfig: npm run check:template installs and checks them.
+      'packages/create-tassyir-app/templates/**',
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,

@@ -45,6 +45,7 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  *   files?: string[],
  *   exports?: unknown,
  *   engines?: Record<string, string>,
+ *   dependencies?: Record<string, string>,
  *   devDependencies?: Record<string, string>,
  * }} PackageJson
  */
@@ -144,4 +145,55 @@ export function npmrcProblems(text) {
       ({ number }) =>
         `.npmrc:${number}: no registry, credential or account setting in this public repo`,
     );
+}
+
+/** The starter: the projects it makes name the @tassyir packages' versions. */
+export const STARTER_PACKAGE = 'create-tassyir-app';
+
+/**
+ * The releases a changeset file asks for: package name → bump.
+ * @param {string} text the file, front matter first
+ * @returns {Record<string, string>}
+ */
+export function changesetReleases(text) {
+  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? '';
+  /** @type {Record<string, string>} */
+  const releases = {};
+  for (const line of front.split(/\r?\n/)) {
+    const match =
+      /^\s*(['"]?)([^'":\s]+)\1\s*:\s*(major|minor|patch|none)\s*$/.exec(line);
+    if (match?.[2] && match[3]) releases[match[2]] = match[3];
+  }
+  return releases;
+}
+
+/**
+ * A project made by create-tassyir-app names `^<version>` of each @tassyir
+ * package its template depends on. A minor or major release of one leaves
+ * that range (under 0.x a minor does), so the starter is released with it;
+ * otherwise new projects keep naming the old version.
+ * @param {Array<{ file: string, releases: Record<string, string> }>} changesets
+ * @param {readonly string[]} starterDependencies the @tassyir packages its templates depend on
+ * @returns {string[]}
+ */
+export function starterChangesetProblems(changesets, starterDependencies) {
+  const releases = changesets.flatMap(({ releases: entries }) =>
+    Object.entries(entries),
+  );
+  if (releases.some(([name]) => name === STARTER_PACKAGE)) return [];
+  const leaving = [
+    ...new Set(
+      releases
+        .filter(
+          ([name, bump]) =>
+            starterDependencies.includes(name) &&
+            (bump === 'minor' || bump === 'major'),
+        )
+        .map(([name, bump]) => `${name} (${bump})`),
+    ),
+  ];
+  if (leaving.length === 0) return [];
+  return [
+    `.changeset: ${leaving.join(', ')} ${leaving.length === 1 ? 'leaves' : 'leave'} the version range that ${STARTER_PACKAGE} writes into new projects, and ${STARTER_PACKAGE} has no changeset. Add one (npx changeset, ${STARTER_PACKAGE}, patch) so new projects name the new version`,
+  ];
 }

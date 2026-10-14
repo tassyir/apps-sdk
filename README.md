@@ -6,10 +6,10 @@ shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
 **Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and three packages whose first
+workspace, CI and release pipeline (AP-K1.1) and four packages whose first
 release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
-(AP-K1.3) and `@tassyir/app-bridge` (AP-K1.4). The other packages arrive one
-ticket at a time.
+(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4) and `create-tassyir-app`
+(AP-K1.7). The other packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -77,10 +77,19 @@ with a `fix`). Published to npm only.
 
 ### `create-tassyir-app`
 
-_Planned: AP-K1.7._ Starter templates, run with `npm create tassyir-app`. One
-starter is hosted on Tassyir Hosting (Hono + React). The other runs on your own
-server (Node). Each comes with an `AGENTS.md`, a `CLAUDE.md` and a Tassyir skill
-for AI coding agents. Published to npm only.
+[`packages/create-tassyir-app`](packages/create-tassyir-app) (AP-K1.7). The
+starter: `npm create tassyir-app@latest my-app`. Its one template today,
+`external`, is an app on your own server: Node 22 and Hono, the embedded page
+on `@tassyir/app-bridge`, token exchange and the Admin API through
+`@tassyir/app` with an encrypted file token store, a webhook endpoint that
+verifies the raw body, and a `tassyir.app.toml` that `@tassyir/app-manifest`
+validates. It comes with an `AGENTS.md`, a `CLAUDE.md` and a `tassyir-app`
+Claude Code skill that explains the contract, and with specs against a fake
+Tassyir API. The project's README walks the real path: the developer console,
+a dev store, an https tunnel, the install. The `hosted` template (Hono and
+React on Tassyir Hosting) comes once Tassyir Hosting opens. CI generates a
+project with the packed CLI, then installs, typechecks, tests, builds and
+starts it (`npm run check:template`). Published to npm only.
 
 ### `@tassyir/dev-mcp`
 

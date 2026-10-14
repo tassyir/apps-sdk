@@ -1,0 +1,23 @@
+{
+  // The server, its tests and scripts. Node 22 runs the .ts files as they
+  // are (type stripping): only erasable syntax, relative imports end in .ts,
+  // and tsc only checks. The page has its own tsconfig (src/page).
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "test", "scripts", "vitest.config.ts"],
+  "exclude": ["src/page"]
+}

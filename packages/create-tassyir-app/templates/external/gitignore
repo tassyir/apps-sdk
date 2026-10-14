@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Secrets and the token store: never commit them.
+.env
+.env.*
+!.env.example
+data/
+*.log
+.DS_Store
