@@ -13,6 +13,28 @@ function exec(
   args: readonly string[],
   options: ExecOptions = {},
 ): Promise<ExecResult> {
+  if (options.detached) {
+    return new Promise((resolve) => {
+      const child = spawn(command, [...args], {
+        stdio: 'ignore',
+        detached: true,
+        windowsHide: true,
+        shell: false,
+      });
+      child.once('spawn', () => {
+        child.unref();
+        resolve({ code: 0, stdout: '', stderr: '' });
+      });
+      child.once('error', (error: NodeJS.ErrnoException) => {
+        resolve({
+          code: null,
+          stdout: '',
+          stderr: '',
+          failure: error.code === 'ENOENT' ? 'ENOENT' : 'ERROR',
+        });
+      });
+    });
+  }
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';

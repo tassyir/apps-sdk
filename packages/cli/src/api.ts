@@ -128,6 +128,16 @@ export class DeveloperApi {
     if (response.ok) return deviceCodeResponse(body);
     const error = oauthError(body);
     const retryAfterSeconds = retryAfterOf(response, body);
+    if (response.status >= 500) {
+      throw new CliError({
+        code: 'SERVER_ERROR',
+        message: `The API could not start a sign-in (HTTP ${String(response.status)})`,
+        fix: 'Run `tassyir login` again in a minute.',
+        exitCode: EXIT_CODES.TRY_LATER,
+        status: response.status,
+        retryAfterSeconds,
+      });
+    }
     if (error.error === 'slow_down' || response.status === 429) {
       throw new CliError({
         code: 'LOGIN_RATE_LIMITED',
@@ -594,24 +604,39 @@ function networkReason(error: unknown): string {
       return 'timed out';
     }
     const cause = (error as { cause?: unknown }).cause;
-    const code = isRecord(cause) ? stringOf(cause['code']) : undefined;
-    if (code) return code;
-    if (error.name === 'TypeError' && error.message.includes('redirect')) {
+    // Undici refuses a redirect (`redirect: 'error'`) with a cause whose
+    // message names it and which has no code.
+    const causeMessage =
+      cause instanceof Error
+        ? cause.message
+        : isRecord(cause)
+          ? stringOf(cause['message'])
+          : undefined;
+    if (`${error.message} ${causeMessage ?? ''}`.includes('redirect')) {
       return 'redirected';
     }
+    const code = isRecord(cause) ? stringOf(cause['code']) : undefined;
+    if (code) return code;
   }
   return 'network error';
 }
 
 function networkError(apiOrigin: string, error: unknown): CliError {
   const reason = networkReason(error);
+  if (reason === 'redirected') {
+    // Never followed (the token would go wherever it points), and retrying
+    // will not change it.
+    return new CliError({
+      code: 'API_REDIRECTED',
+      message: `${apiOrigin} answered with a redirect, which the CLI never follows`,
+      fix: 'Check TASSYIR_API_ORIGIN / --api-origin: it must be the Tassyir API itself (https://api.tassyir.io).',
+      exitCode: EXIT_CODES.FAILED,
+    });
+  }
   return new CliError({
     code: reason === 'timed out' ? 'TIMEOUT' : 'NETWORK_ERROR',
     message: `Could not reach ${apiOrigin} (${reason})`,
-    fix:
-      reason === 'redirected'
-        ? 'The API answered with a redirect, which the CLI never follows: check TASSYIR_API_ORIGIN.'
-        : 'Check your connection (and TASSYIR_API_ORIGIN if you set it), then run the command again.',
+    fix: 'Check your connection (and TASSYIR_API_ORIGIN if you set it), then run the command again.',
     exitCode: EXIT_CODES.TRY_LATER,
   });
 }

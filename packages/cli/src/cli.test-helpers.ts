@@ -19,6 +19,7 @@ export interface ExecCall {
   command: string;
   args: readonly string[];
   input: string | undefined;
+  detached?: boolean;
 }
 
 export interface RunResult {
@@ -76,7 +77,12 @@ export async function createHarness(options: HarnessOptions = {}) {
     args: readonly string[],
     execOptions: ExecOptions = {},
   ): Promise<ExecResult> => {
-    execCalls.push({ command, args: [...args], input: execOptions.input });
+    execCalls.push({
+      command,
+      args: [...args],
+      input: execOptions.input,
+      ...(execOptions.detached ? { detached: true } : {}),
+    });
     const ok = (stdout = ''): Promise<ExecResult> =>
       Promise.resolve({ code: 0, stdout, stderr: '' });
     const fail = (code: number, stderr: string): Promise<ExecResult> =>

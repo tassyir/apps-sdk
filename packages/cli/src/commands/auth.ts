@@ -97,6 +97,9 @@ export const loginCommand: Command = {
       typeof values['locale'] === 'string' ? values['locale'] : undefined,
     );
 
+    // Before the sign-in: a token the CLI then could not store would be lost.
+    context.credentials.checkPreference();
+
     // This machine's earlier sign-in (never TASSYIR_TOKEN's), revoked below.
     const previous = await context.credentials
       .resolve(context.apiOrigin, { stored: true })
@@ -168,15 +171,36 @@ export const loginCommand: Command = {
       offer?.cancel();
     }
 
-    const saved = await context.credentials.save(
-      context.apiOrigin,
-      token.access_token,
-      {
-        tokenId: token.token_id,
-        userId: token.user_id,
-        email: token.email,
-      },
-    );
+    let saved: Awaited<ReturnType<typeof context.credentials.save>>;
+    try {
+      saved = await context.credentials.save(
+        context.apiOrigin,
+        token.access_token,
+        {
+          tokenId: token.token_id,
+          userId: token.user_id,
+          email: token.email,
+        },
+      );
+    } catch (error) {
+      // Not stored means lost: revoke it rather than leave it live.
+      const revoked = await context
+        .client(token.access_token)
+        .revokeCurrentToken()
+        .then(
+          () => true,
+          () => false,
+        );
+      if (!isCliError(error)) throw error;
+      throw new CliError({
+        code: error.code,
+        message: `${error.message}. The sign-in worked, but its token could not be stored, so it was ${revoked ? 'revoked' : 'NOT revoked (the API did not answer)'}`,
+        fix: revoked
+          ? error.fix
+          : `${error.fix} Then revoke the stray token from the dashboard's developer settings.`,
+        exitCode: error.exitCode,
+      });
+    }
 
     // The previous sign-in of this machine is replaced: revoke its token, so
     // it does not count against the 20 a developer may hold. Best effort.
@@ -254,10 +278,10 @@ async function poll(
       case 'authorization_pending':
         break;
       case 'slow_down':
-        interval = Math.min(interval + SLOW_DOWN_STEP, MAX_INTERVAL);
-        if (result.retryAfterSeconds !== undefined) {
-          interval = Math.max(interval, result.retryAfterSeconds);
-        }
+        interval = Math.min(
+          Math.max(interval + SLOW_DOWN_STEP, result.retryAfterSeconds ?? 0),
+          MAX_INTERVAL,
+        );
         break;
       case 'access_denied':
         throw new CliError({
@@ -278,8 +302,13 @@ async function poll(
           exitCode: EXIT_CODES.AUTH,
         });
       default:
-        if (result.status >= 500) {
-          interval = Math.min(interval * 2, MAX_INTERVAL);
+        // A 5xx, or a 429 that is not OAuth's slow_down (a proxy, the
+        // throttler): wait longer and ask again.
+        if (result.status >= 500 || result.status === 429) {
+          interval = Math.min(
+            Math.max(interval * 2, result.retryAfterSeconds ?? 0),
+            MAX_INTERVAL,
+          );
           break;
         }
         throw new CliError({

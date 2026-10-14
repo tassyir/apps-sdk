@@ -125,13 +125,15 @@ export async function resolveApp(
     }
     reference = handle;
   }
-  if (/^\d+$/.test(reference)) return (await api.getApp(reference)).data;
+  // One list answers both an id and a handle (a handle may be all digits).
   const apps = (await api.listApps()).data;
-  const found = apps.find((candidate) => candidate.handle === reference);
+  const found =
+    apps.find((candidate) => candidate.handle === reference) ??
+    apps.find((candidate) => candidate.id === reference);
   if (!found) {
     throw new CliError({
       code: 'APP_NOT_FOUND',
-      message: `You have no app with the handle "${reference}"`,
+      message: `You have no app with the handle or id "${reference}"`,
       fix: apps.length
         ? `Use one of your apps (${apps.map((candidate) => candidate.handle).join(', ')}), or create this one with \`tassyir app create\`.`
         : 'Create it with `tassyir app create` (it reads the handle and name from tassyir.app.toml).',

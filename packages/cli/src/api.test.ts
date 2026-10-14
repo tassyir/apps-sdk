@@ -172,6 +172,18 @@ describe('DeveloperApi transport', () => {
       message: 'Could not reach https://api.tassyir.test (ECONNREFUSED)',
       exitCode: EXIT_CODES.TRY_LATER,
     });
+    // Undici's refusal of a redirect: not a network problem, so not exit 5.
+    const redirected = client(() =>
+      Promise.reject(
+        new TypeError('fetch failed', {
+          cause: new Error('unexpected redirect'),
+        }),
+      ),
+    );
+    await expect(redirected.listApps()).rejects.toMatchObject({
+      code: 'API_REDIRECTED',
+      exitCode: EXIT_CODES.FAILED,
+    });
     const slow = client(() =>
       Promise.reject(
         new DOMException('The operation timed out.', 'TimeoutError'),

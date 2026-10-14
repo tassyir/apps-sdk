@@ -81,9 +81,14 @@ interface Keychain {
   remove(account: string): Promise<void>;
 }
 
-/** A value for `security -i`'s command line: single-quoted. */
+/**
+ * A value for `security -i`'s command line: single-quoted, with `\\` and `'`
+ * backslash-escaped (its own word splitting, not a POSIX shell's). The API
+ * origin and the token never hold either (resolveApiOrigin, the token's
+ * shape); this keeps it right if that ever changes.
+ */
 function quoted(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
+  return `'${value.replace(/[\\']/g, '\\$&')}'`;
 }
 
 function macKeychain(io: CliIo): Keychain {
@@ -251,6 +256,11 @@ export class CredentialStore {
       });
     }
     return { token, storage: session.storage, session };
+  }
+
+  /** Refuses a TASSYIR_CREDENTIAL_STORE it cannot honour, before a sign-in starts. */
+  checkPreference(): void {
+    storePreference(this.#io);
   }
 
   /** The non-secret record of `apiOrigin`'s sign-in, if any. */

@@ -18,6 +18,11 @@ export interface ExecOptions {
   input?: string;
   /** Default 30 seconds. */
   timeoutMs?: number;
+  /**
+   * Start it and let it run on its own (a browser): no pipes, not waited
+   * for, never keeping the CLI alive. `code` is 0 once it started.
+   */
+  detached?: boolean;
 }
 
 export interface CliIo {

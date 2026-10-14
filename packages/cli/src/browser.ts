@@ -16,12 +16,13 @@ export function isBrowsableUrl(value: string): boolean {
   return url.protocol === 'http:' && isLoopback(url.hostname);
 }
 
+/**
+ * This machine, by names no resolver is asked about. Not `*.localhost`:
+ * macOS sends those to the DNS server, which could answer anything.
+ */
 export function isLoopback(hostname: string): boolean {
   return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '[::1]' ||
-    hostname.endsWith('.localhost')
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
   );
 }
 
@@ -34,6 +35,8 @@ export async function openBrowser(io: CliIo, url: string): Promise<boolean> {
       : io.platform === 'win32'
         ? ['rundll32', ['url.dll,FileProtocolHandler', url]]
         : ['xdg-open', [url]];
-  const result = await io.exec(command, args, { timeoutMs: 10_000 });
+  // Detached: a browser it starts must not hold the CLI's pipes, or the CLI
+  // would wait for the browser to quit before exiting.
+  const result = await io.exec(command, args, { detached: true });
   return result.code === 0;
 }

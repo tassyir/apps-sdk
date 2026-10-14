@@ -1,5 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { open, readFile, rename, rm, stat } from 'node:fs/promises';
+import {
+  access,
+  constants,
+  open,
+  readFile,
+  rename,
+  rm,
+  stat,
+} from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { CliError, EXIT_CODES } from './errors.js';
 
@@ -53,13 +61,33 @@ async function readText(path: string): Promise<string | undefined> {
   }
 }
 
-function currentValues(text: string): Map<string, string> {
-  const values = new Map<string, string>();
+/** Every value each key is given, in file order (a key may appear twice). */
+function currentValues(text: string): Map<string, string[]> {
+  const values = new Map<string, string[]>();
   for (const line of text.split(/\r?\n/)) {
     const match = LINE.exec(line);
-    if (match?.[2] !== undefined) values.set(match[2], unquote(match[4] ?? ''));
+    const key = match?.[2];
+    if (key === undefined) continue;
+    values.set(key, [...(values.get(key) ?? []), unquote(match?.[4] ?? '')]);
   }
   return values;
+}
+
+/** The folder must exist and take a new file (the write is a temp file + rename). */
+async function checkFolder(path: string): Promise<void> {
+  const folder = dirname(path);
+  try {
+    if (!(await stat(folder)).isDirectory()) throw new Error('not a folder');
+    await access(folder, constants.W_OK);
+  } catch {
+    throw new CliError({
+      code: 'ENV_FILE_UNWRITABLE',
+      message: `Cannot write ${path}: ${folder} is not a folder you can write; nothing was minted or written`,
+      fix: 'Create the folder (or pick another --env-file) and check you can write it, then run this again.',
+      exitCode: EXIT_CODES.USAGE,
+      details: { file: path },
+    });
+  }
 }
 
 /**
@@ -72,6 +100,7 @@ export async function checkEnvFile(
   keys: Readonly<Record<string, string | undefined>>,
   force: boolean,
 ): Promise<string[]> {
+  await checkFolder(path);
   const text = await readText(path);
   if (text === undefined) {
     // The starter's `npm run setup` writes .env from .env.example with a new
@@ -91,15 +120,11 @@ export async function checkEnvFile(
   }
   const existing = currentValues(text);
   const conflicts = Object.entries(keys)
-    .filter(([key, next]) => {
-      const value = existing.get(key);
-      return (
-        value !== undefined &&
-        value !== '' &&
-        !isPlaceholder(value) &&
-        value !== next
-      );
-    })
+    .filter(([key, next]) =>
+      (existing.get(key) ?? []).some(
+        (value) => value !== '' && !isPlaceholder(value) && value !== next,
+      ),
+    )
     .map(([key]) => key);
   if (conflicts.length > 0 && !force) {
     throw new CliError({
@@ -141,15 +166,12 @@ export async function writeEnvFile(
     if (!written.has(key)) output.push(`${key}=${value}`);
   }
 
-  let mode = 0o600;
-  if (text !== undefined) {
-    mode = (await stat(path)).mode & 0o777;
-  }
   const temporary = join(
     dirname(path),
     `.${basename(path)}.${randomBytes(6).toString('hex')}.tmp`,
   );
   try {
+    const mode = text === undefined ? 0o600 : (await stat(path)).mode & 0o777;
     const handle = await open(temporary, 'wx', mode);
     try {
       await handle.writeFile(`${output.join('\n')}\n`, 'utf8');
@@ -163,7 +185,7 @@ export async function writeEnvFile(
     throw new CliError({
       code: 'ENV_FILE_UNWRITABLE',
       message: `Could not write ${path} (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
-      fix: 'The secret above was minted but not saved: copy it now, or revoke it and mint another once the file is writable.',
+      fix: 'Check that you can write the file and its folder.',
       exitCode: EXIT_CODES.FAILED,
     });
   }

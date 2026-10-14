@@ -81,6 +81,11 @@ export function resolveApiOrigin(value: string | undefined): string {
   ) {
     throw invalid('must be an origin only (no path, query or credentials)');
   }
+  // A host name of letters, digits, dots and hyphens (or an IPv6 literal):
+  // the origin also names the keychain entry, so nothing odd gets that far.
+  if (!/^(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])$/.test(url.hostname)) {
+    throw invalid('has a host name the CLI does not accept');
+  }
   if (url.protocol === 'https:') return url.origin;
   if (url.protocol === 'http:' && isLoopback(url.hostname)) return url.origin;
   throw invalid('is not https: a developer token never travels in clear text');
@@ -223,6 +228,9 @@ function errorText(error: CliError): string {
       `  - ${problem.code}${problem.path ? ` at ${problem.path}` : ''}: ${problem.message}`,
     );
     parts.push(`    Fix: ${problem.fix}`);
+  }
+  for (const [key, value] of Object.entries(error.reveal ?? {})) {
+    parts.push(`  ${key}=${value}`);
   }
   if (error.retryAfterSeconds !== undefined) {
     parts.push(`  Retry after ${String(error.retryAfterSeconds)} s.`);

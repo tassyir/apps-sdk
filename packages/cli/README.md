@@ -156,13 +156,13 @@ not built yet.
 the user id and the token's id. So `whoami` can say who you are, and a
 staging sign-in (`--api-origin`) sits next to production.
 
-| Variable                   | Effect                                                                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `TASSYIR_TOKEN`            | A developer token to use instead of the stored one (CI).                                                                         |
-| `TASSYIR_CREDENTIAL_STORE` | `keychain` (refuse when none answers) or `file`. Unset: the keychain, else the file.                                             |
-| `TASSYIR_CONFIG_DIR`       | The folder of `credentials.json`. Default `$XDG_CONFIG_HOME/tassyir`, else `~/.config/tassyir` (`%APPDATA%\tassyir` on Windows). |
-| `TASSYIR_API_ORIGIN`       | Another Tassyir API (staging, a local one). https only; http only on `localhost`. Same as `--api-origin`.                        |
-| `TASSYIR_DEBUG`            | `1` prints each request's method, path, status and duration on stderr. Never a header or a body.                                 |
+| Variable                   | Effect                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `TASSYIR_TOKEN`            | A developer token to use instead of the stored one (CI).                                                                          |
+| `TASSYIR_CREDENTIAL_STORE` | `keychain` (refuse when none answers) or `file`. Unset: the keychain, else the file.                                              |
+| `TASSYIR_CONFIG_DIR`       | The folder of `credentials.json`. Default `$XDG_CONFIG_HOME/tassyir`, else `~/.config/tassyir` (`%APPDATA%\tassyir` on Windows).  |
+| `TASSYIR_API_ORIGIN`       | Another Tassyir API (staging, a local one). https only; http only on `localhost`, `127.0.0.1` or `[::1]`. Same as `--api-origin`. |
+| `TASSYIR_DEBUG`            | `1` prints each request's method, path, status and duration on stderr. Never a header or a body.                                  |
 
 ## Client secrets
 
@@ -178,7 +178,10 @@ A client secret (`tsy_cs_…`) is shown **once**: Tassyir keeps only its hash.
   only `--force` replaces it. The starter's placeholders
   (`app_your-client-id`, …) are filled in. A new file is created 0600; in a
   starter project, run `npm run setup` first (the CLI refuses otherwise,
-  since setup never touches an existing `.env`).
+  since setup never touches an existing `.env`). A folder that does not
+  exist or cannot be written is refused before minting too.
+- If writing `.env` still fails after the secret was minted, the error shows
+  the three values once (`reveal` in `--json`): the secret is never lost.
 - The CLI writes a secret nowhere else, ever.
 
 ## `--json`, errors and exit codes
@@ -192,8 +195,9 @@ stdout and refusals to stderr.
 An error has a stable `code`, a `message` and a one-sentence `fix`, and when
 they apply `status` (the API's HTTP status), `requestId`,
 `retryAfterSeconds`, `errors` (every manifest problem: `code`, `path`,
-`message`, `fix`) and `details` (what the refusal is about: `limit`,
-`handle`, …). The API's own codes are passed on as they are. For example,
+`message`, `fix`), `details` (what the refusal is about: `limit`,
+`handle`, …) and `reveal` (values you must see although the command failed,
+such as a secret minted before its `.env` write broke). The API's own codes are passed on as they are. For example,
 `tassyir validate` on a manifest with `handle = "API"` and no reason for its
 scope (exit code 4):
 
@@ -252,7 +256,8 @@ Codes of the CLI's own (the API's pass through as they are):
 `ENV_FILE_MISSING`, `ENV_FILE_UNREADABLE`, `ENV_FILE_UNWRITABLE`,
 `INSTALLATION_REQUIRED`, `WEBHOOK_ENDPOINT_FAILED`, `WEBHOOK_REPLAY_SKIPPED`,
 `COMMAND_NOT_AVAILABLE`, `UNKNOWN_COMMAND`, `INVALID_ARGUMENT`,
-`API_ORIGIN_INVALID`, `NETWORK_ERROR`, `TIMEOUT`, `INVALID_RESPONSE`,
+`API_ORIGIN_INVALID`, `API_REDIRECTED`, `NETWORK_ERROR`, `TIMEOUT`,
+`SERVER_ERROR`, `INVALID_RESPONSE`,
 `NODE_VERSION_UNSUPPORTED`, `INTERNAL_ERROR`. A refusal the API sends
 without a code (a malformed request, the throttler) reads as `BAD_REQUEST`,
 `RATE_LIMITED`, `SERVER_ERROR`, …, by status.

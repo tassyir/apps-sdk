@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanupHarnesses, createHarness } from './cli.test-helpers.js';
@@ -184,6 +184,8 @@ describe('tassyir login: the device grant (RFC 8628)', () => {
       command: 'open',
       args: ['https://app.tassyir.io/en/developers/cli?code=BCDF-GHJK'],
       input: undefined,
+      // No pipes, not waited for: a browser it starts never holds the CLI.
+      detached: true,
     });
     // The code is printed whether or not the browser opens.
     expect(result.stderr).toContain('BCDF-GHJK');
@@ -245,6 +247,58 @@ describe('tassyir login: the device grant (RFC 8628)', () => {
     expect(result.stderr).toContain(
       'https://app.tassyir.io/ar/developers/cli?code=BCDF-GHJK',
     );
+  });
+
+  it('a 5xx starting the sign-in is SERVER_ERROR, exit 5', async () => {
+    const harness = await createHarness();
+    harness.fake.deviceCodeStatus = 503;
+    const result = await harness.run('login', '--json');
+    expect(result.code).toBe(5);
+    expect(result.json()).toMatchObject({
+      error: { code: 'SERVER_ERROR', status: 503 },
+    });
+  });
+
+  it('a 429 that is not slow_down waits Retry-After, never past 60 s', async () => {
+    const harness = await createHarness();
+    harness.fake.pollScript = ['throttled', 'approve'];
+    const result = await harness.run('login', '--json');
+    expect(result.code).toBe(0);
+    expect(harness.clock.sleeps).toEqual([5000, 60000]);
+  });
+
+  it('refuses a TASSYIR_CREDENTIAL_STORE it cannot honour before any sign-in starts', async () => {
+    const harness = await createHarness({
+      env: { TASSYIR_CREDENTIAL_STORE: 'vault' },
+    });
+    const result = await harness.run('login', '--json');
+    expect(result.code).toBe(2);
+    expect(result.json()).toMatchObject({
+      error: { code: 'INVALID_ARGUMENT' },
+    });
+    expect(harness.fake.requests).toEqual([]);
+  });
+
+  it('revokes a new token it could not store, rather than leave it live', async () => {
+    const harness = await createHarness();
+    // The config folder would sit under a file: the write fails.
+    await writeFile(join(harness.root, 'not-a-folder'), 'x');
+    harness.env['TASSYIR_CONFIG_DIR'] = join(
+      harness.root,
+      'not-a-folder',
+      'tassyir',
+    );
+    harness.fake.pollScript = ['approve'];
+    const result = await harness.run('login', '--json');
+    expect(result.code).toBe(1);
+    expect(result.json()).toMatchObject({
+      error: {
+        code: 'CREDENTIALS_UNWRITABLE',
+        message: expect.stringContaining('so it was revoked') as string,
+      },
+    });
+    expect(harness.fake.tokens).toHaveLength(1);
+    expect(harness.fake.liveTokens()).toEqual([]);
   });
 
   it('revokes the token of the sign-in it replaces', async () => {

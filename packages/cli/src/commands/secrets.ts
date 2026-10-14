@@ -109,17 +109,17 @@ async function mint(
         replaced,
       );
     } catch (error) {
-      if (!isCliError(error)) throw error;
       // The secret exists now and is shown once: here, since the file failed.
       throw new CliError({
-        code: error.code,
-        message: `${error.message}; the secret was minted, so here it is, once`,
-        fix: "Copy the secret into your server's environment now; or revoke it (`tassyir secrets revoke`) and mint another.",
-        exitCode: error.exitCode,
-        details: {
-          clientId: app.clientId,
-          credentialId: credential.id,
-          secret,
+        code: isCliError(error) ? error.code : 'ENV_FILE_UNWRITABLE',
+        message: `${isCliError(error) ? error.message : `Could not write ${envFile}`}; the secret was minted, so here it is, once`,
+        fix: "Copy these values into your server's environment now (Tassyir keeps only the secret's hash); or revoke it (`tassyir secrets revoke`) and mint another.",
+        exitCode: EXIT_CODES.FAILED,
+        details: { credentialId: credential.id, file: envFile },
+        reveal: {
+          TASSYIR_CLIENT_ID: app.clientId,
+          TASSYIR_CLIENT_SECRET: secret,
+          TASSYIR_APP_ID: app.id,
         },
       });
     }

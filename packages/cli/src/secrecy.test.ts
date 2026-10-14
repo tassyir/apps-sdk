@@ -138,14 +138,15 @@ describe('the developer token is never printed', () => {
   it('even an API that echoes the token in an error has it redacted', async () => {
     const harness = await createHarness();
     const token = await harness.signIn();
+    harness.fake.seedApp();
     harness.fake.echoInErrors = `you sent ${token}`;
     for (const flag of [[], ['--json']]) {
       const result = await harness.run(
         'secrets',
         'revoke',
-        '1',
-        '--app',
         '999',
+        '--app',
+        'review-requests',
         ...flag,
       );
       expect(result.code).toBe(1);
@@ -168,9 +169,16 @@ describe('the developer token is never printed', () => {
   it('drops terminal control characters an API sends (ESC sequences, carriage returns)', async () => {
     const harness = await createHarness();
     await harness.signIn();
+    harness.fake.seedApp();
     const escape = String.fromCharCode(0x1b);
     harness.fake.echoInErrors = `${escape}[2J${escape}]0;owned${String.fromCharCode(7)}\rfake prompt`;
-    const result = await harness.run('secrets', 'revoke', '1', '--app', '999');
+    const result = await harness.run(
+      'secrets',
+      'revoke',
+      '999',
+      '--app',
+      'review-requests',
+    );
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('[2J]0;ownedfake prompt');
     expect(result.stderr).not.toContain(escape);
@@ -179,9 +187,9 @@ describe('the developer token is never printed', () => {
     const json = await harness.run(
       'secrets',
       'revoke',
-      '1',
-      '--app',
       '999',
+      '--app',
+      'review-requests',
       '--json',
     );
     expect(json.stdout).not.toContain(escape);

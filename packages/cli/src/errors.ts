@@ -45,6 +45,12 @@ export interface CliErrorInit {
   errors?: readonly CliProblem[];
   /** What the refusal is about (`limit`, `handle`, `installationId`, …). */
   details?: Readonly<Record<string, unknown>>;
+  /**
+   * Values the person must see although the command failed (a secret minted
+   * before a later step broke): printed as `KEY=value` lines, and `reveal`
+   * in `--json`.
+   */
+  reveal?: Readonly<Record<string, string>>;
 }
 
 export class CliError extends Error {
@@ -56,6 +62,7 @@ export class CliError extends Error {
   readonly retryAfterSeconds: number | undefined;
   readonly errors: readonly CliProblem[] | undefined;
   readonly details: Readonly<Record<string, unknown>> | undefined;
+  readonly reveal: Readonly<Record<string, string>> | undefined;
 
   constructor(init: CliErrorInit) {
     super(init.message);
@@ -68,6 +75,7 @@ export class CliError extends Error {
     this.retryAfterSeconds = init.retryAfterSeconds;
     this.errors = init.errors;
     this.details = init.details;
+    this.reveal = init.reveal;
   }
 
   /** The `error` member of a `--json` answer. */
@@ -83,6 +91,7 @@ export class CliError extends Error {
         : { retryAfterSeconds: this.retryAfterSeconds }),
       ...(this.errors === undefined ? {} : { errors: this.errors }),
       ...(this.details === undefined ? {} : { details: this.details }),
+      ...(this.reveal === undefined ? {} : { reveal: this.reveal }),
     };
   }
 }

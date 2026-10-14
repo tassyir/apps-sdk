@@ -1,3 +1,4 @@
+import { chmodSync } from 'node:fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -563,6 +564,91 @@ describe('tassyir secrets', () => {
     expect(harness.fake.secrets).toEqual([]);
   });
 
+  it('a write that fails after minting still shows the secret, once (text and --json)', async () => {
+    for (const json of [false, true]) {
+      const { harness, app } = await ready();
+      harness.fake.onMint = () => {
+        chmodSync(harness.cwd, 0o500);
+      };
+      try {
+        const result = await harness.run(
+          'secrets',
+          'create',
+          '--write-env',
+          ...(json ? ['--json'] : []),
+        );
+        expect(result.code).toBe(1);
+        const secret = harness.fake.secrets[0] ?? 'none';
+        if (json) {
+          expect(result.json()).toMatchObject({
+            ok: false,
+            error: {
+              code: 'ENV_FILE_UNWRITABLE',
+              reveal: {
+                TASSYIR_CLIENT_ID: app.clientId,
+                TASSYIR_CLIENT_SECRET: secret,
+                TASSYIR_APP_ID: app.id,
+              },
+            },
+          });
+        } else {
+          expect(result.stderr).toContain(
+            'the secret was minted, so here it is, once',
+          );
+          expect(result.stderr).toContain(
+            `  TASSYIR_CLIENT_SECRET=${secret}\n`,
+          );
+        }
+      } finally {
+        chmodSync(harness.cwd, 0o755);
+      }
+    }
+  });
+
+  it('--write-env refuses a folder that does not exist, or a key set twice, before minting', async () => {
+    const { harness } = await ready();
+    const missing = await harness.run(
+      'secrets',
+      'create',
+      '--env-file',
+      'config/.env',
+      '--json',
+    );
+    expect(missing.code).toBe(2);
+    expect(missing.json()).toMatchObject({
+      error: { code: 'ENV_FILE_UNWRITABLE' },
+    });
+    // The later, empty line shadows the real value; it is still a real value.
+    await writeFile(
+      join(harness.cwd, '.env'),
+      'TASSYIR_CLIENT_SECRET=tsy_cs_theOneTheServerUses\nTASSYIR_CLIENT_SECRET=\n',
+    );
+    const twice = await harness.run(
+      'secrets',
+      'create',
+      '--write-env',
+      '--json',
+    );
+    expect(twice.code).toBe(2);
+    expect(twice.json()).toMatchObject({ error: { code: 'ENV_VALUE_EXISTS' } });
+    expect(harness.fake.secrets).toEqual([]);
+  });
+
+  it('finds an app by id or by handle, an all-digit handle included', async () => {
+    const harness = await createHarness();
+    await harness.signIn();
+    const numeric = harness.fake.seedApp('2048');
+    const other = harness.fake.seedApp('sheets-sync');
+    expect(
+      (await harness.run('secrets', 'list', '--app', '2048', '--json')).json(),
+    ).toMatchObject({ app: { id: numeric.id } });
+    expect(
+      (
+        await harness.run('secrets', 'list', '--app', other.id, '--json')
+      ).json(),
+    ).toMatchObject({ app: { handle: 'sheets-sync' } });
+  });
+
   it('revoke takes a credential id; list never shows a secret', async () => {
     const { harness } = await ready();
     const created = await harness.run('secrets', 'create', '--json');
@@ -913,6 +999,9 @@ describe('the command line', () => {
       'ftp://x',
       'nonsense',
       'https://user:pw@api.tassyir.io',
+      // macOS asks the DNS server about *.localhost: not this machine.
+      'http://api.localhost:3000',
+      "https://a'b.tassyir.io",
     ]) {
       const result = await harness.run(
         'whoami',

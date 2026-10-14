@@ -58,7 +58,9 @@ export type PollStep =
   | 'expire'
   | 'invalid_grant'
   | 'server_error'
-  | 'network';
+  | 'network'
+  /** A 429 that is not OAuth's slow_down (a proxy), Retry-After 90. */
+  | 'throttled';
 
 interface SignIn {
   deviceCode: string;
@@ -101,7 +103,9 @@ export class FakeDeveloperApi {
   pollScript: PollStep[] = [];
   signIns: SignIn[] = [];
   tokens: TokenRow[] = [];
-  deviceCodeStatus: 200 | 429 | 400 = 200;
+  deviceCodeStatus: 200 | 429 | 400 | 503 = 200;
+  /** Runs when a secret is minted, before the answer (to break the next step). */
+  onMint: (() => void) | undefined;
   verificationOrigin = 'https://app.tassyir.io';
 
   account: DeveloperAccount | null = {
@@ -251,6 +255,12 @@ export class FakeDeveloperApi {
   // ── Device grant ────────────────────────────────────────────────────────
 
   #deviceCode(form: URLSearchParams): Response {
+    if (this.deviceCodeStatus === 503) {
+      return json(503, {
+        statusCode: 503,
+        message: 'Service temporarily unavailable, please retry.',
+      });
+    }
     if (this.deviceCodeStatus === 429) {
       return json(
         429,
@@ -342,6 +352,12 @@ export class FakeDeveloperApi {
         return json(500, { statusCode: 500, message: 'Internal server error' });
       case 'network':
         throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+      case 'throttled':
+        return json(
+          429,
+          { message: 'Too Many Requests' },
+          { 'retry-after': '90' },
+        );
       case 'approve': {
         signIn.issued = true;
         const token = `tsy_dt_${base62(43)}`;
@@ -529,6 +545,7 @@ export class FakeDeveloperApi {
         }
         const secret = `tsy_cs_${base62(43)}`;
         this.secrets.push(secret);
+        this.onMint?.();
         const credential: AppCredential = {
           id: this.#id(),
           secretPrefix: secret.slice(0, 15),
