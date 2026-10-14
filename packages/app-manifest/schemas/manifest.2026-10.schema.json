@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$",
+      "description": "The app's display name. The ar/en listing copy lives in the developer console."
+    },
+    "handle": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 40,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Unique, never changes. A hosted app is served from https://{handle}.tassyir-apps.com."
+    },
+    "api_version": {
+      "type": "string",
+      "const": "2026-10",
+      "description": "The Admin API and webhook version the app is built for."
+    },
+    "access": {
+      "type": "object",
+      "properties": {
+        "scopes": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "read_orders",
+              "write_orders",
+              "dispatch_orders",
+              "read_returns",
+              "write_returns",
+              "read_products",
+              "write_products",
+              "read_inventory",
+              "write_inventory",
+              "read_costs",
+              "read_customers",
+              "read_customer_contact",
+              "read_analytics",
+              "read_finance",
+              "read_stores",
+              "read_delivery"
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Scopes the merchant must grant to install the app."
+        },
+        "optional_scopes": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "read_orders",
+              "write_orders",
+              "dispatch_orders",
+              "read_returns",
+              "write_returns",
+              "read_products",
+              "write_products",
+              "read_inventory",
+              "write_inventory",
+              "read_costs",
+              "read_customers",
+              "read_customer_contact",
+              "read_analytics",
+              "read_finance",
+              "read_stores",
+              "read_delivery"
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Scopes the merchant may grant or refuse at install."
+        },
+        "scope_reasons": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "read_orders",
+              "write_orders",
+              "dispatch_orders",
+              "read_returns",
+              "write_returns",
+              "read_products",
+              "write_products",
+              "read_inventory",
+              "write_inventory",
+              "read_costs",
+              "read_customers",
+              "read_customer_contact",
+              "read_analytics",
+              "read_finance",
+              "read_stores",
+              "read_delivery"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200,
+            "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+          },
+          "description": "One sentence per requested scope (required and optional), shown on the consent screen."
+        }
+      },
+      "additionalProperties": false,
+      "description": "What the app asks the merchant for."
+    },
+    "hosting": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "tassyir",
+            "external"
+          ],
+          "description": "\"tassyir\": Tassyir Hosting (Cloudflare Workers). \"external\": your own server."
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^https:\\/\\/[^/?#\\s\\\\]+(?:\\/[^?#\\s\\\\]*)?$",
+          "description": "external only: the app base URL (https, port 443, no trailing \"/\", no query or fragment)."
+        },
+        "allowed_hosts": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 253,
+            "pattern": "^(?:\\*\\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
+          },
+          "uniqueItems": true,
+          "description": "tassyir only (required there, may be empty): hostnames the app may call. One leading \"*.\" wildcard label allowed; no IPs, ports or paths."
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false,
+      "description": "Where the app runs."
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "callback_url": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^https:\\/\\/[^/?#\\s\\\\]+(?:\\/[^?#\\s\\\\]*)?$",
+          "description": "external only: where the install code is delivered after an install (https)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "admin": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$",
+          "description": "The embedded dashboard page: a path on the app's origin. Omit for a headless app."
+        }
+      },
+      "additionalProperties": false
+    },
+    "webhooks": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "topics": {
+            "minItems": 1,
+            "maxItems": 19,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "orders/created",
+                "abandoned_checkouts/created",
+                "orders/confirmed",
+                "orders/cancelled",
+                "orders/dispatched",
+                "orders/delivered",
+                "orders/returned",
+                "orders/updated",
+                "products/created",
+                "products/updated",
+                "products/deleted",
+                "inventory_levels/updated",
+                "customers/updated",
+                "app/installed",
+                "app/uninstalled",
+                "app/scopes_updated",
+                "customers/data_request",
+                "customers/redact",
+                "business/redact"
+              ]
+            },
+            "uniqueItems": true,
+            "description": "Topics delivered to `uri`. A topic appears once in the manifest."
+          },
+          "uri": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$|^https:\\/\\/[^/?#\\s\\\\]+(?:\\/[^?#\\s\\\\]*)?$",
+            "description": "A path on the app's origin (\"/webhooks\"), or for an external app an absolute https URL."
+          }
+        },
+        "required": [
+          "topics",
+          "uri"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Webhook subscriptions."
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "definitions": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "enum": [
+                  "business",
+                  "store",
+                  "product",
+                  "order",
+                  "customer"
+                ],
+                "description": "What a value is attached to."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "description": "Unique per owner."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "json"
+                ]
+              },
+              "visibility": {
+                "type": "string",
+                "enum": [
+                  "app",
+                  "merchant",
+                  "storefront"
+                ],
+                "description": "\"app\": the app only. \"merchant\": also shown in the dashboard. \"storefront\": also readable by the app's storefront blocks."
+              }
+            },
+            "required": [
+              "owner",
+              "key",
+              "type",
+              "visibility"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "App data keys the app may write."
+    },
+    "storefront": {
+      "type": "object",
+      "properties": {
+        "blocks": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "handle": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 40,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+              },
+              "template": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[a-z0-9_-]+(?:\\/[a-z0-9_-]+)*\\.liquid$",
+                "description": "A .liquid file of the app bundle. Declarative only: no scripts."
+              }
+            },
+            "required": [
+              "handle",
+              "template"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Storefront blocks (Phase 2: refused until then)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "name",
+    "handle",
+    "api_version",
+    "hosting"
+  ],
+  "additionalProperties": false,
+  "title": "Tassyir app manifest (2026-10)",
+  "description": "The parsed tassyir.app.toml. Field names are the TOML keys."
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The specs read files and run the backend's copy; the library itself
+    // uses no Node API (manifest-boundary.test.ts).
+    "types": ["node"]
+  },
+  "include": ["src", "tsdown.config.ts"]
+}

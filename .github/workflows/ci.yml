@@ -64,8 +64,8 @@ jobs:
         run: npm run pack:dry-run
 
       # The release path without publishing: what Changesets would publish to
-      # npm, and the GitHub Packages mirror as a dry run (the placeholder
-      # included, so the step always exercises a tarball).
+      # npm, and the GitHub Packages mirror as a dry run (private packages
+      # included, so the step exercises every tarball).
       - name: Release dry run
         run: |
           npx changeset publish-plan

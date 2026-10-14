@@ -5,9 +5,10 @@ these apps. An app calls the Tassyir Admin API, receives signed webhooks, and
 shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
-**Status: in development. Nothing is published yet.** This repo now has its
-workspace, CI and release pipeline (AP-K1.1). The packages below arrive one
-ticket at a time, starting with `@tassyir/app-manifest`.
+**Status: in development. Nothing is published yet.** This repo has its
+workspace, CI and release pipeline (AP-K1.1) and its first package,
+`@tassyir/app-manifest` (AP-K1.2), whose first release (0.1.0) is pending. The
+other packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -18,20 +19,21 @@ GitHub Packages, for Tassyir's own repositories. See
 
 ### `@tassyir/app-manifest`
 
-_Planned: AP-K1.2._ The schema and validator for `tassyir.app.toml`, the app
-manifest (v1, API version `2026-10`). Give it the parsed manifest. It returns
-either the normalised manifest or every error at once. Each error carries a
-stable `code`, the `path` of the field, a `message`, and a one-sentence `fix`.
-The package ships the published JSON Schema and, for each API version, the
-vocabulary it validates against (scopes, webhook topics, API versions). The
-Tassyir API checks uploads with this same package, so the CLI and the server
-always agree. Ships as ESM and CommonJS.
+[`packages/app-manifest`](packages/app-manifest) (AP-K1.2). The schema and
+validator for `tassyir.app.toml`, the app manifest (v1, API version
+`2026-10`). Give it the parsed manifest. It returns either the normalised
+manifest or every error at once. Each error carries a stable `code`, the `path`
+of the field, a `message`, and a one-sentence `fix`. The package ships the
+published JSON Schema and the vocabulary it validates against (API versions,
+scopes, webhook topics). It is the Tassyir API's own validator, so the CLI and
+the server agree; [docs/APP_MANIFEST.md](docs/APP_MANIFEST.md) says how that
+is checked. Ships as ESM and CommonJS.
 
 ### `@tassyir/app`
 
-_In this repo (AP-K1.3), not published yet._ The server side of an app
-([packages/app](packages/app/README.md)). No runtime dependency: it runs on
-Node 22 and on Workers-like runtimes. It provides:
+[`packages/app`](packages/app) (AP-K1.3). The server side of an app. No
+runtime dependency: it runs on Node 22 and on Workers-like runtimes. It
+provides:
 
 - token exchange (ID token, install code) and refresh, with a store you
   provide and a lock so that only one refresh runs at a time;
