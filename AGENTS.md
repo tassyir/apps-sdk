@@ -59,6 +59,7 @@ Node 22 (`.nvmrc`; the build tool needs 22.18 or later). Install with `npm ci`.
 
 ```
 packages/<folder>/          one package; <folder> = the name without its scope
+                            (the unscoped `tassyir` CLI is packages/cli)
   src/index.ts              the public entry point
   src/*.test.ts             tests next to the code
   package.json, tsconfig.json, tsdown.config.ts, README.md
