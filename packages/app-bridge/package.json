@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/app-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "App Bridge for Tassyir apps: the embedded page's side of the dashboard bridge (ID tokens, toasts, modals, navigation, save bar, title bar, resource pickers, context), with React bindings.",
   "license": "MIT",
   "repository": {

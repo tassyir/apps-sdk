@@ -1,5 +1,19 @@
 # @tassyir/dev-mcp
 
+## 0.1.2
+
+### Patch Changes
+
+- 86ab80c: New guide, Tassyir Hosting (`fetch_doc tassyir-hosting`): deploying a hosted app, the scan's checks and findings, `ctx.props`, storage, egress and webhooks; the errors guide explains `HOSTED_CALL_REFUSED` and the hosted binding's own codes. `get_api_operation` serves both documents at backend `46a49b6b` (`HOSTED_CALL_REFUSED` on every Admin API 401; `refusal` on every deploy state of a hosted version), and `validate_manifest` refuses a hosted app's page or webhook under `/.tassyir/`.
+- Updated dependencies [acb578f]
+- Updated dependencies [86ab80c]
+- Updated dependencies [86ab80c]
+- Updated dependencies [86ab80c]
+- Updated dependencies [0834ea6]
+  - create-tassyir-app@0.2.0
+  - tassyir@0.3.0
+  - @tassyir/app-manifest@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
