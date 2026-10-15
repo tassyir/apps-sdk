@@ -19,7 +19,12 @@ workflow's own `GITHUB_TOKEN`.
 1. A pull request changes a package and adds a changeset (`npx changeset`:
    package, bump, one line for the changelog). CI runs on it.
 2. On merge, [`release.yml`](../.github/workflows/release.yml) opens or updates
-   the **Version Packages** PR: new versions and changelogs.
+   the **Version Packages** PR: new versions and changelogs. Its script,
+   `npm run release:version`, is `changeset version` then
+   `npm run plugin:sync`, so the Claude Code plugin's `.mcp.json` names the
+   new `@tassyir/dev-mcp` version in the same PR. Until that version is on
+   npm, a plugin update from `main` gets a server npx cannot find: approve the
+   `npm` environment soon after merging.
 3. Merging that PR runs `release.yml` again, which:
    - runs every CI gate on the exact commit (`npm run verify`). A PR opened by
      the workflow gets no CI run of its own; close and reopen it to get one;

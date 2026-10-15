@@ -1,0 +1,11 @@
+{
+  "name": "tassyir",
+  "description": "Build a Tassyir app with Claude Code: the Tassyir developer MCP server (@tassyir/dev-mcp: the guides, the Admin API and webhook schemas, manifest validation, the starter, test webhooks and dev stores) and the tassyir-app skill (the app contract of API version 2026-10).",
+  "author": {
+    "name": "Tassyir"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/dev-mcp#claude-code-plugin",
+  "repository": "https://github.com/tassyir/apps-sdk",
+  "license": "MIT",
+  "keywords": ["tassyir", "tassyir-app", "mcp", "e-commerce"]
+}

@@ -18,7 +18,31 @@ offline and answer from the version you installed.
 
 ## Install
 
-Node 22.18 or later. In Claude Code:
+Node 22.18 or later.
+
+### Claude Code plugin
+
+In Claude Code, add Tassyir's plugin marketplace (this repository) and
+install its `tassyir` plugin:
+
+```text
+/plugin marketplace add tassyir/apps-sdk
+/plugin install tassyir@tassyir
+```
+
+The plugin runs this server (`npx -y @tassyir/dev-mcp@<version>`, the
+release the plugin names) and adds the `tassyir-app` skill: the app contract
+(manifest, scopes, tokens, webhooks, Admin API, App Bridge, dev stores) that
+`create-tassyir-app` also writes into every new project's
+`.claude/skills`, the same file. From a terminal, the same is
+`claude plugin marketplace add tassyir/apps-sdk` then
+`claude plugin install tassyir@tassyir`. For a newer release later, run
+`claude plugin marketplace update tassyir`, then
+`claude plugin update tassyir@tassyir`.
+
+### The server alone
+
+In Claude Code:
 
 ```bash
 claude mcp add tassyir -- npx -y @tassyir/dev-mcp

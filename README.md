@@ -114,8 +114,20 @@ developer API with the sign-in of `tassyir login`, whose token never appears
 in an answer. `validate_block`, `tail_logs` and `run_review_checks` are listed
 and answer that they are not available yet (the marketplace, Tassyir
 Hosting). Every tool has a JSON Schema input and output, every answer is at
-most 8 KB, and every refusal of a well-formed call has a `code` and a `fix`. A Claude Code plugin
-comes later.
+most 8 KB, and every refusal of a well-formed call has a `code` and a `fix`.
+
+In Claude Code, the `tassyir` plugin bundles the server with the starter's
+`tassyir-app` skill (the app contract):
+
+```text
+/plugin marketplace add tassyir/apps-sdk
+/plugin install tassyir@tassyir
+```
+
+The marketplace is [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)
+and the plugin [`plugins/tassyir`](plugins/tassyir). Its server is pinned to
+the current `@tassyir/dev-mcp` release and its skill is the template's, both
+kept in step by `npm run plugin:sync` and a spec.
 
 ## Developer guides
 
