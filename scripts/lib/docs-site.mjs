@@ -23,7 +23,11 @@
 import { posix } from 'node:path';
 import {
   GENERATED_START,
+  HOSTED_BINDING_CODES,
+  HOSTED_BINDING_SHARED_CODES,
   anchorOf,
+  documentedCodes,
+  errorCatalogue,
   fencedLines,
   problemCodes,
 } from './guides.mjs';
@@ -431,9 +435,20 @@ export function operationRoute(document, operation, directory) {
 const NO_EXPLANATION =
   "Read the answer's `fix`: one sentence that says what to do. Act on the `code`, never on `title` or `detail`.";
 
+/** Where the guides say how a hosted app calls the Admin API. */
+export const HOSTED_CALLS_ROUTE = '/guides/tassyir-hosting#call-the-admin-api';
+
+/** @param {string} text */
+function lowerFirst(text) {
+  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
+
 /**
- * One page per problem code of the OpenAPI document, keyed by its file in
- * site/ (`errors/<kebab-code>.mdx`), sorted by code.
+ * One page per code a developer can meet (`documentedCodes`: the codes the
+ * operations list, the error catalogue `x-tassyir-errors`, the hosted
+ * binding's own), keyed by its file in site/ (`errors/<kebab-code>.mdx`),
+ * sorted by code. "What to do" is the errors guide's text for the code, else
+ * the catalogue's `fix`.
  * @param {OpenApiDocument} document
  * @param {string} errorsGuide docs/guides/errors.md
  * @param {string} directory the API reference's directory for the document
@@ -441,52 +456,105 @@ const NO_EXPLANATION =
  */
 export function errorPages(document, errorsGuide, directory) {
   const { codes, operations } = problemCodes(document);
+  const catalogue = errorCatalogue(document);
   const explanations = codeExplanations(errorsGuide);
+  /** @param {string} markdown */
+  const prose = (markdown) =>
+    mapProse(markdown, (text) =>
+      escapeMdx(rewriteLinks(text, (target) => guideLink(target, 'errors'))),
+    );
   /** @type {Map<string, string>} */
   const pages = new Map();
-  for (const code of [...codes.keys()].sort()) {
+  for (const code of documentedCodes(document)) {
     const use = codes.get(code);
-    if (!use) continue;
-    const http = [...use.statuses].sort((a, b) => a - b).join(', ');
-    const answeredBy = [...use.operations].sort();
-    const everyOperation = use.operations.size === operations;
-    const from = everyOperation
-      ? 'every operation of the Admin API'
-      : answeredBy.length === 1
-        ? (answeredBy[0] ?? '')
-        : `${String(answeredBy.length)} operations of the Admin API`;
-    const explanation = mapProse(
-      explanations.get(code) ?? NO_EXPLANATION,
-      (prose) =>
-        escapeMdx(rewriteLinks(prose, (target) => guideLink(target, 'errors'))),
-    );
+    const entry = catalogue.get(code);
+    const binding = HOSTED_BINDING_CODES.get(code);
+    const statuses = [
+      ...new Set([
+        ...(use?.statuses ?? []),
+        ...(entry?.statuses ?? []),
+        ...(binding ? [binding.status] : []),
+      ]),
+    ].sort((a, b) => a - b);
+    const http = statuses.length > 0 ? statuses.join(', ') : '4xx';
+    const answeredBy = use ? [...use.operations].sort() : [];
+    const everyOperation = use?.operations.size === operations;
+    let description;
+    if (use) {
+      const from = everyOperation
+        ? 'every operation of the Admin API'
+        : answeredBy.length === 1
+          ? (answeredBy[0] ?? '')
+          : `${String(answeredBy.length)} operations of the Admin API`;
+      description = `HTTP ${http}, from ${from}.`;
+    } else if (binding) {
+      description = `HTTP ${http}, from a hosted app's TASSYIR binding, before the Admin API.`;
+    } else {
+      description = entry?.fallback ?? `HTTP ${http}.`;
+    }
+
+    const explained = explanations.get(code);
+    const whatToDo = [prose(explained ?? entry?.fix ?? NO_EXPLANATION)];
+    if (explained && entry?.fix) {
+      whatToDo.push('', prose(`The answer's \`fix\`: ${entry.fix}`));
+    }
+
+    /** @type {string[]} */
+    const from = [];
+    if (use) {
+      from.push(
+        everyOperation
+          ? `Every operation of the Admin API, with HTTP ${http}.`
+          : [
+              `HTTP ${http}, from:`,
+              '',
+              ...answeredBy.map(
+                (operation) =>
+                  `- [\`${operation}\`](${operationRoute(document, operation, directory)})`,
+              ),
+            ].join('\n'),
+      );
+    }
+    if (entry?.fallback) {
+      from.push(
+        prose(
+          use
+            ? `Also the code of ${lowerFirst(entry.fallback)}`
+            : `The code of ${lowerFirst(entry.fallback)} Any operation may answer it.`,
+        ),
+      );
+    }
+    if (binding) {
+      from.push(
+        `A hosted app's \`ctx.props.TASSYIR\` binding answers it itself, before the call reaches the Admin API, so the problem has no \`requestId\` and the API's reference does not list it. How the binding calls the API: [Tassyir Hosting](${HOSTED_CALLS_ROUTE}).`,
+      );
+    } else if (HOSTED_BINDING_SHARED_CODES.includes(code)) {
+      from.push(
+        `A hosted app's \`ctx.props.TASSYIR\` binding also answers it itself, before the call is sent ([Tassyir Hosting](${HOSTED_CALLS_ROUTE})).`,
+      );
+    }
+
+    const title = entry?.title ?? binding?.title;
     const body = [
-      `Its problem \`type\`: \`${PROBLEM_TYPE_BASE}${kebab(code)}\`.`,
+      `Its problem \`type\`: \`${PROBLEM_TYPE_BASE}${kebab(code)}\`${title ? `; its \`title\`: ${escapeMdx(title)}` : ''}.`,
       '',
       '## What to do',
       '',
-      explanation,
+      ...whatToDo,
       '',
       '## Answered by',
       '',
-      everyOperation
-        ? `Every operation of the Admin API, with HTTP ${http}.`
-        : [
-            `HTTP ${http}, from:`,
-            '',
-            ...answeredBy.map(
-              (operation) =>
-                `- [\`${operation}\`](${operationRoute(document, operation, directory)})`,
-            ),
-          ].join('\n'),
+      from.join('\n\n'),
       '',
       'The shape of every problem, and how `@tassyir/app` reports it: [Errors](/guides/errors).',
     ].join('\n');
     pages.set(
       `errors/${kebab(code)}.mdx`,
       page(
-        { title: code, description: `HTTP ${http}, from ${from}.` },
-        'docs/guides/errors.md and the OpenAPI document',
+        { title: code, description },
+        binding
+          ? 'docs/guides/errors.md'
+          : 'docs/guides/errors.md and the OpenAPI document',
         body,
       ),
     );

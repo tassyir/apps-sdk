@@ -4,7 +4,7 @@
     "title": "Tassyir Admin API",
     "version": "2026-10",
     "summary": "The API installed apps call to read and change a Tassyir business, and the webhooks they receive.",
-    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Guides, and a page for every error code: https://developers.tassyir.io.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence, the `docs` page of the code and a `requestId`. Each operation lists every code it can answer; `x-tassyir-errors` lists every code a problem can carry, with its title, statuses and `fix`. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`. All the apps of one business also share a ceiling, by default 20 requests a second: 429 `BUSINESS_RATE_LIMITED` with `Retry-After`. An API process that is already running its maximum of app requests answers 503 `API_BUSY` with `Retry-After`, having done nothing.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
+    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Guides, and a page for every error code: https://developers.tassyir.io.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan. An app on Tassyir Hosting holds no token: it calls these routes through `ctx.props.TASSYIR.fetch`, which signs each call as its installation (the same scopes, stores and plan; Idempotency-Key passes through), and a call that cannot be accepted is 401 `HOSTED_CALL_REFUSED`.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence, the `docs` page of the code and a `requestId`. Each operation lists every code it can answer; `x-tassyir-errors` lists every code a problem can carry, with its title, statuses and `fix`. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`. All the apps of one business also share a ceiling, by default 20 requests a second: 429 `BUSINESS_RATE_LIMITED` with `Retry-After`. An API process that is already running its maximum of app requests answers 503 `API_BUSY` with `Retry-After`, having done nothing.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
   },
   "servers": [
     {
@@ -13115,7 +13115,7 @@
     },
     "responses": {
       "Unauthorized": {
-        "description": "No usable access token: `APP_TOKEN_INVALID`, `APP_TOKEN_REQUIRED`.",
+        "description": "No usable credential: `APP_TOKEN_INVALID`, `APP_TOKEN_REQUIRED`, `HOSTED_CALL_REFUSED`.",
         "headers": {
           "RateLimit-Limit": {
             "$ref": "#/components/headers/RateLimit-Limit"
@@ -13130,7 +13130,7 @@
             "$ref": "#/components/headers/X-Request-Id"
           },
           "WWW-Authenticate": {
-            "description": "The Bearer challenge (RFC 6750).",
+            "description": "The challenge: `Bearer` (RFC 6750) for an access token, `Tassyir-Hosted` for a hosted app's call through `ctx.props.TASSYIR`.",
             "schema": {
               "type": "string"
             }
@@ -13151,7 +13151,8 @@
                     "code": {
                       "enum": [
                         "APP_TOKEN_INVALID",
-                        "APP_TOKEN_REQUIRED"
+                        "APP_TOKEN_REQUIRED",
+                        "HOSTED_CALL_REFUSED"
                       ]
                     }
                   }
@@ -20866,6 +20867,13 @@
       ],
       "fix": "Do not retry the same request: the detail says what this installation may not do.",
       "fallback": "A refusal with HTTP 403 that carries no more specific code."
+    },
+    "HOSTED_CALL_REFUSED": {
+      "title": "Hosted call refused",
+      "statuses": [
+        401
+      ],
+      "fix": "Call the Admin API through ctx.props.TASSYIR.fetch from the request that received it; if the installation is still active, retry after a short wait."
     },
     "HTML_NOT_ALLOWED": {
       "title": "Markup not allowed",

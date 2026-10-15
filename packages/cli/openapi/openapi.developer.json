@@ -2066,7 +2066,7 @@
           "Versions"
         ],
         "summary": "Upload a version of the app's manifest",
-        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser); a larger body is 413 `PAYLOAD_TOO_LARGE` with `limitBytes`, `hostingAvailable` and a `fix` saying why (while hosting is off, only a version carrying a bundle is that large). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -5076,12 +5076,56 @@
                               }
                             ],
                             "description": "Why a scan or an upload stopped without a verdict on the code."
+                          },
+                          "refusal": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's own error code (10021: the script failed to start)."
+                                  },
+                                  "message": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's message, one line: never an account id, a credential, a URL, an absolute path or another app's script."
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "message"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "What the hosting platform answered when it refused the upload (`errorCode` `CLOUDFLARE_REJECTED`, sometimes `CLOUDFLARE_UNAVAILABLE`); null otherwise."
                           }
                         },
                         "required": [
                           "status",
                           "deployedAt",
-                          "errorCode"
+                          "errorCode",
+                          "refusal"
                         ],
                         "additionalProperties": false
                       },
@@ -5131,12 +5175,56 @@
                               }
                             ],
                             "description": "Why a scan or an upload stopped without a verdict on the code."
+                          },
+                          "refusal": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's own error code (10021: the script failed to start)."
+                                  },
+                                  "message": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's message, one line: never an account id, a credential, a URL, an absolute path or another app's script."
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "message"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "What the hosting platform answered when it refused the upload (`errorCode` `CLOUDFLARE_REJECTED`, sometimes `CLOUDFLARE_UNAVAILABLE`); null otherwise."
                           }
                         },
                         "required": [
                           "status",
                           "deployedAt",
-                          "errorCode"
+                          "errorCode",
+                          "refusal"
                         ],
                         "additionalProperties": false
                       }
@@ -5422,12 +5510,56 @@
                               }
                             ],
                             "description": "Why a scan or an upload stopped without a verdict on the code."
+                          },
+                          "refusal": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's own error code (10021: the script failed to start)."
+                                  },
+                                  "message": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's message, one line: never an account id, a credential, a URL, an absolute path or another app's script."
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "message"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "What the hosting platform answered when it refused the upload (`errorCode` `CLOUDFLARE_REJECTED`, sometimes `CLOUDFLARE_UNAVAILABLE`); null otherwise."
                           }
                         },
                         "required": [
                           "status",
                           "deployedAt",
-                          "errorCode"
+                          "errorCode",
+                          "refusal"
                         ],
                         "additionalProperties": false
                       },
@@ -5477,12 +5609,56 @@
                               }
                             ],
                             "description": "Why a scan or an upload stopped without a verdict on the code."
+                          },
+                          "refusal": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": -9007199254740991,
+                                        "maximum": 9007199254740991
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's own error code (10021: the script failed to start)."
+                                  },
+                                  "message": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The hosting platform's message, one line: never an account id, a credential, a URL, an absolute path or another app's script."
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "message"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "What the hosting platform answered when it refused the upload (`errorCode` `CLOUDFLARE_REJECTED`, sometimes `CLOUDFLARE_UNAVAILABLE`); null otherwise."
                           }
                         },
                         "required": [
                           "status",
                           "deployedAt",
-                          "errorCode"
+                          "errorCode",
+                          "refusal"
                         ],
                         "additionalProperties": false
                       }
@@ -7250,7 +7426,7 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "A hosted version's code (required for `hosting.mode = \"tassyir\"`, refused otherwise): `{ main, files: [{ path, content }], lockfile? }`, text modules only, at most 100 files and 3 MB; checked by the bundle validator (every error at once, 400 `APP_BUNDLE_INVALID`).",
+                "description": "A hosted version's code (required for `hosting.mode = \"tassyir\"`, refused otherwise): `{ main, files: [{ path, content }], lockfile? }`, text modules only, at most 100 files and 3 MB, each file in at most 9 folders; checked by the bundle validator (every error at once, 400 `APP_BUNDLE_INVALID`). the default export of `main` must hold a `fetch` handler (an object or a class with a `fetch` method) and no module may import a `node:` built-in: the scan refuses both.",
                 "properties": {
                   "main": {
                     "type": "string"

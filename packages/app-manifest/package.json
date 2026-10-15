@@ -46,7 +46,7 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json",
     "schemas": "vitest run --root ../.. packages/app-manifest/src/json-schema.test.ts --update",
-    "parity": "vitest run --root ../.. packages/app-manifest/src/backend-parity.test.ts"
+    "parity": "tsdown && vitest run --root ../.. packages/app-manifest/src/backend-parity.test.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

@@ -22,9 +22,9 @@ merchant. The changes an app makes to orders, the catalogue and stock are
 written to the business's activity log under the app's name.
 
 An app runs on **your own server** today (`hosting.mode = "external"` in the
-manifest). Tassyir Hosting, where an app runs on Tassyir with no server to
-manage, is coming; an app moves there with the same manifest, API and
-webhooks.
+manifest). [Tassyir Hosting](tassyir-hosting.md), where an app runs on
+Tassyir with no server to manage, opens later; an app moves there with the
+same manifest, API and webhooks.
 
 Apps are **custom apps** for now: one installs on the businesses its
 developer owns, and on one other business the developer names. A public
@@ -47,6 +47,7 @@ catalogue of apps comes later.
 | Stores and delivery      | A business's stores, carriers and delivery prices                                           | [Stores and delivery](stores-and-delivery.md)           |
 | App data                 | Values your app keeps in Tassyir, next to the merchant's resources                          | [App data](app-data.md)                                 |
 | Dev stores               | Test businesses with synthetic data, where nothing reaches the outside world                | [Dev stores](dev-stores.md)                             |
+| Tassyir Hosting          | Running the app on Tassyir: deploying, the scan, what each request receives                 | [Tassyir Hosting](tassyir-hosting.md)                   |
 | Compliance and uninstall | What happens when a merchant uninstalls, and the buyer data requests an app must honour     | [Compliance and uninstall](compliance-and-uninstall.md) |
 | Errors                   | Every error code, and what to do about the common ones                                      | [Errors](errors.md)                                     |
 
@@ -61,9 +62,7 @@ on your machine and installs it on a dev store.
 | [`@tassyir/app`](https://github.com/tassyir/apps-sdk/tree/main/packages/app)                      | Your server: tokens, ID-token and webhook verification, the typed Admin API client       |
 | [`@tassyir/app-bridge`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge)        | Your page in the dashboard: ID tokens, toasts, modals, the save bar, navigation, pickers |
 | [`@tassyir/app-manifest`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-manifest)    | Validating `tassyir.app.toml` with the same code the Tassyir API runs                    |
-
-A command-line tool, `tassyir`, is coming. Until it ships, the developer
-console in the dashboard does what it will do from a terminal.
+| [`tassyir`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli)                           | The command line: sign in, create apps, validate and deploy, follow a hosted version     |
 
 ## Addresses
 

@@ -421,8 +421,37 @@ const METHODS = ['get', 'put', 'post', 'patch', 'delete'];
  *   info?: { version?: string },
  *   paths?: Record<string, Record<string, unknown>>,
  *   components?: { responses?: Record<string, unknown> },
+ *   'x-tassyir-errors'?: Record<string, unknown>,
  * }} OpenApiDocument
+ * @typedef {{ title: string, statuses: number[], fix?: string, fallback?: string }} CatalogueEntry
  */
+
+/**
+ * The codes a hosted app's `ctx.props.TASSYIR` binding answers ITSELF,
+ * before the call reaches the Admin API, so the API's OpenAPI document and
+ * its error catalogue never name them (backend
+ * `workers/apps-dispatcher/src/tassyir.ts`, `bindingProblem`; the plan's
+ * §3.4). Their pages and their part of errors.md are written here.
+ * @type {ReadonlyMap<string, { status: number, title: string }>}
+ */
+export const HOSTED_BINDING_CODES = new Map([
+  ['HOSTED_PATH_NOT_ALLOWED', { status: 400, title: 'Not an Admin API path' }],
+  ['RESPONSE_TOO_LARGE', { status: 502, title: 'Response too large' }],
+  ['TASSYIR_BINDING_NOT_AVAILABLE', { status: 503, title: 'Not available' }],
+]);
+
+/**
+ * Admin API codes the binding ALSO answers itself, in the API's own words,
+ * before the call is sent.
+ */
+export const HOSTED_BINDING_SHARED_CODES = [
+  'BAD_REQUEST',
+  'IDEMPOTENCY_KEY_INVALID',
+  'METHOD_NOT_ALLOWED',
+  'PAYLOAD_TOO_LARGE',
+  'SERVICE_UNAVAILABLE',
+  'UNSUPPORTED_MEDIA_TYPE',
+];
 
 /**
  * @param {unknown} value
@@ -531,6 +560,56 @@ export function problemCodes(document) {
 }
 
 /**
+ * The document's error catalogue, `x-tassyir-errors`: per code, the title
+ * and `fix` the API sends, the statuses that carry it and, for a status
+ * fallback, when a refusal gets it. Codes no operation lists (the fallbacks
+ * of 401, 405, 409, 422 and any other 4xx) are only here.
+ * @param {OpenApiDocument} document
+ * @returns {Map<string, CatalogueEntry>}
+ */
+export function errorCatalogue(document) {
+  /** @type {Map<string, CatalogueEntry>} */
+  const catalogue = new Map();
+  const raw = document['x-tassyir-errors'];
+  if (!isRecord(raw)) return catalogue;
+  for (const [code, value] of Object.entries(raw)) {
+    if (!isRecord(value) || typeof value['title'] !== 'string') {
+      throw new Error(`x-tassyir-errors.${code}: no title`);
+    }
+    const statuses = value['statuses'];
+    /** @type {CatalogueEntry} */
+    const entry = {
+      title: value['title'],
+      statuses: Array.isArray(statuses)
+        ? statuses.filter((status) => typeof status === 'number')
+        : [],
+    };
+    if (typeof value['fix'] === 'string') entry.fix = value['fix'];
+    if (typeof value['fallback'] === 'string') {
+      entry.fallback = value['fallback'];
+    }
+    catalogue.set(code, entry);
+  }
+  return catalogue;
+}
+
+/**
+ * Every code a developer can meet, sorted: those the operations list, those
+ * of the error catalogue, and the hosted binding's own.
+ * @param {OpenApiDocument} document
+ * @returns {string[]}
+ */
+export function documentedCodes(document) {
+  return [
+    ...new Set([
+      ...problemCodes(document).codes.keys(),
+      ...errorCatalogue(document).keys(),
+      ...HOSTED_BINDING_CODES.keys(),
+    ]),
+  ].sort();
+}
+
+/**
  * The token endpoint's OAuth `error` values, by HTTP status.
  * @param {OpenApiDocument} document
  * @returns {Map<string, Set<number>>}
@@ -578,19 +657,30 @@ function operationList(operations, total) {
 export function renderErrorReference(document) {
   const version = document.info?.version ?? '';
   const { codes, operations } = problemCodes(document);
+  const catalogue = errorCatalogue(document);
   const oauth = oauthErrors(document);
+  const all = [...new Set([...codes.keys(), ...catalogue.keys()])].sort();
   const lines = [
     GENERATED_START,
     '',
     '## Every Admin API code',
     '',
-    `Generated from the OpenAPI document of API version \`${version}\` that \`@tassyir/app\` is typed from (${operations} operations under \`/apps/${version}/\`). An operation lists every code it can answer, per status, in that document.`,
+    `Generated from the OpenAPI document of API version \`${version}\` that \`@tassyir/app\` is typed from (${operations} operations under \`/apps/${version}/\`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.`,
     '',
     '| Code | HTTP | Answered by |',
     '| --- | --- | --- |',
-    ...[...codes.keys()].sort().map((code) => {
-      const use = /** @type {CodeUse} */ (codes.get(code));
-      return `| \`${code}\` | ${statusList(use.statuses)} | ${operationList(use.operations, operations)} |`;
+    ...all.map((code) => {
+      const use = codes.get(code);
+      const entry = catalogue.get(code);
+      const statuses = new Set([
+        ...(use?.statuses ?? []),
+        ...(entry?.statuses ?? []),
+      ]);
+      const http = statuses.size > 0 ? statusList(statuses) : '4xx';
+      const by = use
+        ? operationList(use.operations, operations)
+        : 'any operation, as a fallback';
+      return `| \`${code}\` | ${http} | ${by} |`;
     }),
     '',
     '## Token endpoint errors',

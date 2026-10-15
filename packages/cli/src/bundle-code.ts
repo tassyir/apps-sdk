@@ -19,12 +19,13 @@ import type { CliProblem } from './errors.js';
 // the `banned_apis` check and the request half of `manifest_hosts`
 // (`hosts.mjs`). Same rules, same severities, same words: a finding the
 // scan reports as an error refuses the deploy here, a warning is printed.
-// Two rules are the CLI's own: a `node:` import is refused (the scan only
-// warns, but a hosted Worker has no Node.js compatibility, so Cloudflare
-// would refuse the upload after the scan), and `main` must export a `fetch`
-// handler (Cloudflare refuses a Worker with no handler). The scan's other
-// checks (unicode, manifest_scopes, Semgrep, Gitleaks, OSV, the AI review)
-// run on Tassyir's side only. When a rule changes there, change it here.
+// That includes the two rules the CLI had first and the scan took on (AP-B1.23):
+// a `node:` import is an error (a hosted Worker has no Node.js compatibility,
+// so Cloudflare would refuse the upload), and `main` must export a `fetch`
+// handler (`no-fetch-handler` in `banned_apis`: Cloudflare refuses a Worker
+// with no handler), judged as the scan judges it. The scan's other checks
+// (unicode, manifest_scopes, Semgrep, Gitleaks, OSV, the AI review) run on
+// Tassyir's side only. When a rule changes there, change it here.
 
 /** A part of a string built at run time (the scan's marker). */
 const DYNAMIC = '{x}';
@@ -94,7 +95,7 @@ const RULES: Readonly<Record<string, { code: string; fix: string }>> = {
   },
   'tassyir-host': {
     code: 'BUNDLE_TASSYIR_HOST',
-    fix: 'Call Tassyir through env.TASSYIR, never over the network (the scan refuses a request to a Tassyir domain).',
+    fix: 'Call Tassyir through ctx.props.TASSYIR.fetch, never over the network (the scan refuses a request to a Tassyir domain).',
   },
   'host-not-allowed': {
     code: 'BUNDLE_HOST_NOT_ALLOWED',
@@ -431,7 +432,7 @@ function urlHost(text: string): { scheme: string; host: string } | null {
   return { scheme: match[1].toLowerCase(), host: match[2].toLowerCase() };
 }
 
-// ── The fetch handler (the CLI's own rule) ─────────────────────────────────
+// ── The fetch handler (the scan's no-fetch-handler) ────────────────────────
 
 type Verdict = 'yes' | 'no' | 'unknown';
 
@@ -517,15 +518,15 @@ function fetchHandlerProblem(ast: Program): string | null {
     if (statement.type === 'ExportDefaultDeclaration') {
       exported = statement.declaration;
     }
-    if (statement.type === 'ExportNamedDeclaration' && !statement.source) {
+    if (statement.type === 'ExportNamedDeclaration') {
       for (const specifier of statement.specifiers) {
-        if (keyIs(specifier.exported, 'default')) {
-          exported =
-            specifier.local.type === 'Identifier'
-              ? topLevelBinding(ast, specifier.local.name)
-              : null;
-          if (exported === null) return null; // bound elsewhere: cannot tell
+        if (!keyIs(specifier.exported, 'default')) continue;
+        // Re-exported from another module, or bound elsewhere: cannot tell.
+        if (statement.source || specifier.local.type !== 'Identifier') {
+          return null;
         }
+        exported = topLevelBinding(ast, specifier.local.name);
+        if (exported === null) return null;
       }
     }
   }
@@ -543,8 +544,8 @@ function fetchHandlerProblem(ast: Program): string | null {
 // ── The checks ─────────────────────────────────────────────────────────────
 
 /**
- * The bundle's ES modules, checked as the scan checks them, plus the CLI's
- * `node:` and fetch-handler rules. `allowedHosts` is the manifest's
+ * The bundle's ES modules, checked as the scan checks them (its `node:` and
+ * fetch-handler rules included). `allowedHosts` is the manifest's
  * `hosting.allowed_hosts`.
  */
 export function checkBundleCode(

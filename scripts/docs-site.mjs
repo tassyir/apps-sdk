@@ -35,7 +35,11 @@ import {
   packagePage,
   themeSettings,
 } from './lib/docs-site.mjs';
-import { guideSetProblems, parseGuide, problemCodes } from './lib/guides.mjs';
+import {
+  documentedCodes,
+  guideSetProblems,
+  parseGuide,
+} from './lib/guides.mjs';
 import { ROOT, readJson, workspaces } from './lib/workspace.mjs';
 
 export const SITE_DIR = join(ROOT, 'site');
@@ -78,7 +82,7 @@ export function expectedSite() {
   const document = /** @type {import('./lib/guides.mjs').OpenApiDocument} */ (
     readJson(OPENAPI_DOCUMENT)
   );
-  const codes = [...problemCodes(document).codes.keys()];
+  const codes = documentedCodes(document);
   const packages = publicPackages();
   const [admin] = OPENAPI_SOURCES;
   if (!admin) throw new Error('OPENAPI_SOURCES is empty');
