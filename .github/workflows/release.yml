@@ -12,8 +12,10 @@ name: Release
 #   none     nothing to publish.
 # Unless the mode is `version`, the last job mirrors each public @tassyir/*
 # package's current version from npm to GitHub Packages (D11), the same
-# tarball. It skips what GitHub Packages already has, so the next run (or
-# "Run workflow" on this workflow) repairs a mirror that failed.
+# tarball. npm's CDN can serve the old packument for minutes after a publish,
+# so the job waits up to 10 minutes for npm to serve each version, then fails.
+# It skips what GitHub Packages already has, so the next run (or "Run
+# workflow" on this workflow) repairs a mirror that failed.
 on:
   push:
     branches:
@@ -174,7 +176,8 @@ jobs:
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The mirror may wait up to 10 minutes for npm to serve a new version.
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write # publish to npm.pkg.github.com with GITHUB_TOKEN
