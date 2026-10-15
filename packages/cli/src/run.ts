@@ -174,7 +174,7 @@ function mainHelp(version: string): string {
     ...optionLines(GLOBAL_OPTIONS),
     '  -v, --version            Show the version.',
     '',
-    'Exit codes: 0 done, 1 failed, 2 usage, 3 sign in again, 4 manifest invalid, 5 try again later.',
+    'Exit codes: 0 done, 1 failed, 2 usage, 3 sign in again, 4 manifest or bundle invalid, 5 try again later.',
     'Environment: TASSYIR_TOKEN (CI), TASSYIR_API_ORIGIN, TASSYIR_CREDENTIAL_STORE (keychain | file),',
     '             TASSYIR_CONFIG_DIR, TASSYIR_DEBUG=1 (requests on stderr, never a token).',
     'Help on one command: tassyir <command> --help',

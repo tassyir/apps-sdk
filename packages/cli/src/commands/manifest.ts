@@ -1,11 +1,41 @@
+import { dirname } from 'node:path';
 import type { AppManifest } from '@tassyir/app-manifest';
+import type { DeveloperApi } from '../api.js';
+import {
+  BUNDLE_MAIN,
+  buildHostedBundle,
+  DEFAULT_ENTRIES,
+} from '../bundle-build.js';
+import { checkBundleCode } from '../bundle-code.js';
+import { validateHostedBundle } from '../bundle-rules.js';
 import { lines, resolveApp, stringValue } from '../command.js';
-import type { Command } from '../command.js';
-import { isCliError } from '../errors.js';
+import type {
+  Command,
+  CommandResult,
+  Context,
+  OptionSpec,
+} from '../command.js';
+import type { AppVersionDetail } from '../developer-types.js';
+import { CliError, EXIT_CODES, isCliError, usageError } from '../errors.js';
+import type { CliProblem } from '../errors.js';
+import {
+  answerHostedVersion,
+  checkLaterCommand,
+  DEFAULT_FOLLOW_TIMEOUT_SECONDS,
+  followVersion,
+  hostingLines,
+  isSettled,
+  progressLabel,
+  stageOf,
+} from '../hosted-version.js';
 import { checkManifest, loadManifest, manifestInvalid } from '../manifest.js';
+import type { LoadedManifest } from '../manifest.js';
 
-// validate (offline, @tassyir/app-manifest) and deploy (an external app's
-// manifest as a new version; a hosted app is answered by the API).
+// validate (offline, @tassyir/app-manifest); deploy (an external app's
+// manifest as a new version, current at once; a hosted app's manifest with
+// the bundle built here, checked by the API's rules before the upload, then
+// its scan followed to the verdict); app version (one version, followed on
+// demand: what deploy says to run when it stops waiting).
 
 /** Things that pass the validator but are almost certainly not meant. */
 function warningsOf(manifest: AppManifest): string[] {
@@ -67,16 +97,227 @@ export const validateCommand: Command = {
   },
 };
 
+const TIMEOUT_OPTION: OptionSpec = {
+  type: 'string',
+  value: 'seconds',
+  description: `How long to wait for the scan's verdict. Default ${String(DEFAULT_FOLLOW_TIMEOUT_SECONDS)}; 0 answers at once.`,
+};
+
+/** `--timeout`: whole seconds, the default when absent. */
+function timeoutSeconds(
+  value: string | boolean | undefined,
+  command: string,
+): number {
+  if (value === undefined) return DEFAULT_FOLLOW_TIMEOUT_SECONDS;
+  if (typeof value === 'string' && /^\d{1,6}$/.test(value)) {
+    return Number(value);
+  }
+  throw usageError(
+    `--timeout takes whole seconds (0 answers at once), got ${String(value)}`,
+    command,
+  );
+}
+
+/** The same refusal with the CLI's own fix (it knows the commands). */
+function withFix(error: CliError, fix: string): CliError {
+  return new CliError({
+    code: error.code,
+    message: error.message,
+    fix,
+    exitCode: error.exitCode,
+    ...(error.status === undefined ? {} : { status: error.status }),
+    ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
+    ...(error.retryAfterSeconds === undefined
+      ? {}
+      : { retryAfterSeconds: error.retryAfterSeconds }),
+    ...(error.errors === undefined ? {} : { errors: error.errors }),
+    ...(error.details === undefined ? {} : { details: error.details }),
+  });
+}
+
+/** A hosted upload's refusals, with what to do from the CLI. */
+function hostedUploadError(error: unknown, apiOrigin: string): unknown {
+  if (!isCliError(error)) return error;
+  switch (error.code) {
+    case 'APP_VERSION_CONFLICT':
+      return withFix(
+        error,
+        'Run `tassyir deploy` again: another upload of this app took that version number first, and each upload takes the next one.',
+      );
+    case 'APP_HOSTING_NOT_AVAILABLE':
+      return withFix(
+        error,
+        `Tassyir Hosting is switched off on ${apiOrigin} (production keeps it off until hosted apps can be reached): run the app on your own server (hosting.mode = "external" and hosting.url in tassyir.app.toml), or deploy to an API where it is on (--api-origin).`,
+      );
+    case 'APP_HOSTING_NOT_CONFIGURED':
+      return withFix(
+        error,
+        `Tassyir Hosting is on at ${apiOrigin} but cannot take uploads yet, so nothing was stored: run \`tassyir deploy\` again later, and tell Tassyir (with the requestId) if it lasts.`,
+      );
+    case 'APP_BUNDLE_INVALID': {
+      const first = error.errors?.[0];
+      return withFix(
+        error,
+        `${first ? `${first.fix} ` : ''}The CLI's own check of the bundle missed this: update the CLI (npm install -g tassyir@latest), and tell Tassyir if it is the latest.`,
+      );
+    }
+    case 'PAYLOAD_TOO_LARGE':
+      return withFix(
+        error,
+        `${apiOrigin} took less than this bundle: an upload is at most 128 KB while Tassyir Hosting is off there (8 MB + 128 KB when it is on). Deploy to an API where it is on (--api-origin), or run the app on your own server (hosting.mode = "external").`,
+      );
+    default:
+      return error;
+  }
+}
+
+/** The bundle does not pass: one CliError (exit 4) listing every problem. Nothing was uploaded. */
+function bundleInvalid(entry: string, errors: readonly CliProblem[]): CliError {
+  const first = errors[0];
+  return new CliError({
+    code: 'BUNDLE_INVALID',
+    message: `The bundle built from ${entry} has ${String(errors.length)} problem${errors.length === 1 ? '' : 's'}${first ? `; the first: ${first.path ? `${first.path}: ` : ''}${first.message}` : ''}. Nothing was uploaded`,
+    fix: first
+      ? `${first.fix} Then fix the others listed and run \`tassyir deploy\` again.`
+      : 'Run `tassyir deploy` again for the list.',
+    exitCode: EXIT_CODES.MANIFEST,
+    errors,
+  });
+}
+
+function kilobytes(bytes: number): string {
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/** deploy, for `hosting.mode = "tassyir"`: build, check, upload, follow. */
+async function deployHosted(
+  context: Context,
+  values: Readonly<Record<string, string | boolean | undefined>>,
+  loaded: LoadedManifest,
+  manifest: AppManifest,
+  manifestWarnings: readonly string[],
+): Promise<CommandResult> {
+  const timeout = timeoutSeconds(values['timeout'], 'deploy');
+  const allowedHosts =
+    manifest.hosting.mode === 'tassyir' ? manifest.hosting.allowed_hosts : [];
+  const built = await buildHostedBundle({
+    cwd: context.io.cwd,
+    root: dirname(loaded.path),
+    entry: stringValue(values['entry']),
+  });
+  const rules = validateHostedBundle(built.bundle);
+  const code = checkBundleCode(
+    built.bundle.files,
+    built.bundle.main,
+    allowedHosts,
+    (file, line, column) => built.locate(file, line, column),
+  );
+  const problems = [...(rules.ok ? [] : rules.errors), ...code.errors];
+  if (problems.length > 0) throw bundleInvalid(built.entry, problems);
+  const warnings = [...manifestWarnings, ...built.warnings, ...code.warnings];
+  const bytes = rules.ok ? rules.bytes : 0;
+  context.progress(
+    `✓ Built ${built.entry} into ${BUNDLE_MAIN} (${kilobytes(bytes)}${built.bundle.lockfile ? `, with ${built.bundle.lockfile.name}` : ', no lockfile'}); it passes the API's bundle rules and the scan's code checks.`,
+  );
+
+  const { api } = await context.api();
+  const app = await resolveApp(
+    context,
+    api,
+    stringValue(values['app']) ?? manifest.handle,
+    stringValue(values['manifest']),
+  );
+  const appRef = { id: app.id, handle: app.handle };
+  let version: AppVersionDetail;
+  let unchanged = false;
+  try {
+    version = (await api.uploadVersion(app.id, loaded.parsed, built.bundle))
+      .data;
+  } catch (error) {
+    const latest = isCliError(error, 'APP_VERSION_UNCHANGED')
+      ? error.details?.['version']
+      : undefined;
+    if (typeof latest !== 'number') {
+      throw hostedUploadError(error, context.apiOrigin);
+    }
+    // Not a refusal: this manifest and bundle are the latest version, so
+    // deploy answers by that version's state (a scan still running is
+    // followed, a failed one stays failed).
+    version = (await api.getVersion(app.id, latest)).data;
+    unchanged = true;
+  }
+  return followAndAnswer(context, api, appRef, version, {
+    unchanged,
+    warnings,
+    timeout,
+  });
+}
+
+/** Follows a hosted version (unless `timeout` is 0), then answers by its state. */
+async function followAndAnswer(
+  context: Context,
+  api: DeveloperApi,
+  app: { id: string; handle: string },
+  version: AppVersionDetail,
+  options: { unchanged: boolean; warnings: readonly string[]; timeout: number },
+): Promise<CommandResult> {
+  const { unchanged, warnings, timeout } = options;
+  if (timeout === 0) {
+    return answerHostedVersion(version, {
+      app,
+      unchanged,
+      warnings,
+      stopped: 'not_waited',
+    });
+  }
+  if (!isSettled(stageOf(version))) {
+    // An agent whose own call times out still learns which version to check.
+    context.emit({
+      ok: true,
+      step: 'uploaded',
+      app,
+      unchanged,
+      version: {
+        version: version.version,
+        reviewState: version.reviewState,
+        scan: version.hosting?.scan.status ?? null,
+      },
+      next: checkLaterCommand(app.handle, version.version),
+    });
+  }
+  const followed = await followVersion(
+    context,
+    api,
+    app.id,
+    version,
+    timeout * 1000,
+  );
+  return answerHostedVersion(followed.version, {
+    app,
+    unchanged,
+    warnings,
+    stopped: followed.stopped,
+  });
+}
+
 export const deployCommand: Command = {
   name: 'deploy',
   summary: "Validate tassyir.app.toml and upload it as the app's new version",
   usage: 'tassyir deploy [options]',
   description: [
-    'For an app on your own server (hosting.mode = "external"): validates the manifest, then',
-    'uploads it as a new version, current at once. Installations stay on their version until',
-    'a member of the business accepts the update (with a consent screen when it adds scopes',
-    'or hosts). The same manifest twice is not a new version: deploy answers `unchanged`.',
-    'A hosted app (Tassyir Hosting) is answered APP_HOSTING_NOT_AVAILABLE by the API for now.',
+    'An app on your own server (hosting.mode = "external"): validates the manifest, then',
+    'uploads it as a new version, current at once.',
+    '',
+    'An app on Tassyir Hosting (hosting.mode = "tassyir"): builds the bundle with esbuild',
+    `(one ES module from --entry, default ${DEFAULT_ENTRIES.join(', ')}; HTML and CSS`,
+    "imported as text), checks it by the API's bundle rules and the scan's code checks, and",
+    "uploads it with the manifest and the project's lockfile. Tassyir then scans it; deploy",
+    'waits for the verdict (--timeout) and prints the findings. Ctrl-C stops waiting, never',
+    'the scan: `tassyir app version <n> --follow` picks it up again. Exit 0 once released.',
+    '',
+    'Installations stay on their version until a member of the business accepts the update',
+    '(with a consent screen when it adds scopes or hosts). The same manifest (and bundle) twice',
+    "is not a new version: deploy answers `unchanged` and that version's state.",
   ].join('\n'),
   options: {
     manifest: {
@@ -89,6 +330,12 @@ export const deployCommand: Command = {
       value: 'handle|id',
       description: "Default: the manifest's handle.",
     },
+    entry: {
+      type: 'string',
+      value: 'file',
+      description: `Hosted: the module exporting the Worker's fetch handler. Default the first of ${DEFAULT_ENTRIES.join(', ')}.`,
+    },
+    timeout: TIMEOUT_OPTION,
   },
   async run(context, { values }) {
     const manifestFile = stringValue(values['manifest']);
@@ -96,6 +343,16 @@ export const deployCommand: Command = {
     const check = checkManifest(loaded.parsed);
     if (!check.ok) throw manifestInvalid(loaded.display, check.errors);
     const warnings = warningsOf(check.manifest);
+    if (check.manifest.hosting.mode === 'tassyir') {
+      return deployHosted(context, values, loaded, check.manifest, warnings);
+    }
+    for (const option of ['entry', 'timeout']) {
+      if (values[option] !== undefined) {
+        warnings.push(
+          `--${option} is for an app on Tassyir Hosting (hosting.mode = "tassyir"); ignored.`,
+        );
+      }
+    }
 
     const { api } = await context.api();
     const app = await resolveApp(
@@ -104,9 +361,6 @@ export const deployCommand: Command = {
       stringValue(values['app']) ?? check.manifest.handle,
       manifestFile,
     );
-    // The seam for Tassyir Hosting (AP-B1.14): a hosted deploy will build and
-    // upload a bundle with the manifest. Until then the API answers a hosted
-    // manifest APP_HOSTING_NOT_AVAILABLE, which is relayed as it is.
     try {
       const version = (await api.uploadVersion(app.id, loaded.parsed)).data;
       return {
@@ -139,5 +393,74 @@ export const deployCommand: Command = {
         ),
       };
     }
+  },
+};
+
+export const appVersionCommand: Command = {
+  name: 'app version',
+  summary:
+    "One version of the app: its state, and a hosted one's scan and findings",
+  usage: 'tassyir app version [number] [options]',
+  description: [
+    'Shows one version (default: the latest). For a version on Tassyir Hosting, the scan, every',
+    'check with its findings, the AI review and the uploads, as the API reports them.',
+    "--follow waits for a hosted version's verdict, as `tassyir deploy` does, and exits by it.",
+  ].join('\n'),
+  positionals: { min: 0, max: 1, names: '[number]' },
+  options: {
+    app: {
+      type: 'string',
+      value: 'handle|id',
+      description: 'Default: the handle in ./tassyir.app.toml.',
+    },
+    follow: {
+      type: 'boolean',
+      description: 'Wait for a hosted version to be released or refused.',
+    },
+    timeout: TIMEOUT_OPTION,
+  },
+  async run(context, { values, positionals }) {
+    const raw = positionals[0];
+    if (raw !== undefined && !/^[1-9]\d{0,8}$/.test(raw)) {
+      throw usageError(
+        `app version takes a version number (1, 2, …), got ${raw}`,
+        'app version',
+      );
+    }
+    const timeout = timeoutSeconds(values['timeout'], 'app version');
+    const { api } = await context.api();
+    const app = await resolveApp(context, api, stringValue(values['app']));
+    const appRef = { id: app.id, handle: app.handle };
+    let number = raw === undefined ? undefined : Number(raw);
+    if (number === undefined) {
+      number = (await api.listVersions(app.id, { limit: 1 })).data[0]?.version;
+      if (number === undefined) {
+        throw new CliError({
+          code: 'APP_VERSION_NOT_FOUND',
+          message: `${app.handle} has no version yet`,
+          fix: "Run `tassyir deploy` in the app's folder to upload its first version.",
+          details: { appId: app.id },
+        });
+      }
+    }
+    const version = (await api.getVersion(app.id, number)).data;
+    if (values['follow'] === true && version.hosting) {
+      return followAndAnswer(context, api, appRef, version, {
+        unchanged: false,
+        warnings: [],
+        timeout,
+      });
+    }
+    const state = stageOf(version);
+    return {
+      data: { app: appRef, released: state === 'released', state, version },
+      text: lines(
+        `${app.handle} version ${String(version.version)}: ${progressLabel(version)}${version.current ? ', current (new installations get it)' : ''}.`,
+        version.hosting
+          ? null
+          : `  On your own server; scopes: ${[...version.scopes, ...version.optionalScopes].join(', ') || 'none'}; webhooks: ${version.webhookTopics.join(', ') || 'none'}.`,
+        ...hostingLines(version),
+      ),
+    };
   },
 };

@@ -2,7 +2,11 @@ import type { Command } from '../command.js';
 import { appCreateCommand, appInitCommand, appListCommand } from './app.js';
 import { loginCommand, logoutCommand, whoamiCommand } from './auth.js';
 import { devCommand, logsCommand, submitCommand } from './later.js';
-import { deployCommand, validateCommand } from './manifest.js';
+import {
+  appVersionCommand,
+  deployCommand,
+  validateCommand,
+} from './manifest.js';
 import {
   secretsCreateCommand,
   secretsListCommand,
@@ -24,6 +28,7 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   appInitCommand,
   appCreateCommand,
   appListCommand,
+  appVersionCommand,
   validateCommand,
   deployCommand,
   secretsListCommand,

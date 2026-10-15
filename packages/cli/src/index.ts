@@ -39,5 +39,23 @@ export type {
 export { checkManifest, loadManifest } from './manifest.js';
 export type { LoadedManifest, ManifestCheck } from './manifest.js';
 
+export {
+  HOSTED_BUNDLE_LIMITS,
+  LOCKFILE_NAMES,
+  validateHostedBundle,
+} from './bundle-rules.js';
+export type {
+  BundleFile,
+  BundleValidation,
+  HostedBundle,
+  HostedModuleKind,
+  LockfileName,
+  NormalisedBundle,
+} from './bundle-rules.js';
+export { checkBundleCode } from './bundle-code.js';
+export type { CodeCheckResult, CodeFinding, Locate } from './bundle-code.js';
+export { buildHostedBundle, DEFAULT_ENTRIES } from './bundle-build.js';
+export type { BuiltBundle } from './bundle-build.js';
+
 export { COMMANDS } from './commands/index.js';
 export type { Command, CommandResult, OptionSpec } from './command.js';

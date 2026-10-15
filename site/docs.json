@@ -88,6 +88,13 @@
               "source": "/openapi/openapi.2026-10.json",
               "directory": "api-reference/admin"
             }
+          },
+          {
+            "group": "Developer API",
+            "openapi": {
+              "source": "/openapi/openapi.developer.json",
+              "directory": "api-reference/developer"
+            }
           }
         ]
       },

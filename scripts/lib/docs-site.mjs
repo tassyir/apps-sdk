@@ -70,14 +70,10 @@ export const GENERATED_KEYS = ['colors', 'background', 'fonts', 'navigation'];
 
 /**
  * The OpenAPI documents the API reference shows, each copied byte for byte
- * into site/openapi/ (Mintlify reads files inside its root only).
- *
- * The developer API's document (packages/cli/openapi/openapi.developer.json)
- * is not published yet: its descriptions name the backend's internals (Redis,
- * the ValidationPipe, the session guard, the global rate limiter, private
- * docs/api/apps paths). Once the backend's generator drops them and the file
- * is re-vendored, add it here as { group: 'Developer API', directory:
- * 'api-reference/developer' } and run `npm run docs:sync`.
+ * into site/openapi/ (Mintlify reads files inside its root only). The
+ * developer API's is published since the backend's AP-B1.22 cleaned its
+ * descriptions (the backend's `openapi-public-text.spec.ts` keeps both
+ * documents free of its internals).
  * @type {readonly OpenApiSource[]}
  */
 export const OPENAPI_SOURCES = [
@@ -85,6 +81,11 @@ export const OPENAPI_SOURCES = [
     source: 'packages/app/openapi/openapi.2026-10.json',
     group: 'Admin API',
     directory: 'api-reference/admin',
+  },
+  {
+    source: 'packages/cli/openapi/openapi.developer.json',
+    group: 'Developer API',
+    directory: 'api-reference/developer',
   },
 ];
 

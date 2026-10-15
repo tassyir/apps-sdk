@@ -4,7 +4,7 @@
     "title": "Tassyir Admin API",
     "version": "2026-10",
     "summary": "The API installed apps call to read and change a Tassyir business, and the webhooks they receive.",
-    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Generated from the code by `npm run apps:openapi`; the developer reference is docs/api/apps/.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence and a `requestId`. Each operation lists every code it can answer. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`. All the apps of one business also share a ceiling, by default 20 requests a second: 429 `BUSINESS_RATE_LIMITED` with `Retry-After`. An API process that is already running its maximum of app requests answers 503 `API_BUSY` with `Retry-After`, having done nothing.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
+    "description": "Version `2026-10` of the API installed Tassyir apps call. The routes live under `/apps/2026-10/`; the token endpoint and the key documents under `/apps/`. Guides, and a page for every error code: https://developers.tassyir.io.\n\n**Authentication.** `Authorization: Bearer tsy_at_…` from `POST /apps/oauth/token`. An app acts as a team member of the business: it reads and writes only what its granted scopes allow, only in the stores the merchant gave it, under the merchant's plan.\n\n**Conventions.** JSON fields are camelCase; ids are strings; times are ISO 8601 UTC; money is a decimal string (`\"2500.00\"`) with a `currency` field, never a number. A list answers `{ data, nextCursor }`, newest first, keyset-paged: `limit` 1 to 100 (default 50), `cursor` = the previous `nextCursor`. A single resource answers `{ data }`. `fields` trims a resource to the named top-level fields. Fields without `read_customer_contact` (buyer name, phones, address, notes) are omitted, not nulled. Every answer is `Cache-Control: no-store`.\n\n**Writes.** Send an `Idempotency-Key` to make a write safe to retry (24 hours per installation).\n\n**Errors.** `application/problem+json` with a stable `code`, a `fix` sentence, the `docs` page of the code and a `requestId`. Each operation lists every code it can answer; `x-tassyir-errors` lists every code a problem can carry, with its title, statuses and `fix`. HTTP 460 `STORE_SCOPE_FORBIDDEN` means a store outside the installation's stores.\n\n**Rate limits.** A leaky bucket per installation, by default 40 requests refilled at 4 a second: every answer carries `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a refusal is 429 `RATE_LIMITED` with `Retry-After`. All the apps of one business also share a ceiling, by default 20 requests a second: 429 `BUSINESS_RATE_LIMITED` with `Retry-After`. An API process that is already running its maximum of app requests answers 503 `API_BUSY` with `Retry-After`, having done nothing.\n\n**Webhooks.** Signed Standard Webhooks deliveries (`v1a`, Ed25519), one per topic below; verify them with `GET /apps/webhook-keys`."
   },
   "servers": [
     {
@@ -78,7 +78,7 @@
           "Business"
         ],
         "summary": "The business the app is installed on",
-        "description": "Every installation may read it, whatever its scopes: the id, name, currency, country and time zone, nothing else.\n\nEvery installation may call it, whatever its scopes.\n\nReference: docs/api/apps/admin-api.md.",
+        "description": "Every installation may read it, whatever its scopes: the id, name, currency, country and time zone, nothing else.\n\nEvery installation may call it, whatever its scopes.",
         "parameters": [
           {
             "name": "fields",
@@ -224,7 +224,7 @@
           "Orders"
         ],
         "summary": "List orders",
-        "description": "Every stage in one list, archived included, newest first. Never an undecided abandoned checkout nor an exchange-return row. Without `orders:read-all` (an online token of a member who sees only their own orders), only the orders assigned to that member.\n\nNeeds the `read_orders` scope (permission `orders:read`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Every stage in one list, archived included, newest first. Never an undecided abandoned checkout nor an exchange-return row. Without `orders:read-all` (an online token of a member who sees only their own orders), only the orders assigned to that member.\n\nNeeds the `read_orders` scope (permission `orders:read`).",
         "parameters": [
           {
             "name": "status",
@@ -468,7 +468,7 @@
           "Orders"
         ],
         "summary": "Create an order",
-        "description": "The dashboard's manual create: allowance admit, one distribution pass, `source = app:<handle>`. Past the plan's allowance the order is created WAITING (phones hidden, confirm and dispatch locked). On a dev store, orders are capped per day: 429 `DEV_STORE_ORDER_LIMIT_REACHED` with `retryAfterSeconds`.\n\nNeeds the `write_orders` scope (permission `orders:create`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "The dashboard's manual create: allowance admit, one distribution pass, `source = app:<handle>`. Past the plan's allowance the order is created WAITING (phones hidden, confirm and dispatch locked). On a dev store, orders are capped per day: 429 `DEV_STORE_ORDER_LIMIT_REACHED` with `retryAfterSeconds`.\n\nNeeds the `write_orders` scope (permission `orders:create`).",
         "parameters": [
           {
             "name": "fields",
@@ -874,7 +874,7 @@
           "Orders"
         ],
         "summary": "Get an order",
-        "description": "Needs the `read_orders` scope (permission `orders:read`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Needs the `read_orders` scope (permission `orders:read`).",
         "parameters": [
           {
             "name": "id",
@@ -1068,7 +1068,7 @@
           "Orders"
         ],
         "summary": "Update an order",
-        "description": "The buyer, the delivery choice and the notes. Not the status (confirm, cancel and schedule have their own routes), not the items, prices, carrier or store.\n\nNeeds the `write_orders` scope (permission `orders:update`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "The buyer, the delivery choice and the notes. Not the status (confirm, cancel and schedule have their own routes), not the items, prices, carrier or store.\n\nNeeds the `write_orders` scope (permission `orders:update`).",
         "parameters": [
           {
             "name": "id",
@@ -1372,7 +1372,7 @@
           "Orders"
         ],
         "summary": "Confirm an order",
-        "description": "Needs the `write_orders` scope (permission `orders:confirm`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Needs the `write_orders` scope (permission `orders:confirm`).",
         "parameters": [
           {
             "name": "id",
@@ -1659,7 +1659,7 @@
           "Orders"
         ],
         "summary": "Cancel an order",
-        "description": "With one of `GET cancel-reasons` and a note when that reason asks for one. Recorded as cancelled by the app.\n\nNeeds the `write_orders` scope (permission `orders:cancel`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "With one of `GET cancel-reasons` and a note when that reason asks for one. Recorded as cancelled by the app.\n\nNeeds the `write_orders` scope (permission `orders:cancel`).",
         "parameters": [
           {
             "name": "id",
@@ -1963,7 +1963,7 @@
           "Orders"
         ],
         "summary": "Schedule a call-back",
-        "description": "Needs the `write_orders` scope (permission `orders:schedule`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Needs the `write_orders` scope (permission `orders:schedule`).",
         "parameters": [
           {
             "name": "id",
@@ -2265,7 +2265,7 @@
           "Orders"
         ],
         "summary": "List an order's comments",
-        "description": "Needs the `read_orders` scope (permission `orders:read`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Needs the `read_orders` scope (permission `orders:read`).",
         "parameters": [
           {
             "name": "id",
@@ -2481,7 +2481,7 @@
           "Orders"
         ],
         "summary": "Comment on an order",
-        "description": "Needs the `write_orders` scope (permission `orders:add-comment`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "Needs the `write_orders` scope (permission `orders:add-comment`).",
         "parameters": [
           {
             "name": "id",
@@ -2781,7 +2781,7 @@
           "Orders"
         ],
         "summary": "The merchant's cancel reasons",
-        "description": "The active reasons, in the merchant's order, all at once (`nextCursor` is always null).\n\nNeeds the `read_orders` scope (permission `orders:read`).\n\nReference: docs/api/apps/orders.md.",
+        "description": "The active reasons, in the merchant's order, all at once (`nextCursor` is always null).\n\nNeeds the `read_orders` scope (permission `orders:read`).",
         "parameters": [
           {
             "name": "fields",
@@ -2927,7 +2927,7 @@
           "Products"
         ],
         "summary": "List products",
-        "description": "Every product, active or not, newest first. A collection membership change does not move `updatedAt` (listen to `products/updated` for `collectionIds`).\n\nNeeds the `read_products` scope (permission `products:read`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Every product, active or not, newest first. A collection membership change does not move `updatedAt` (listen to `products/updated` for `collectionIds`).\n\nNeeds the `read_products` scope (permission `products:read`).",
         "parameters": [
           {
             "name": "storeId",
@@ -3184,7 +3184,7 @@
           "Products"
         ],
         "summary": "Create a product",
-        "description": "Images must already be on the Tassyir CDN; a description is checked (no scripts, frames, forms, handlers, fetching CSS).\n\nNeeds the `write_products` scope (permission `products:create`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Images must already be on the Tassyir CDN; a description is checked (no scripts, frames, forms, handlers, fetching CSS).\n\nNeeds the `write_products` scope (permission `products:create`).",
         "parameters": [
           {
             "name": "fields",
@@ -3536,7 +3536,7 @@
           "Products"
         ],
         "summary": "Get a product",
-        "description": "Needs the `read_products` scope (permission `products:read`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Needs the `read_products` scope (permission `products:read`).",
         "parameters": [
           {
             "name": "id",
@@ -3730,7 +3730,7 @@
           "Products"
         ],
         "summary": "Update a product",
-        "description": "`options` and `variants` are replace-all, together: every `id` sent must be one of this product's variants; a variant left out is removed.\n\nNeeds the `write_products` scope (permission `products:update`).\n\nReference: docs/api/apps/products.md.",
+        "description": "`options` and `variants` are replace-all, together: every `id` sent must be one of this product's variants; a variant left out is removed.\n\nNeeds the `write_products` scope (permission `products:update`).",
         "parameters": [
           {
             "name": "id",
@@ -4052,7 +4052,7 @@
           "Products"
         ],
         "summary": "Update one variant's fields",
-        "description": "Only this variant is written; the others are sent back as they are. The default variant follows its product and is changed through it.\n\nNeeds the `write_products` scope (permission `products:update`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Only this variant is written; the others are sent back as they are. The default variant follows its product and is changed through it.\n\nNeeds the `write_products` scope (permission `products:update`).",
         "parameters": [
           {
             "name": "id",
@@ -4367,7 +4367,7 @@
           "Collections"
         ],
         "summary": "List collections",
-        "description": "Needs the `read_products` scope (permission `categories:read`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Needs the `read_products` scope (permission `categories:read`).",
         "parameters": [
           {
             "name": "storeId",
@@ -4583,7 +4583,7 @@
           "Collections"
         ],
         "summary": "Create a collection",
-        "description": "Needs the `write_products` scope (permission `categories:create`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Needs the `write_products` scope (permission `categories:create`).",
         "parameters": [
           {
             "name": "fields",
@@ -4918,7 +4918,7 @@
           "Collections"
         ],
         "summary": "Get a collection",
-        "description": "Needs the `read_products` scope (permission `categories:read`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Needs the `read_products` scope (permission `categories:read`).",
         "parameters": [
           {
             "name": "id",
@@ -5112,7 +5112,7 @@
           "Collections"
         ],
         "summary": "Update a collection",
-        "description": "Needs the `write_products` scope (permission `categories:update`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Needs the `write_products` scope (permission `categories:update`).",
         "parameters": [
           {
             "name": "id",
@@ -5417,7 +5417,7 @@
           "Collections"
         ],
         "summary": "Delete a collection",
-        "description": "Its products leave it (they stay in the catalogue); its subcollections move up one level.\n\nNeeds the `write_products` scope (permission `categories:delete`).\n\nReference: docs/api/apps/products.md.",
+        "description": "Its products leave it (they stay in the catalogue); its subcollections move up one level.\n\nNeeds the `write_products` scope (permission `categories:delete`).",
         "parameters": [
           {
             "name": "id",
@@ -5688,7 +5688,7 @@
           "Collections"
         ],
         "summary": "Change a collection's members",
-        "description": "`add` picks products by hand (and lifts an exclusion); `remove` takes them out whatever put them there.\n\nNeeds the `write_products` scope (permission `categories:update`).\n\nReference: docs/api/apps/products.md.",
+        "description": "`add` picks products by hand (and lifts an exclusion); `remove` takes them out whatever put them there.\n\nNeeds the `write_products` scope (permission `categories:update`).",
         "parameters": [
           {
             "name": "id",
@@ -5989,7 +5989,7 @@
           "Inventory"
         ],
         "summary": "List stock levels",
-        "description": "One per tracked variant. `unitCost` only for a caller holding `read_costs`.\n\nNeeds the `read_inventory` scope (permission `inventory:read`).\n\nReference: docs/api/apps/inventory.md.",
+        "description": "One per tracked variant. `unitCost` only for a caller holding `read_costs`.\n\nNeeds the `read_inventory` scope (permission `inventory:read`).",
         "parameters": [
           {
             "name": "productId",
@@ -6259,7 +6259,7 @@
           "Inventory"
         ],
         "summary": "Get a stock level",
-        "description": "Needs the `read_inventory` scope (permission `inventory:read`).\n\nReference: docs/api/apps/inventory.md.",
+        "description": "Needs the `read_inventory` scope (permission `inventory:read`).",
         "parameters": [
           {
             "name": "id",
@@ -6497,7 +6497,7 @@
           "Inventory"
         ],
         "summary": "Correct a stock count",
-        "description": "The dashboard's \"correct the count, and say why\". Never below zero at the location.\n\nNeeds the `write_inventory` scope (permission `inventory:update`).\n\nReference: docs/api/apps/inventory.md.",
+        "description": "The dashboard's \"correct the count, and say why\". Never below zero at the location.\n\nNeeds the `write_inventory` scope (permission `inventory:update`).",
         "parameters": [
           {
             "name": "id",
@@ -6803,7 +6803,7 @@
           "Customers"
         ],
         "summary": "List customers",
-        "description": "The buyers with a counted order in the installation's stores. `name` and `phone` only with `read_customer_contact`.\n\nNeeds the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/customers.md.",
+        "description": "The buyers with a counted order in the installation's stores. `name` and `phone` only with `read_customer_contact`.\n\nNeeds the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "storeId",
@@ -7021,7 +7021,7 @@
           "Customers"
         ],
         "summary": "Get a customer",
-        "description": "Needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/customers.md.",
+        "description": "Needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "id",
@@ -7217,7 +7217,7 @@
           "Stores"
         ],
         "summary": "List stores",
-        "description": "Needs the `read_stores` scope (permission `stores:read`).\n\nReference: docs/api/apps/stores.md.",
+        "description": "Needs the `read_stores` scope (permission `stores:read`).",
         "parameters": [
           {
             "name": "limit",
@@ -7385,7 +7385,7 @@
           "Stores"
         ],
         "summary": "Get a store",
-        "description": "Needs the `read_stores` scope (permission `stores:read`).\n\nReference: docs/api/apps/stores.md.",
+        "description": "Needs the `read_stores` scope (permission `stores:read`).",
         "parameters": [
           {
             "name": "id",
@@ -7621,7 +7621,7 @@
           "Delivery"
         ],
         "summary": "List delivery agents",
-        "description": "The carriers and private couriers the business ships with. Credentials are never returned.\n\nNeeds the `read_delivery` scope (permission `delivery-agents:read`).\n\nReference: docs/api/apps/delivery.md.",
+        "description": "The carriers and private couriers the business ships with. Credentials are never returned.\n\nNeeds the `read_delivery` scope (permission `delivery-agents:read`).",
         "parameters": [
           {
             "name": "limit",
@@ -7789,7 +7789,7 @@
           "Delivery"
         ],
         "summary": "Get a delivery agent",
-        "description": "Needs the `read_delivery` scope (permission `delivery-agents:read`).\n\nReference: docs/api/apps/delivery.md.",
+        "description": "Needs the `read_delivery` scope (permission `delivery-agents:read`).",
         "parameters": [
           {
             "name": "id",
@@ -7985,7 +7985,7 @@
           "Delivery"
         ],
         "summary": "List delivery fee groups",
-        "description": "Every group at once, without its fees (read one group for them).\n\nNeeds the `read_delivery` scope (permission `delivery-fees:read`).\n\nReference: docs/api/apps/delivery.md.",
+        "description": "Every group at once, without its fees (read one group for them).\n\nNeeds the `read_delivery` scope (permission `delivery-fees:read`).",
         "parameters": [
           {
             "name": "storeId",
@@ -8181,7 +8181,7 @@
           "Delivery"
         ],
         "summary": "Get a delivery fee group",
-        "description": "With its fees, one per wilaya.\n\nNeeds the `read_delivery` scope (permission `delivery-fees:read`).\n\nReference: docs/api/apps/delivery.md.",
+        "description": "With its fees, one per wilaya.\n\nNeeds the `read_delivery` scope (permission `delivery-fees:read`).",
         "parameters": [
           {
             "name": "id",
@@ -8377,7 +8377,7 @@
           "Data"
         ],
         "summary": "List the app's values",
-        "description": "The values this installation keeps, newest first, of the owner types its scopes may read. A value whose owner it can no longer read is left out, so a page can hold fewer than `limit` values while `nextCursor` is set: keep reading until it is null. `ownerId` needs `ownerType`.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/app-data.md.",
+        "description": "The values this installation keeps, newest first, of the owner types its scopes may read. A value whose owner it can no longer read is left out, so a page can hold fewer than `limit` values while `nextCursor` is set: keep reading until it is null. `ownerId` needs `ownerType`.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "ownerType",
@@ -8667,7 +8667,7 @@
           "Data"
         ],
         "summary": "Get a value",
-        "description": "Read whatever the manifest says now: a key the installation's version no longer declares is still read (`declared: false`).\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/app-data.md.",
+        "description": "Read whatever the manifest says now: a key the installation's version no longer declares is still read (`declared: false`).\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "ownerType",
@@ -8934,7 +8934,7 @@
           "Data"
         ],
         "summary": "Write a value",
-        "description": "Writes the whole value. The key must be declared for the owner type by the installation's version; the value must be of the declared type and at most 16,384 bytes of compact JSON; `visibility` comes from the declaration. An installation holds at most 50,000 values: past that a NEW key is refused, an existing one is still rewritten.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/app-data.md.",
+        "description": "Writes the whole value. The key must be declared for the owner type by the installation's version; the value must be of the declared type and at most 16,384 bytes of compact JSON; `visibility` comes from the declaration. An installation holds at most 50,000 values: past that a NEW key is refused, an existing one is still rewritten.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "ownerType",
@@ -9339,7 +9339,7 @@
           "Data"
         ],
         "summary": "Delete a value",
-        "description": "Works for a key the version no longer declares too: that is how an app frees room after dropping a key.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/app-data.md.",
+        "description": "Works for a key the version no longer declares too: that is how an app frees room after dropping a key.\n\nThe scope depends on the owner type: `business` needs none; `store` needs the `read_stores` scope (permission `stores:read`); `product` needs the `read_products` scope (permission `products:read`); `order` needs the `read_orders` scope (permission `orders:read`); `customer` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "ownerType",
@@ -9684,7 +9684,7 @@
           "Images"
         ],
         "summary": "Upload an image from an address",
-        "description": "Downloads the image at `url` and stores it on the Tassyir CDN; the answer's `url` is what product and collection writes accept. https on port 443 only, a public host name; a JPEG, PNG, GIF or WebP image (read from its bytes, never its name or `Content-Type`; SVG refused) of at most 10,000,000 bytes, 12,000 pixels on a side and 100 megapixels. Quota: 1,000 a UTC day per installation, 2,000 per business (every app together; a dev store 100 and 200), 30 a minute per installation. Send an `Idempotency-Key`: a retry then answers the same image without uploading it again.\n\nNeeds the `write_products` scope (permission `products:create`).\n\nReference: docs/api/apps/images.md.",
+        "description": "Downloads the image at `url` and stores it on the Tassyir CDN; the answer's `url` is what product and collection writes accept. https on port 443 only, a public host name; a JPEG, PNG, GIF or WebP image (read from its bytes, never its name or `Content-Type`; SVG refused) of at most 10,000,000 bytes, 12,000 pixels on a side and 100 megapixels. Quota: 1,000 a UTC day per installation, 2,000 per business (every app together; a dev store 100 and 200), 30 a minute per installation. Send an `Idempotency-Key`: a retry then answers the same image without uploading it again.\n\nNeeds the `write_products` scope (permission `products:create`).",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -9969,7 +9969,7 @@
           "Bulk exports"
         ],
         "summary": "Export a whole list",
-        "description": "Starts an export of every row the list route of `resource` returns (with these `filters`, the list's own), as one JSON Lines file: one resource per line, exactly as the list returns it, newest first. It runs in the background: read `GET /bulk/exports/{id}` or subscribe to `bulk/finished`; once `completed`, download the file from `url` (7 days). 1 export queued or running per installation, 5 asked for per business (every app together) in any hour. Send an `Idempotency-Key`: a retry then answers the same export.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "description": "Starts an export of every row the list route of `resource` returns (with these `filters`, the list's own), as one JSON Lines file: one resource per line, exactly as the list returns it, newest first. It runs in the background: read `GET /bulk/exports/{id}` or subscribe to `bulk/finished`; once `completed`, download the file from `url` (7 days). 1 export queued or running per installation, 5 asked for per business (every app together) in any hour. Send an `Idempotency-Key`: a retry then answers the same export.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -10337,7 +10337,7 @@
           "Bulk exports"
         ],
         "summary": "List the installation's exports",
-        "description": "Newest first, kept 30 days. Only the lists whose read permission the caller holds; an online token sees only the exports its own user asked for.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "description": "Newest first, kept 30 days. Only the lists whose read permission the caller holds; an online token sees only the exports its own user asked for.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "resource",
@@ -10523,7 +10523,7 @@
           "Bulk exports"
         ],
         "summary": "Get an export",
-        "description": "Where it stands, and its download `url` once `completed`. Poll it at most every few seconds, or subscribe to `bulk/finished`.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "description": "Where it stands, and its download `url` once `completed`. Poll it at most every few seconds, or subscribe to `bulk/finished`.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).",
         "parameters": [
           {
             "name": "id",
@@ -10724,7 +10724,7 @@
           "Authentication"
         ],
         "summary": "Get an access token",
-        "description": "Three grants: the token exchange of an embedded page's ID token (an offline token, or an online one bound to the dashboard user), an install code, and a refresh token (rotated on every use; a spent one presented after 60 seconds revokes its whole family).\n\nClient authentication is HTTP Basic only. Errors are OAuth's `{ error, error_description }`, not problem+json. Limits: 300 requests a minute per client id, 30 failed authentications a minute per IP (429 `slow_down`).\n\nReference: docs/api/apps/oauth.md.",
+        "description": "Three grants: the token exchange of an embedded page's ID token (an offline token, or an online one bound to the dashboard user), an install code, and a refresh token (rotated on every use; a spent one presented after 60 seconds revokes its whole family).\n\nClient authentication is HTTP Basic only. Errors are OAuth's `{ error, error_description }`, not problem+json. Limits: 300 requests a minute per client id, 30 failed authentications a minute per IP (429 `slow_down`).",
         "security": [
           {
             "appClient": []
@@ -10936,7 +10936,7 @@
           "Authentication"
         ],
         "summary": "ID-token public keys (JWKS)",
-        "description": "Verify the ID token your embedded page receives: pick the key by `kid`, require `alg: EdDSA`, `iss = https://api.tassyir.io/apps`, `aud = <your client_id>`, and `exp`/`nbf` with at most 30 s of clock skew. Reference: docs/api/apps/app-keys.md.",
+        "description": "Verify the ID token your embedded page receives: pick the key by `kid`, require `alg: EdDSA`, `iss = https://api.tassyir.io/apps`, `aud = <your client_id>`, and `exp`/`nbf` with at most 30 s of clock skew.",
         "security": [],
         "responses": {
           "200": {
@@ -10977,7 +10977,7 @@
           "Authentication"
         ],
         "summary": "Webhook public keys",
-        "description": "Verify a delivery: the signed content is `{webhook-id}.{webhook-timestamp}.{raw body}`; accept it when any `v1a,` signature verifies with any key here and the timestamp is within 5 minutes. Reference: docs/api/apps/app-keys.md.",
+        "description": "Verify a delivery: the signed content is `{webhook-id}.{webhook-timestamp}.{raw body}`; accept it when any `v1a,` signature verifies with any key here and the timestamp is within 5 minutes.",
         "security": [],
         "responses": {
           "200": {
@@ -11020,7 +11020,7 @@
           "Webhooks"
         ],
         "summary": "orders/created",
-        "description": "A real order was created (never an abandoned checkout), after the order allowance decided it.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A real order was created (never an abandoned checkout), after the order allowance decided it.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11121,7 +11121,7 @@
           "Webhooks"
         ],
         "summary": "abandoned_checkouts/created",
-        "description": "An abandoned checkout was captured.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An abandoned checkout was captured.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11222,7 +11222,7 @@
           "Webhooks"
         ],
         "summary": "orders/confirmed",
-        "description": "An order was confirmed.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An order was confirmed.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11323,7 +11323,7 @@
           "Webhooks"
         ],
         "summary": "orders/cancelled",
-        "description": "An order was cancelled.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An order was cancelled.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11424,7 +11424,7 @@
           "Webhooks"
         ],
         "summary": "orders/dispatched",
-        "description": "An order was handed to a carrier.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An order was handed to a carrier.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11525,7 +11525,7 @@
           "Webhooks"
         ],
         "summary": "orders/delivered",
-        "description": "An order was delivered.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An order was delivered.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11626,7 +11626,7 @@
           "Webhooks"
         ],
         "summary": "orders/returned",
-        "description": "An order came back (its status does not change: `returned` is true).\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "An order came back (its status does not change: `returned` is true).\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11727,7 +11727,7 @@
           "Webhooks"
         ],
         "summary": "orders/updated",
-        "description": "Any other change to a field an app can read; `changed` names the fields.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "Any other change to a field an app can read; `changed` names the fields.\n\nSent to installations granted `read_orders` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11828,7 +11828,7 @@
           "Webhooks"
         ],
         "summary": "products/created",
-        "description": "A product was created.\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A product was created.\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -11929,7 +11929,7 @@
           "Webhooks"
         ],
         "summary": "products/updated",
-        "description": "A product changed (deactivation included: `active` turns false).\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A product changed (deactivation included: `active` turns false).\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12030,7 +12030,7 @@
           "Webhooks"
         ],
         "summary": "products/deleted",
-        "description": "A product was deleted; only its ids remain.\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A product was deleted; only its ids remain.\n\nSent to installations granted `read_products` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12131,7 +12131,7 @@
           "Webhooks"
         ],
         "summary": "inventory_levels/updated",
-        "description": "A variant's on-hand, in-transit or damaged stock changed.\n\nSent to installations granted `read_inventory` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A variant's on-hand, in-transit or damaged stock changed.\n\nSent to installations granted `read_inventory` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12232,7 +12232,7 @@
           "Webhooks"
         ],
         "summary": "customers/updated",
-        "description": "A customer's record changed.\n\nSent to installations granted `read_customers` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A customer's record changed.\n\nSent to installations granted `read_customers` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12333,7 +12333,7 @@
           "Webhooks"
         ],
         "summary": "app/installed",
-        "description": "The app was installed on a business.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "The app was installed on a business.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12434,7 +12434,7 @@
           "Webhooks"
         ],
         "summary": "app/uninstalled",
-        "description": "The app was uninstalled; its tokens are already revoked.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "The app was uninstalled; its tokens are already revoked.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12535,7 +12535,7 @@
           "Webhooks"
         ],
         "summary": "app/scopes_updated",
-        "description": "The merchant granted a new set of scopes.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "The merchant granted a new set of scopes.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12636,7 +12636,7 @@
           "Webhooks"
         ],
         "summary": "customers/data_request",
-        "description": "A buyer asked for the data held about them.\n\nA compliance topic: every installation that subscribes receives it, whatever its scopes.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A buyer asked for the data held about them.\n\nA compliance topic: every installation that subscribes receives it, whatever its scopes.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12737,7 +12737,7 @@
           "Webhooks"
         ],
         "summary": "customers/redact",
-        "description": "Delete what you hold about this buyer.\n\nA compliance topic: every installation that subscribes receives it, whatever its scopes.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "Delete what you hold about this buyer.\n\nA compliance topic: every installation that subscribes receives it, whatever its scopes.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12838,7 +12838,7 @@
           "Webhooks"
         ],
         "summary": "business/redact",
-        "description": "Delete what you hold about this business: the app was uninstalled 48 h ago and Tassyir has deleted its app data.\n\nA compliance topic: sent to that uninstalled installation only, when its version subscribes; never to another app.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "Delete what you hold about this business: the app was uninstalled 48 h ago and Tassyir has deleted its app data.\n\nA compliance topic: sent to that uninstalled installation only, when its version subscribes; never to another app.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -12939,7 +12939,7 @@
           "Webhooks"
         ],
         "summary": "bulk/finished",
-        "description": "A bulk export this installation asked for finished: `completed` (download it from `url`) or `failed` (`errorCode`). Sent only to that installation.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "description": "A bulk export this installation asked for finished: `completed` (download it from `url`) or `failed` (`errorCode`). Sent only to that installation.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
         "security": [],
         "parameters": [
           {
@@ -13911,7 +13911,7 @@
           },
           "devStore": {
             "type": "boolean",
-            "description": "A dev store (AP-B1.13): a test business made from the developer console, with synthetic data. Nothing on it reaches a carrier, a buyer or a payment provider, and its orders are not real."
+            "description": "A dev store: a test business made from the developer console, with synthetic data. Nothing on it reaches a carrier, a buyer or a payment provider, and its orders are not real."
           }
         },
         "required": [
@@ -17095,7 +17095,8 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "`https://developers.tassyir.io/errors/<code in kebab case>`: an identifier."
+            "format": "uri",
+            "description": "`https://developers.tassyir.io/errors/<code in kebab case>`: identifies the code, and is the code's page."
           },
           "title": {
             "type": "string"
@@ -17117,7 +17118,9 @@
             "description": "One sentence an AI agent can act on."
           },
           "docs": {
-            "type": "string"
+            "type": "string",
+            "format": "uri",
+            "description": "The page that explains the code and what to do: the same URL as `type`."
           },
           "requestId": {
             "type": "string",
@@ -17136,7 +17139,8 @@
           "title",
           "status",
           "detail",
-          "code"
+          "code",
+          "docs"
         ]
       },
       "Product": {
@@ -20668,6 +20672,602 @@
         "title": "products/updated (2026-10)",
         "description": "A product changed (deactivation included: `active` turns false)."
       }
+    }
+  },
+  "x-tassyir-errors": {
+    "API_BUSY": {
+      "title": "API busy",
+      "statuses": [
+        503
+      ],
+      "fix": "Nothing was done: wait the number of seconds in Retry-After, then retry with exponential backoff."
+    },
+    "APP_DATA_KEY_NOT_DECLARED": {
+      "title": "App data key not declared",
+      "statuses": [
+        400
+      ],
+      "fix": "Declare the key for this owner under [[data.definitions]] in the app's manifest; it can be written once the merchant accepts that version."
+    },
+    "APP_DATA_LIMIT_REACHED": {
+      "title": "App data limit reached",
+      "statuses": [
+        409
+      ],
+      "fix": "Delete values the app no longer needs with DELETE /data/{ownerType}/{ownerId}/{key}, then retry; rewriting a key that exists is never refused."
+    },
+    "APP_DATA_VALUE_INVALID": {
+      "title": "App data value invalid",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a value of the declaredType the manifest gives this key, without the part named in reason."
+    },
+    "APP_DATA_VALUE_TOO_LARGE": {
+      "title": "App data value too large",
+      "statuses": [
+        400
+      ],
+      "fix": "Keep each value within limitBytes of compact JSON: split it across several keys, or store a reference instead."
+    },
+    "APP_TOKEN_INVALID": {
+      "title": "Access token invalid",
+      "statuses": [
+        401
+      ],
+      "fix": "Get a new access token from POST /apps/oauth/token, then retry the request."
+    },
+    "APP_TOKEN_REQUIRED": {
+      "title": "Access token required",
+      "statuses": [
+        401
+      ],
+      "fix": "Send the access token in the Authorization header as Bearer tsy_at_…."
+    },
+    "BAD_REQUEST": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Correct the request as the detail says, then retry.",
+      "fallback": "A refusal with HTTP 400 that carries no more specific code."
+    },
+    "BRAND_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send the id of a brand of the product's store, or null for none; the ids in brandIds are not."
+    },
+    "BULK_EXPORTS_NOT_CONFIGURED": {
+      "title": "Service unavailable",
+      "statuses": [
+        503
+      ],
+      "fix": "Page through the list route instead, or retry later."
+    },
+    "BULK_EXPORT_IN_PROGRESS": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Wait for the export named in bulkExportId to finish (the bulk/finished webhook, or GET /bulk/exports/{id}), then ask again."
+    },
+    "BULK_EXPORT_RATE_LIMITED": {
+      "title": "Too many requests",
+      "statuses": [
+        429
+      ],
+      "fix": "Wait the number of seconds in Retry-After; keep a finished export and read it again instead of exporting the same list twice."
+    },
+    "BUSINESS_RATE_LIMITED": {
+      "title": "Business's rate limit exceeded",
+      "statuses": [
+        429
+      ],
+      "fix": "Wait the number of seconds in Retry-After, then retry; every app of this business shares this budget, so spread requests over time."
+    },
+    "CANCEL_NOTE_REQUIRED": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a note with this cancel reason: the merchant set it to require one."
+    },
+    "CANCEL_REASON_INVALID": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Read GET /cancel-reasons again and send the id of one of its reasons, or no reason."
+    },
+    "COLLECTION_CONDITIONAL_LIMIT": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Make this collection without conditions, or remove the conditions of another first: the store has its maximum of collections with conditions (limit)."
+    },
+    "COLLECTION_DEPTH_LIMIT": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Choose a parent higher in the tree: collections nest at most limit levels deep, with their subcollections."
+    },
+    "COLLECTION_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Name only collections of the product's store that still exist; the ids in categoryIds are not."
+    },
+    "COLLECTION_PARENT_CYCLE": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Choose a parent that is neither this collection nor one of its own subcollections."
+    },
+    "COLLECTION_PARENT_NOT_FOUND": {
+      "title": "Not found",
+      "statuses": [
+        404
+      ],
+      "fix": "Send as parentId a collection of the same store that still exists, or null for a top-level collection."
+    },
+    "COLLECTION_PRODUCT_WRONG_STORE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Add only products of the collection's store; the ids in productIds are not."
+    },
+    "COLLECTION_RULE_INVALID": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Correct the condition at index as reason says; a brand or tag it names must be the store's own."
+    },
+    "CONFLICT": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Read the resource again and act on its current state; do not retry the same request unchanged.",
+      "fallback": "A refusal with HTTP 409 that carries no more specific code."
+    },
+    "DELIVERY_SPEED_UNAVAILABLE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Use the standard speed: economy is not priced for this commune and delivery method."
+    },
+    "DELIVERY_SPEED_UNSUPPORTED": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Use the standard speed: the order's carrier has no economy service."
+    },
+    "DEV_STORE_ORDER_LIMIT_REACHED": {
+      "title": "Too many requests",
+      "statuses": [
+        429
+      ],
+      "fix": "Wait the number of seconds in retryAfterSeconds (until the next day in Algiers): a dev store takes at most limit new orders a day."
+    },
+    "FORBIDDEN": {
+      "title": "Forbidden",
+      "statuses": [
+        403
+      ],
+      "fix": "Do not retry the same request: the detail says what this installation may not do.",
+      "fallback": "A refusal with HTTP 403 that carries no more specific code."
+    },
+    "HTML_NOT_ALLOWED": {
+      "title": "Markup not allowed",
+      "statuses": [
+        400
+      ],
+      "fix": "Send plain formatted HTML (paragraphs, headings, lists, links, Tassyir CDN images) without the parts listed in problems."
+    },
+    "IDEMPOTENCY_KEY_INVALID": {
+      "title": "Invalid Idempotency-Key",
+      "statuses": [
+        400
+      ],
+      "fix": "Send 1 to 255 visible ASCII characters, for example a UUID."
+    },
+    "IDEMPOTENCY_KEY_IN_USE": {
+      "title": "Idempotency-Key in use",
+      "statuses": [
+        409
+      ],
+      "fix": "Wait for the first request with this Idempotency-Key to finish, then retry."
+    },
+    "IDEMPOTENCY_KEY_REUSED": {
+      "title": "Idempotency-Key reused",
+      "statuses": [
+        422
+      ],
+      "fix": "Use a new Idempotency-Key for a different request; reuse a key only to retry the identical request."
+    },
+    "IDEMPOTENCY_UNAVAILABLE": {
+      "title": "Idempotency store unavailable",
+      "statuses": [
+        503
+      ],
+      "fix": "Retry the same request with the same Idempotency-Key in a few seconds."
+    },
+    "IMAGE_FETCH_FAILED": {
+      "title": "Image could not be downloaded",
+      "statuses": [
+        400
+      ],
+      "fix": "Check that the address opens the image from the public internet over https with a valid certificate; retry later if the server was down."
+    },
+    "IMAGE_QUOTA_REACHED": {
+      "title": "Image upload quota reached",
+      "statuses": [
+        429
+      ],
+      "fix": "Wait the number of seconds in Retry-After, then upload the rest more slowly."
+    },
+    "IMAGE_TOO_LARGE": {
+      "title": "Image too large",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a smaller image: at most 10 MB, 12,000 pixels on a side and 100 megapixels."
+    },
+    "IMAGE_TYPE_NOT_ALLOWED": {
+      "title": "Not a supported image",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a JPEG, PNG, GIF or WebP image; convert an SVG or any other format to one of these first."
+    },
+    "IMAGE_URL_NOT_ALLOWED": {
+      "title": "Image address not allowed",
+      "statuses": [
+        400
+      ],
+      "fix": "Send the https address (port 443, no user or password) of the image on a public web server, by its host name."
+    },
+    "INSUFFICIENT_AT_LOCATION": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Read the level again and remove at most what it holds: stock never goes below zero."
+    },
+    "INTERNAL_ERROR": {
+      "title": "Internal error",
+      "statuses": [
+        500
+      ],
+      "fix": "Retry with exponential backoff; if it keeps failing, report the requestId to Tassyir.",
+      "fallback": "A 5xx failure with a status other than 503, when it carries no more specific code."
+    },
+    "INVALID_CURSOR": {
+      "title": "Invalid cursor",
+      "statuses": [
+        400
+      ],
+      "fix": "Pass the nextCursor of the previous page unchanged with the same filters, or start again without a cursor."
+    },
+    "INVALID_FIELDS": {
+      "title": "Unknown fields",
+      "statuses": [
+        400
+      ],
+      "fix": "Name only fields listed in allowedFields, separated by commas."
+    },
+    "LOCATION_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400,
+        404
+      ],
+      "fix": "Name an active location of this business, or leave locationId out to use the default location."
+    },
+    "MEDIA_URL_NOT_ALLOWED": {
+      "title": "Image address not allowed",
+      "statuses": [
+        400
+      ],
+      "fix": "Upload the image with POST /images and use the URL it answers (https://cdn.tassyir.io/…), or keep one this resource already shows; do not link images hosted elsewhere."
+    },
+    "METHOD_NOT_ALLOWED": {
+      "title": "Method not allowed",
+      "statuses": [
+        405
+      ],
+      "fix": "Call the operation with the method its reference names.",
+      "fallback": "A refusal with HTTP 405 that carries no more specific code."
+    },
+    "NOT_FOUND": {
+      "title": "Not found",
+      "statuses": [
+        404
+      ],
+      "fix": "Check the path and the id; a resource outside this installation's stores reads as not found.",
+      "fallback": "A refusal with HTTP 404 that carries no more specific code."
+    },
+    "ORDER_DUPLICATE": {
+      "title": "Duplicate order",
+      "statuses": [
+        409
+      ],
+      "fix": "Do not retry: the buyer already has this order, which the merchant handles."
+    },
+    "ORDER_LIMIT_REACHED": {
+      "title": "Order waiting for the plan allowance",
+      "statuses": [
+        403
+      ],
+      "fix": "Retry after the merchant upgrades or the plan's next order cycle starts."
+    },
+    "ORDER_NOT_EDITABLE": {
+      "title": "Order no longer editable",
+      "statuses": [
+        409
+      ],
+      "fix": "Leave this order as it is: once with a carrier it changes only through the delivery."
+    },
+    "ORDER_PRICING_LOCKED": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Leave the wilaya, commune and delivery as they are: the order is with a carrier, delivered or returned, so its price no longer changes."
+    },
+    "ORDER_STATUS_CONFLICT": {
+      "title": "Status change not allowed",
+      "statuses": [
+        409
+      ],
+      "fix": "Read the order again and act on its current status; do not retry the same move."
+    },
+    "PAYLOAD_TOO_LARGE": {
+      "title": "Payload too large",
+      "statuses": [
+        413
+      ],
+      "fix": "Send a smaller body: split the write into several requests.",
+      "fallback": "A refusal with HTTP 413 that carries no more specific code."
+    },
+    "PERMISSION_DENIED": {
+      "title": "Permission denied",
+      "statuses": [
+        403
+      ]
+    },
+    "PLAN_FEATURE_REQUIRED": {
+      "title": "Not included in the merchant's plan",
+      "statuses": [
+        403
+      ],
+      "fix": "The merchant's plan does not include this feature; it works once the merchant upgrades."
+    },
+    "PRODUCT_DEFAULT_VARIANT": {
+      "title": "Default variant follows its product",
+      "statuses": [
+        409
+      ],
+      "fix": "Change the product's own fields with PATCH /products/{id}; its default variant follows them."
+    },
+    "PRODUCT_OPTIONS_REQUIRE_VARIANTS": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send variants with the options: one for each combination of their values."
+    },
+    "PRODUCT_OPTION_DUPLICATE_NAME": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Give each option a different name (case and surrounding spaces are ignored when comparing)."
+    },
+    "PRODUCT_OPTION_DUPLICATE_VALUE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "List each value of an option once (case and surrounding spaces are ignored when comparing)."
+    },
+    "PRODUCT_OPTION_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Name in a variant's options only options the product has, spelled as in options."
+    },
+    "PRODUCT_OPTION_NO_VALUES": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Give every option at least one value that is not empty."
+    },
+    "PRODUCT_OPTION_VALUE_EMPTY": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Remove the empty value: every option value needs at least one visible character."
+    },
+    "PRODUCT_OPTION_VALUE_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Select in each variant only values its option lists in options."
+    },
+    "PRODUCT_SLUG_INVALID": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a slug with at least one letter that is not a reserved word, or leave it out to derive it from the name."
+    },
+    "PRODUCT_SLUG_TAKEN": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Send another slug, or leave it out: another product of this store already uses this one."
+    },
+    "PRODUCT_VARIANT_COMBINATION_MISMATCH": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send exactly one variant for each combination of option values, none twice."
+    },
+    "PRODUCT_VARIANT_COUNT_MISMATCH": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send one variant per combination of option values: as many variants as the product of the options' value counts."
+    },
+    "PRODUCT_VARIANT_DUPLICATE_COMBINATION": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Give each variant a different combination of option values."
+    },
+    "PRODUCT_VARIANT_DUPLICATE_OPTION": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Name each option once in a variant's options."
+    },
+    "PRODUCT_VARIANT_INVALID_VALUE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Select for each option one of the values it lists in options."
+    },
+    "PRODUCT_VARIANT_MISSING_COMBINATIONS": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Add a variant for every combination of option values that has none."
+    },
+    "PRODUCT_VARIANT_MISSING_OPTION": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Select a value of every option in each variant, none left out."
+    },
+    "PRODUCT_VARIANT_SELECTED_COUNT": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Select exactly one value of every option in each variant."
+    },
+    "PRODUCT_VARIANT_UNKNOWN_OPTION": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Name in a variant's options only options the product has."
+    },
+    "PRODUCT_WRITE_TIMEOUT": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Nothing was saved: retry the same request, and if it times out again, save fewer options or values at once."
+    },
+    "RATE_LIMITED": {
+      "title": "Rate limit exceeded",
+      "statuses": [
+        429
+      ],
+      "fix": "Wait the number of seconds in Retry-After, then retry; keep an eye on RateLimit-Remaining to spread requests.",
+      "fallback": "A refusal with HTTP 429 that carries no more specific code."
+    },
+    "REQUEST_FAILED": {
+      "title": "Request failed",
+      "statuses": [],
+      "fix": "Act on the status and the detail; if they do not say enough, report the requestId to Tassyir.",
+      "fallback": "A 4xx refusal with a status other than 400, 401, 403, 404, 405, 409, 413, 415, 422, 429 or 460, when it carries no more specific code."
+    },
+    "SERVICE_UNAVAILABLE": {
+      "title": "Service unavailable",
+      "statuses": [
+        503
+      ],
+      "fix": "Retry with exponential backoff.",
+      "fallback": "A refusal with HTTP 503 that carries no more specific code."
+    },
+    "STORE_REQUIRED": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Name the store with storeId: this installation acts in several stores."
+    },
+    "STORE_SCOPE_FORBIDDEN": {
+      "title": "Store not accessible",
+      "statuses": [
+        460
+      ],
+      "fix": "Only name stores this installation may access; the merchant chooses them when installing the app.",
+      "fallback": "A refusal with HTTP 460 that carries no more specific code."
+    },
+    "SUBSCRIPTION_REQUIRED": {
+      "title": "Unprocessable request",
+      "statuses": [
+        422
+      ],
+      "fix": "Do not retry until the merchant subscribes again: this needs a subscription the business does not have."
+    },
+    "UNAUTHORIZED": {
+      "title": "Unauthorized",
+      "statuses": [
+        401
+      ],
+      "fix": "Send a valid access token as Authorization: Bearer tsy_at_…; get a new one from POST /apps/oauth/token.",
+      "fallback": "A refusal with HTTP 401 that carries no more specific code."
+    },
+    "UNPROCESSABLE_ENTITY": {
+      "title": "Unprocessable request",
+      "statuses": [
+        422
+      ],
+      "fix": "Correct the request as the detail says; the same request fails the same way.",
+      "fallback": "A refusal with HTTP 422 that carries no more specific code."
+    },
+    "UNSUPPORTED_MEDIA_TYPE": {
+      "title": "Unsupported media type",
+      "statuses": [
+        415
+      ],
+      "fix": "Send the body as JSON, with Content-Type: application/json in UTF-8.",
+      "fallback": "A refusal with HTTP 415 that carries no more specific code."
+    },
+    "VALIDATION_FAILED": {
+      "title": "Invalid request",
+      "statuses": [
+        400
+      ],
+      "fix": "Correct the parameters listed in errors, then retry.",
+      "fallback": "A 400 refusal that lists its invalid parameters, when it carries no more specific code."
     }
   }
 }

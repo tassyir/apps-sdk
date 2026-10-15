@@ -9,6 +9,7 @@ import type {
   InstallationFilters,
   WebhookTopic,
 } from './developer-types.js';
+import type { HostedBundle } from './bundle-rules.js';
 import { CliError, EXIT_CODES } from './errors.js';
 import type { ExitCode } from './errors.js';
 import type { paths } from './generated/developer-api.js';
@@ -67,7 +68,12 @@ type CallOptions<O> = ([PathParams<O>] extends [never]
   ([QueryParams<O>] extends [never]
     ? { query?: never }
     : { query?: QueryParams<O> }) &
-  ([JsonBody<O>] extends [never] ? { body?: never } : { body: JsonBody<O> });
+  ([JsonBody<O>] extends [never] ? { body?: never } : { body: JsonBody<O> }) & {
+    /** This request's timeout, when the client's default is too short. */
+    timeoutMs?: number;
+    /** Stops the request early (Ctrl-C while following a scan). */
+    signal?: AbortSignal;
+  };
 
 /** `[options?]` when every option is optional, `[options]` otherwise. */
 type CallArgs<O> =
@@ -85,6 +91,9 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 export const CLI_CLIENT_ID = 'tassyir-cli';
 
 export const DEFAULT_API_ORIGIN = 'https://api.tassyir.io';
+
+/** A hosted upload's timeout: its bundle can weigh 4 MB. */
+const UPLOAD_TIMEOUT_MS = 120_000;
 
 export interface DeveloperApiOptions {
   /** `https://api.tassyir.io`, or another origin (`TASSYIR_API_ORIGIN`). */
@@ -128,7 +137,7 @@ const FALLBACK_FIXES: Readonly<Record<string, string>> = {
   DEVELOPER_ACCOUNT_NOT_FOUND:
     'Turn on developer mode in the dashboard (https://app.tassyir.io/en/developers), then run the command again.',
   PAYLOAD_TOO_LARGE:
-    'Make the request smaller: a manifest upload is at most 128 KB.',
+    'Make the request smaller: a manifest upload is at most 128 KB (8 MB + 128 KB with a hosted bundle, where Tassyir Hosting is on).',
 };
 
 /** The keys of a refusal body that are not its details. */
@@ -271,14 +280,35 @@ export class DeveloperApi {
     });
   }
 
-  /** The parsed `tassyir.app.toml`, as the API's validator takes it. */
+  /**
+   * The parsed `tassyir.app.toml`, as the API's validator takes it, and for
+   * a hosted app (`hosting.mode = "tassyir"`) its bundle.
+   */
   uploadVersion(
     appId: string,
     manifest: Record<string, unknown>,
+    bundle?: HostedBundle,
   ): Promise<Answer<'post', '/developer/apps/{appId}/versions'>> {
     return this.#call('post', '/developer/apps/{appId}/versions', {
       path: { appId },
-      body: { manifest },
+      body: bundle ? { manifest, bundle } : { manifest },
+      // A bundle can be megabytes: give it time on a slow line.
+      ...(bundle ? { timeoutMs: UPLOAD_TIMEOUT_MS } : {}),
+    });
+  }
+
+  /**
+   * One version with its manifest; a hosted one with its scan report.
+   * `signal` stops the request early (it then fails as TIMEOUT).
+   */
+  getVersion(
+    appId: string,
+    version: number,
+    signal?: AbortSignal,
+  ): Promise<Answer<'get', '/developer/apps/{appId}/versions/{version}'>> {
+    return this.#call('get', '/developer/apps/{appId}/versions/{version}', {
+      path: { appId, version: String(version) },
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -392,16 +422,20 @@ export class DeveloperApi {
       path: params,
       query,
       body,
+      timeoutMs,
+      signal,
     } = (options ?? {}) as {
       path?: Readonly<Record<string, string | number>>;
       query?: Readonly<Record<string, unknown>>;
       body?: unknown;
+      timeoutMs?: number;
+      signal?: AbortSignal;
     };
     const concrete = fillPath(path, params);
     const { response, body: answer } = await this.#send(
       method.toUpperCase(),
       concrete,
-      { body, query, auth: true },
+      { body, query, auth: true, timeoutMs, signal },
     );
     if (!response.ok) throw apiError(response, answer);
     if (!isRecord(answer)) throw invalidResponse(concrete);
@@ -424,6 +458,8 @@ export class DeveloperApi {
       form?: Readonly<Record<string, string>>;
       query?: Readonly<Record<string, unknown>> | undefined;
       auth?: boolean;
+      timeoutMs?: number | undefined;
+      signal?: AbortSignal | undefined;
     },
   ): Promise<{ response: Response; body: unknown }> {
     const headers: Record<string, string> = {
@@ -450,6 +486,7 @@ export class DeveloperApi {
       payload = JSON.stringify(options.body);
     }
     const url = `${this.apiOrigin}${path}${queryString(options.query)}`;
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? this.#timeoutMs);
     const started = Date.now();
     this.#debug?.(`→ ${method} ${path}`);
     let response: Response;
@@ -459,7 +496,9 @@ export class DeveloperApi {
         headers,
         ...(payload === undefined ? {} : { body: payload }),
         redirect: 'error',
-        signal: AbortSignal.timeout(this.#timeoutMs),
+        signal: options.signal
+          ? AbortSignal.any([timeout, options.signal])
+          : timeout,
       });
     } catch (error) {
       this.#debug?.(`✗ ${method} ${path}: ${networkReason(error)}`);
@@ -622,7 +661,7 @@ export function retryAfterOf(
  * The generic code of a refusal that carries none. The document names three:
  * the ValidationPipe's 400 (`ValidationError`: `message` is a list) reads as
  * BAD_REQUEST, the session guard's 401 (`HttpError`) as UNAUTHORIZED, the
- * rate limiter's 429 (`ThrottlerError`: a bare JSON string) as RATE_LIMITED;
+ * rate limiter's 429 (`RateLimitError`: a bare JSON string) as RATE_LIMITED;
  * a 5xx without a code (`ServerError`) is SERVER_ERROR.
  */
 function fallbackCode(status: number): string {
@@ -663,6 +702,10 @@ function fallbackFix(status: number): string {
 function exitCodeFor(status: number, code: string): ExitCode {
   if (status === 401) return EXIT_CODES.AUTH;
   if (code.startsWith('APP_MANIFEST_')) return EXIT_CODES.MANIFEST;
+  // The bundle's refusals (400); APP_BUNDLE_STORAGE_FAILED is a 503.
+  if (status === 400 && code.startsWith('APP_BUNDLE_')) {
+    return EXIT_CODES.MANIFEST;
+  }
   if (status === 429 || status === 502 || status === 503 || status === 504) {
     return EXIT_CODES.TRY_LATER;
   }

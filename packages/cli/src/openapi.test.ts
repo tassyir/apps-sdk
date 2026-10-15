@@ -99,7 +99,7 @@ describe('the refusals without a code, read by status', () => {
       exitCode: EXIT_CODES.AUTH,
     },
     {
-      shape: 'ThrottlerError',
+      shape: 'RateLimitError',
       status: 429,
       body: 'ThrottlerException: Too Many Requests',
       code: 'RATE_LIMITED',
@@ -239,6 +239,27 @@ describe('the schema check the fake API runs', () => {
         },
       ).join('\n'),
     ).toMatch(/longer than 60/);
+  });
+
+  it('refuses a list outside its minItems and maxItems (a bundle of 1 to 100 files)', () => {
+    const upload = { $ref: '#/components/schemas/UploadAppVersionInput' };
+    const files = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        path: `m${String(index)}.js`,
+        content: 'x',
+      }));
+    const body = (count: number) => ({
+      manifest: {},
+      bundle: { main: 'm0.js', files: files(count) },
+    });
+    expect(schemaProblems(upload, body(1))).toEqual([]);
+    expect(schemaProblems(upload, body(100))).toEqual([]);
+    expect(schemaProblems(upload, body(0)).join('\n')).toMatch(
+      /files: fewer than 1 items/,
+    );
+    expect(schemaProblems(upload, body(101)).join('\n')).toMatch(
+      /files: more than 100 items/,
+    );
   });
 
   it('throws on a keyword it does not implement, never passes it silently', () => {

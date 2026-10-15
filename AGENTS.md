@@ -84,7 +84,7 @@ docs/APP_MANIFEST.md        how @tassyir/app-manifest stays equal to the API
 docs/guides/                the public developer guides (their rules: its README.md)
 site/                       the docs site, developers.tassyir.io (Mintlify):
                             docs.json and the pages built from docs/guides,
-                            the READMEs and the OpenAPI file (site/README.md;
+                            the READMEs and the OpenAPI files (site/README.md;
                             npm run docs:sync, a spec keeps them in step)
 ```
 

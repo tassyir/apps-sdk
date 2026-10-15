@@ -51,7 +51,10 @@
   },
   "dependencies": {
     "@tassyir/app-manifest": "^0.1.0",
+    "acorn": "^8.18.0",
+    "acorn-walk": "^8.3.5",
     "create-tassyir-app": "^0.1.0",
+    "esbuild": "0.28.2",
     "smol-toml": "^1.9.0"
   },
   "devDependencies": {

@@ -93,7 +93,10 @@ signs in with a code you approve in the dashboard (the OAuth device grant)
 and keeps a developer token that works on the developer API only, in the OS
 keychain when one answers, otherwise in a file only you can read; it is never
 printed. Then: `app init` (the starter), `app create`, `app list`, `validate`
-(offline, the API's own validator), `deploy` (the manifest as a new version),
+(offline, the API's own validator), `deploy` (the manifest as a new version;
+for an app on Tassyir Hosting, the bundle built with esbuild, checked by the
+API's rules before the upload, and its scan followed to the verdict, AP-K1.11),
+`app version` (one version and its scan's findings),
 `secrets create | rotate | revoke` (a secret is shown once, or written to
 `.env` only when asked), `store create | list` (seeded dev stores), and
 `webhook trigger | deliveries | replay`. `dev` prints the checklist for now;
@@ -157,7 +160,7 @@ document. Every code sample is typechecked against the packed packages.
 
 [site](site/README.md) (AP-K1.9): the developer docs site,
 [developers.tassyir.io](https://developers.tassyir.io), on Mintlify. It
-publishes the guides, the Admin API reference from the OpenAPI document, one
+publishes the guides, the Admin and developer API references from the OpenAPI documents, one
 page per error code at its problem `type` URL, and each package's README,
 all generated from this repo (`npm run docs:sync`, kept in step by a spec),
 with [`llms.txt`](https://developers.tassyir.io/llms.txt),

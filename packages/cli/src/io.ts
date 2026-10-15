@@ -42,7 +42,8 @@ export interface CliIo {
   interactive: boolean;
   fetch: FetchLike;
   now(): number;
-  sleep(ms: number): Promise<void>;
+  /** Resolves after `ms`, or as soon as `signal` aborts. */
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
   /** Runs a program without a shell. */
   exec(
     command: string,
@@ -51,4 +52,9 @@ export interface CliIo {
   ): Promise<ExecResult>;
   /** Resolves when the person presses Enter; `cancel` stops listening. */
   waitForEnter(): { promise: Promise<void>; cancel(): void };
+  /**
+   * Calls `listener` on Ctrl-C (SIGINT) instead of ending the process, until
+   * the returned function is called. Without it, Ctrl-C ends the process.
+   */
+  onInterrupt?(listener: () => void): () => void;
 }
