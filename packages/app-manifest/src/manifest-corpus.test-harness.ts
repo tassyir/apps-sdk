@@ -265,6 +265,11 @@ const VALUES: readonly string[] = [
     '/a b',
     `/${'a'.repeat(256)}`,
     '/webhooks',
+    '/.tassyir',
+    '/.tassyir/launch',
+    '/.tassyir-app',
+    '/.Tassyir/a',
+    '/.tassyir//x',
     // topics, scopes, versions
     'orders/create',
     'orders/delivered',

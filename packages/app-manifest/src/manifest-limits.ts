@@ -9,6 +9,14 @@ export const MANIFEST_FILE_NAME = 'tassyir.app.toml';
 /** Hosted apps are served from `https://{handle}.tassyir-apps.com` (D2). */
 export const HOSTED_APPS_DOMAIN = 'tassyir-apps.com';
 
+/**
+ * The paths of a hosted app's origin that Tassyir's dispatcher keeps for
+ * itself (its launch, `/.tassyir/launch`; anything else there is a 404): no
+ * page and no webhook of a hosted app may live there. The dispatcher's own
+ * test, case-sensitive: the prefix, or `/.tassyir` itself.
+ */
+export const HOSTED_RESERVED_PATH_PREFIX = '/.tassyir/';
+
 export const MANIFEST_LIMITS = {
   /** The parsed manifest, serialised as JSON. */
   maxBytes: 64 * 1024,

@@ -21,8 +21,12 @@ export const HOSTED_BUNDLE_LIMITS = Object.freeze({
   /** The lockfile, UTF-8 bytes (scanned only, never uploaded to Cloudflare). */
   maxLockfileBytes: 1024 * 1024,
   maxPathLength: 200,
-  /** Path segments, the file's name included. */
-  maxPathDepth: 10,
+  /**
+   * Folders above a module's file: `a/b/c.js` has 2. Nine, so a path has at
+   * most 10 names with the file (the API's rule since it took bundles; its
+   * message named it "10 folders" until AP-B1.23 named it by what it counts).
+   */
+  maxFolders: 9,
 });
 
 export type HostedModuleKind = 'esm' | 'text';
@@ -103,8 +107,8 @@ export function bundlePathProblem(path: unknown): string | null {
     return `is longer than ${String(HOSTED_BUNDLE_LIMITS.maxPathLength)} characters`;
   }
   const segments = path.split('/');
-  if (segments.length > HOSTED_BUNDLE_LIMITS.maxPathDepth) {
-    return `has more than ${String(HOSTED_BUNDLE_LIMITS.maxPathDepth)} folders`;
+  if (segments.length - 1 > HOSTED_BUNDLE_LIMITS.maxFolders) {
+    return `is in more than ${String(HOSTED_BUNDLE_LIMITS.maxFolders)} folders`;
   }
   if (!segments.every((segment) => SEGMENT.test(segment))) {
     return 'uses a character other than letters, digits, ".", "_", "-" and "/" between names, or a name starting with "."';

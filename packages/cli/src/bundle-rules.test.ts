@@ -229,14 +229,16 @@ describe('validateHostedBundle', () => {
       expect(errors[0]?.message).toContain('is longer than 200 characters');
     });
 
-    it('allows 10 path segments and refuses 11 (10 folders and a file)', () => {
-      const ten = `${'a/'.repeat(9)}x.js`;
-      expect(ten.split('/')).toHaveLength(10);
-      okOf(withFile(ten));
-      const eleven = `${'a/'.repeat(10)}x.js`;
-      const errors = errorsOf(withFile(eleven));
+    it('allows a file in 9 folders and refuses one in 10', () => {
+      const nine = `${'a/'.repeat(9)}x.js`;
+      expect(nine.split('/')).toHaveLength(10);
+      okOf(withFile(nine));
+      const ten = `${'a/'.repeat(10)}x.js`;
+      const errors = errorsOf(withFile(ten));
       expect(errors[0]?.code).toBe('BUNDLE_PATH_INVALID');
-      expect(errors[0]?.message).toContain('has more than 10 folders');
+      expect(errors[0]?.message).toBe(
+        `The path "${ten}" is in more than 9 folders`,
+      );
     });
 
     it('echoes a long or odd path shortened and without control characters', () => {
@@ -679,8 +681,9 @@ describe('bundlePathProblem', () => {
     expect(bundlePathProblem('a'.repeat(201))).toBe(
       'is longer than 200 characters',
     );
+    expect(bundlePathProblem('a/'.repeat(9) + 'x')).toBeNull();
     expect(bundlePathProblem('a/'.repeat(10) + 'x')).toBe(
-      'has more than 10 folders',
+      'is in more than 9 folders',
     );
     expect(bundlePathProblem('../x')).toContain('uses a character other than');
   });

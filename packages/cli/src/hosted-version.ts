@@ -167,6 +167,13 @@ export function hostingLines(version: AppVersion): string[] {
     out.push(
       `  Uploads: ${upload('staging', staging)}, ${upload('production', production)}`,
     );
+    for (const [name, state] of [
+      ['staging', staging],
+      ['production', production],
+    ] as const) {
+      const refusal = refusalText(state.refusal);
+      if (refusal) out.push(`      Cloudflare (${name}): ${refusal}`);
+    }
   }
   const rejection = rejectionOf(hosting);
   if (rejection) out.push(`  Rejected: ${rejection}`);
@@ -334,10 +341,25 @@ export function checkLaterCommand(handle: string, version: number): string {
   return `tassyir app version ${String(version)} --follow --app ${handle}`;
 }
 
+type DeployRefusal = Hosting['deploy']['staging']['refusal'];
+
+/**
+ * What Cloudflare answered when it refused an upload (AP-B1.23): its code and
+ * its message, which the API cleaned of anything that is not the app's.
+ * `undefined` from an API older than the field.
+ */
+export function refusalText(refusal: DeployRefusal | undefined): string | null {
+  if (!refusal) return null;
+  const code = refusal.code === null ? null : String(refusal.code);
+  const message = refusal.message?.trim() ? refusal.message.trim() : null;
+  if (code && message) return `${code}: ${message}`;
+  return code ?? message;
+}
+
 /** Why an upload to Cloudflare failed, and what the developer can do. */
 const DEPLOY_FIXES: Readonly<Record<string, string>> = {
   CLOUDFLARE_REJECTED:
-    'Cloudflare refused the Worker after the scan passed: check that the entry exports fetch and imports nothing outside the bundle, then deploy a new version; if it still fails, tell Tassyir the app and the version.',
+    'Cloudflare refused the Worker after the scan passed: fix what its answer in the message names (10021: the Worker failed to start; check that the entry exports fetch and imports only what the bundle holds), then deploy a new version; if it still fails, tell Tassyir the app and the version.',
 };
 
 export interface AnswerOptions {
@@ -463,9 +485,10 @@ export function answerHostedVersion(
       const failed =
         deploy?.staging.status === 'failed' ? 'staging' : 'production';
       const code = deploy?.[failed].errorCode ?? 'CLOUDFLARE_UNAVAILABLE';
+      const refusal = refusalText(deploy?.[failed].refusal);
       throw new CliError({
         code,
-        message: `${app.handle} version ${n} passed its scan, but its upload to Cloudflare (${failed}) failed: ${code}`,
+        message: `${app.handle} version ${n} passed its scan, but its upload to Cloudflare (${failed}) failed: ${code}${refusal ? `. Cloudflare answered ${refusal}` : ''}`,
         fix:
           DEPLOY_FIXES[code] ??
           `Tassyir could not upload the version: tell Tassyir the app (${app.handle}) and the version (${n}); a Tassyir admin can release it again.`,
