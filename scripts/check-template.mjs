@@ -1,14 +1,20 @@
-// Generates a project with create-tassyir-app the way a developer does, then
-// installs, validates, typechecks, tests, builds and starts it:
+// Generates a project of each template with create-tassyir-app the way a
+// developer does, then installs, validates, typechecks, tests, builds and
+// starts it:
 //   1. packs every workspace package (this repo's tarballs);
 //   2. installs the create-tassyir-app tarball (with every other workspace
 //      package from the tarballs too) in a scratch folder and runs its CLI with
 //      --json, so the files npm ships are the files tested;
 //   3. checks the generated package.json names this repo's versions, then
-//      installs the project with every @tassyir/* package from the tarballs
-//      (they may not be on npm yet) and everything else from npm;
-//   4. runs the project's validate, typecheck, test and build scripts;
-//   5. starts its server with throwaway settings and calls it.
+//      installs the project with every package of this repo from the
+//      tarballs (they may not be on npm yet; `overrides` for the ones a
+//      dependency pulls in) and everything else from npm;
+//   4. runs the project's validate, typecheck, test and build scripts (the
+//      hosted template: validate, typecheck, test in workerd, and
+//      deploy:check, the build and checks `tassyir deploy` runs before it
+//      uploads);
+//   5. starts the external project's server with throwaway settings and
+//      calls it.
 // Needs the network (npm) and `npm run build` first. Usage:
 //   npm run build && npm run check:template [-- --keep]
 
@@ -41,19 +47,32 @@ const INSTALL_FLAGS = [
   '--ignore-scripts',
   ...REGISTRY_FLAGS,
 ];
-/** What a generated project must hold: npm drops some names from a tarball. */
-const REQUIRED_FILES = [
+/** What every generated project holds: npm drops some names from a tarball. */
+const COMMON_FILES = [
   '.gitignore',
   '.npmrc',
-  '.env.example',
   'package-lock.json',
   'AGENTS.md',
   'CLAUDE.md',
   'README.md',
   '.claude/skills/tassyir-app/SKILL.md',
   'tassyir.app.toml',
-  'src/server.ts',
-  'src/page/app.ts',
+];
+/**
+ * Each template, the folder it is generated in, and what else it holds.
+ * @type {{ template: 'external' | 'hosted', folder: string, files: string[] }[]}
+ */
+const TEMPLATES = [
+  {
+    template: 'external',
+    folder: 'my-tassyir-app',
+    files: ['.env.example', 'src/server.ts', 'src/page/app.ts'],
+  },
+  {
+    template: 'hosted',
+    folder: 'my-hosted-tassyir-app',
+    files: ['src/worker.ts', 'src/app.ts', 'src/page/main.tsx'],
+  },
 ];
 
 /**
@@ -119,17 +138,37 @@ try {
     { cwd: cli },
   );
   const bin = join(cli, 'node_modules', 'create-tassyir-app', 'dist', 'cli.js');
+  for (const { template, folder, files } of TEMPLATES) {
+    await checkTemplate(template, folder, files, bin, tarballs, versions);
+  }
+} finally {
+  if (keep) console.log(`Kept ${scratch}`);
+  else rmSync(scratch, { recursive: true, force: true });
+}
+
+/**
+ * Generates, installs and checks one template's project.
+ * @param {'external' | 'hosted'} template
+ * @param {string} folder
+ * @param {string[]} files
+ * @param {string} bin the packed create-tassyir-app's CLI
+ * @param {Record<string, string>} tarballs
+ * @param {Record<string, string>} versions
+ */
+async function checkTemplate(template, folder, files, bin, tarballs, versions) {
+  console.log(`\n${template}`);
   /** @type {unknown} */
   const createdJson = JSON.parse(
-    run(process.execPath, [bin, 'my-tassyir-app', '--json'], { cwd: scratch })
-      .stdout,
+    run(process.execPath, [bin, folder, '--json', '--template', template], {
+      cwd: scratch,
+    }).stdout,
   );
   const created = /** @type {Created} */ (createdJson);
   if (!created.ok) {
     throw new Error(`create-tassyir-app failed: ${JSON.stringify(created)}`);
   }
   const project = created.directory;
-  const missing = REQUIRED_FILES.filter(
+  const missing = [...COMMON_FILES, ...files].filter(
     (file) => !existsSync(join(project, file)),
   );
   if (missing.length > 0) {
@@ -161,7 +200,7 @@ try {
     `${JSON.stringify(withTarballs(manifest, tarballs), null, 2)}\n`,
   );
   npmInstall(project);
-  step('installed (@tassyir/* from the tarballs, the rest from npm)');
+  step("installed (this repo's packages from the tarballs, the rest from npm)");
 
   // 4. The project's own checks.
   /** @type {unknown} */
@@ -182,12 +221,31 @@ try {
     step(`npm run ${script}`);
   }
 
+  if (template === 'hosted') {
+    // 5. What `tassyir deploy` checks before it uploads: the Worker bundled
+    // as Tassyir Hosting runs it, the API's bundle rules, the scan's code
+    // checks. Nothing is uploaded.
+    /** @type {unknown} */
+    const deployJson = JSON.parse(
+      run('node', ['scripts/deploy-check.ts', '--json'], { cwd: project })
+        .stdout,
+    );
+    const deploy =
+      /** @type {{ ok: boolean, bytes?: number, errors?: unknown[] }} */ (
+        deployJson
+      );
+    if (!deploy.ok) {
+      throw new Error(`npm run deploy:check: ${JSON.stringify(deploy.errors)}`);
+    }
+    step(
+      `npm run deploy:check: worker.js (${String(Math.round((deploy.bytes ?? 0) / 1024))} KB) passes the API's bundle rules and the scan's code checks`,
+    );
+    return;
+  }
+
   // 5. The server starts and answers.
   await bootCheck(project);
   step('the server starts, serves the page and refuses an unsigned webhook');
-} finally {
-  if (keep) console.log(`Kept ${scratch}`);
-  else rmSync(scratch, { recursive: true, force: true });
 }
 
 /**

@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
     // Typecheck and lint against @tassyir/app-manifest's source: its dist/
     // only exists after `npm run build`, which runs after both. The build
     // and the published package use the real dependency.
@@ -9,5 +11,5 @@
       "@tassyir/app-manifest": ["../app-manifest/src/index.ts"]
     }
   },
-  "include": ["src", "tsdown.config.ts"]
+  "include": ["src", "scripts", "tsdown.config.ts"]
 }

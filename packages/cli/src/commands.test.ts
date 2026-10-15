@@ -80,11 +80,13 @@ describe('tassyir app init', () => {
       'shop',
       '--template',
       'hosted',
+      '--url',
+      'https://x.io',
       '--json',
     );
     expect(hosted.code).toBe(1);
     expect(hosted.json()).toMatchObject({
-      error: { code: 'TEMPLATE_NOT_AVAILABLE' },
+      error: { code: 'OPTION_NOT_FOR_TEMPLATE' },
     });
     await mkdir(join(harness.cwd, 'full'));
     await writeFile(join(harness.cwd, 'full', 'x'), 'x');

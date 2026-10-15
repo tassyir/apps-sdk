@@ -55,27 +55,71 @@ describe.each(available)('the $name template', ({ name }) => {
     }
   });
 
-  it('ships only placeholders in .env.example, for every variable the server reads', async () => {
-    const files = await filesOf(root);
-    const example = files.get('env.example') ?? '';
-    const assignments = example
-      .split('\n')
-      .filter((line) => /^[A-Z_]+=/.test(line))
-      .map((line) => line.split('=') as [string, string]);
-    expect(assignments.map(([variable]) => variable)).toEqual([
-      'TASSYIR_CLIENT_ID',
-      'TASSYIR_CLIENT_SECRET',
-      'TASSYIR_APP_ID',
-      'TOKEN_STORE_KEY',
-    ]);
-    for (const [variable, value] of assignments)
-      expect(value, variable).toContain('your-');
-    const config = files.get('src/config.ts') ?? '';
-    for (const [variable] of assignments) expect(config).toContain(variable);
-    expect(files.has('.env')).toBe(false);
-  });
+  it.runIf(name === 'hosted')(
+    'holds no setting or credential: a hosted app needs none',
+    async () => {
+      const files = await filesOf(root);
+      expect(files.has('env.example')).toBe(false);
+      expect(files.has('.env')).toBe(false);
+      for (const [path, content] of files) {
+        // The tassyir-app skill is both templates' (it explains both modes).
+        if (path.startsWith('.claude/')) continue;
+        expect(content, path).not.toMatch(
+          /TASSYIR_CLIENT_SECRET|TASSYIR_CLIENT_ID|TOKEN_STORE_KEY/,
+        );
+        if (path.startsWith('src/')) {
+          expect(content, path).not.toContain('process.env');
+        }
+      }
+    },
+  );
 
-  it('pins every dependency, and lets the generator name the @tassyir/* versions', async () => {
+  it.runIf(name === 'hosted')(
+    "keeps Tassyir Hosting's rules in the Worker's code: ctx.props, no Node, no Tassyir host, nothing under /.tassyir/",
+    async () => {
+      const files = await filesOf(root);
+      const worker = [...files].filter(
+        ([path]) => path.startsWith('src/') && !path.startsWith('src/page/'),
+      );
+      expect(worker.length).toBeGreaterThan(0);
+      for (const [path, content] of worker) {
+        expect(content, path).not.toMatch(/from 'node:|from "node:/);
+        expect(content, path).not.toMatch(/env\.TASSYIR|env\.STORAGE/);
+        expect(content, path).not.toMatch(
+          /fetch\(\s*['"`]https:\/\/api\.tassyir/,
+        );
+        expect(content, path).not.toMatch(/['"`]\/\.tassyir/);
+      }
+      expect(files.get('src/app.ts')).toContain('readHostedProps');
+      expect(files.get('src/app.ts')).toContain('hostedAdmin');
+      expect(files.get('src/webhooks.ts')).toContain('verifyHostedWebhook');
+    },
+  );
+
+  it.runIf(name === 'external')(
+    'ships only placeholders in .env.example, for every variable the server reads',
+    async () => {
+      const files = await filesOf(root);
+      const example = files.get('env.example') ?? '';
+      const assignments = example
+        .split('\n')
+        .filter((line) => /^[A-Z_]+=/.test(line))
+        .map((line) => line.split('=') as [string, string]);
+      expect(assignments.map(([variable]) => variable)).toEqual([
+        'TASSYIR_CLIENT_ID',
+        'TASSYIR_CLIENT_SECRET',
+        'TASSYIR_APP_ID',
+        'TOKEN_STORE_KEY',
+      ]);
+      for (const [variable, value] of assignments)
+        expect(value, variable).toContain('your-');
+      const config = files.get('src/config.ts') ?? '';
+      for (const [variable] of assignments) expect(config).toContain(variable);
+      expect(files.has('.env')).toBe(false);
+    },
+  );
+
+  it("pins every dependency, and lets the generator name this repo's packages' versions", async () => {
     const manifest = JSON.parse(
       (await filesOf(root)).get('package.json') ?? '{}',
     ) as {
@@ -84,7 +128,7 @@ describe.each(available)('the $name template', ({ name }) => {
     };
     const all = { ...manifest.dependencies, ...manifest.devDependencies };
     for (const [dependency, spec] of Object.entries(all)) {
-      if (dependency.startsWith('@tassyir/')) {
+      if (dependency in TEMPLATE_DEPENDENCIES) {
         expect(spec, dependency).toBe('*');
         expect(TEMPLATE_DEPENDENCIES).toHaveProperty([dependency]);
       } else {
@@ -93,7 +137,7 @@ describe.each(available)('the $name template', ({ name }) => {
     }
   });
 
-  it('locks every dependency but @tassyir/* to the npm registry (npm run template:lock)', async () => {
+  it("locks every dependency but this repo's packages to the npm registry (npm run template:lock)", async () => {
     const files = await filesOf(root);
     const manifest = JSON.parse(files.get('package.json') ?? '{}') as {
       dependencies: Record<string, string>;
@@ -113,7 +157,9 @@ describe.each(available)('the $name template', ({ name }) => {
     };
     const unscoped = (group: Record<string, string>) =>
       Object.fromEntries(
-        Object.entries(group).filter(([name]) => !name.startsWith('@tassyir/')),
+        Object.entries(group).filter(
+          ([name]) => !(name in TEMPLATE_DEPENDENCIES),
+        ),
       );
     expect(lock.lockfileVersion).toBe(3);
     const { '': project, ...installed } = lock.packages;
@@ -123,6 +169,7 @@ describe.each(available)('the $name template', ({ name }) => {
     );
     for (const [path, entry] of Object.entries(installed)) {
       expect(path, path).not.toContain('@tassyir/');
+      expect(path, path).not.toMatch(/(?:^|\/)node_modules\/tassyir$/);
       expect(entry.resolved, path).toMatch(/^https:\/\/registry\.npmjs\.org\//);
       expect(entry.integrity, path).toMatch(/^sha512-/);
     }
@@ -147,6 +194,12 @@ describe.each(available)('the $name template', ({ name }) => {
     expect(frontMatter).toMatch(/^name: tassyir-app$/m);
     expect(frontMatter).toMatch(/^description: .{80,}$/m);
     for (const topic of [
+      // Tassyir Hosting (hosted apps).
+      'ctx.props',
+      'STORAGE',
+      'TASSYIR',
+      'allowed_hosts',
+      'tassyir deploy',
       'tassyir.app.toml',
       'scope',
       'ID token',
@@ -164,5 +217,19 @@ describe.each(available)('the $name template', ({ name }) => {
     ]) {
       expect(skill.toLowerCase(), topic).toContain(topic.toLowerCase());
     }
+  });
+});
+
+describe('the templates together', () => {
+  it('ship the same tassyir-app skill: one contract, both hosting modes', async () => {
+    const skills = await Promise.all(
+      available.map(async ({ name }) =>
+        readFile(
+          join(templateDirectory(name), '.claude/skills/tassyir-app/SKILL.md'),
+          'utf8',
+        ),
+      ),
+    );
+    expect(new Set(skills).size).toBe(1);
   });
 });

@@ -2,8 +2,8 @@ import { TassyirError } from './errors.js';
 
 /**
  * The fetch the SDK calls. `globalThis.fetch` by default; pass your own to
- * add a proxy, logging or a test double. It is also the transport seam a
- * Tassyir Hosting runtime would fill (AP-B1.16, not built yet).
+ * add a proxy, logging or a test double. On Tassyir Hosting, `hostedAdmin`
+ * fills it with `ctx.props.TASSYIR.fetch`.
  */
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 

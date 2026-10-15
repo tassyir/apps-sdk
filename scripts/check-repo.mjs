@@ -14,6 +14,7 @@ import {
   publicPackageProblems,
   starterChangesetProblems,
 } from './lib/policy.mjs';
+import { isWorkspacePackageName } from './lib/template.mjs';
 import { ROOT, readJson, workspaces } from './lib/workspace.mjs';
 
 const root = /** @type {import('./lib/policy.mjs').PackageJson} */ (
@@ -56,7 +57,7 @@ if (starter) {
       ...Object.keys({
         ...manifest.dependencies,
         ...manifest.devDependencies,
-      }).filter((name) => name.startsWith('@tassyir/')),
+      }).filter(isWorkspacePackageName),
     );
   }
   problems.push(...starterChangesetProblems(changesets, starterDependencies));

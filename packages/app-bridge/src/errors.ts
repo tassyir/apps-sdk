@@ -14,6 +14,7 @@ export const SDK_ERROR_CODES = [
   'INVALID_REPLY',
   'NOT_IN_BROWSER',
   'INVALID_ARGUMENT',
+  'NO_PROVIDER',
 ] as const;
 export type SdkErrorCode = (typeof SDK_ERROR_CODES)[number];
 
@@ -57,6 +58,8 @@ const FIXES: Readonly<Record<AppBridgeErrorCode, string>> = {
     'Create the bridge in the browser (in an effect or a client-only module), never while rendering on a server.',
   INVALID_ARGUMENT:
     'Check the argument against the README: dashboardOrigin an exact origin, timeoutMs a positive number, on() an event the dashboard sends.',
+  NO_PROVIDER:
+    'Render the component inside <AppBridgeProvider> (from @tassyir/app-bridge/react), once, at the root of the page.',
 };
 
 export interface AppBridgeErrorOptions {

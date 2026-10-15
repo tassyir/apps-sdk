@@ -158,7 +158,10 @@ database instead (AGENTS.md, "Run several processes").
 
 ## Tassyir Hosting
 
-Tassyir Hosting (apps that run on Tassyir, no server to manage) is not open
-yet. When it opens, this app moves with the same manifest, API and webhooks:
-`src/app.ts` and `src/webhooks.ts` are Web-standard (Hono runs on Workers);
-only `src/server.ts` and the store change.
+Tassyir Hosting runs an app for you, with no server to manage:
+`npm create tassyir-app@latest my-app -- --template hosted` makes one. This
+app can move there with the same manifest, API and webhooks: `src/app.ts` and
+`src/webhooks.ts` are Web-standard (Hono runs on Workers). The hosted
+template shows what changes: no tokens or `.env` (each request carries the
+installation in `ctx.props`), its own storage in place of the file store, and
+`tassyir deploy` in place of a host.

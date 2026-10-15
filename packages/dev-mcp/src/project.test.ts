@@ -268,13 +268,14 @@ describe('scaffold', () => {
     expect(await readdir(harness.cwd)).toEqual([]);
   });
 
-  it('answers the hosted template as not available yet', async () => {
+  it('refuses --url with the hosted template (it has no hosting.url)', async () => {
     const harness = await createHarness();
     const error = await harness.refused('scaffold', {
       directory: 'hosted-app',
       template: 'hosted',
+      url: 'https://x.io',
     });
-    expect(error.code).toBe('TEMPLATE_NOT_AVAILABLE');
+    expect(error.code).toBe('OPTION_NOT_FOR_TEMPLATE');
     expect(error.fix).toMatch(/external/);
   });
 });

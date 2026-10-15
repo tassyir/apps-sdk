@@ -174,7 +174,7 @@ export function changesetReleases(text) {
  * that range (under 0.x a minor does), so the starter is released with it;
  * otherwise new projects keep naming the old version.
  * @param {Array<{ file: string, releases: Record<string, string> }>} changesets
- * @param {readonly string[]} starterDependencies the @tassyir packages its templates depend on
+ * @param {readonly string[]} starterDependencies this repo's packages its templates depend on (isWorkspacePackageName)
  * @returns {string[]}
  */
 export function starterChangesetProblems(changesets, starterDependencies) {

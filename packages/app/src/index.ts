@@ -1,10 +1,10 @@
 // @tassyir/app: the server side of a Tassyir app (plan §3.4–§3.8).
 //
 // It runs on Node 22 and on Workers-like runtimes: the only platform APIs it
-// uses are fetch and WebCrypto. Tassyir Hosting (AP-B1.14–B1.16) is not
-// built; when it is, its runtime plugs in through the two seams already here:
-// the `fetch` option (FetchLike) and the access-token provider of
-// AdminClient.
+// uses are fetch and WebCrypto. On Tassyir Hosting (AP-B1.14–B1.16) a hosted
+// app's Worker reads its capabilities from `ctx.props` (`readHostedProps`),
+// calls the Admin API through `ctx.props.TASSYIR` with no token
+// (`hostedAdmin`) and checks its webhooks with `verifyHostedWebhook`.
 
 export { createTassyirApp, TassyirApp } from './app.js';
 export type { IdTokenSession, TassyirAppOptions } from './app.js';
@@ -70,6 +70,28 @@ export type {
   RefreshLock,
   TokenManagerOptions,
 } from './token-manager.js';
+
+export {
+  HOSTED_BINDING_ERRORS,
+  hostedAdmin,
+  hostedWebhookKeys,
+  readHostedProps,
+  verifyHostedWebhook,
+} from './hosted.js';
+export type {
+  HostedAdminOptions,
+  HostedBindingErrorCode,
+  HostedInstallation,
+  HostedProps,
+  HostedSqlBinding,
+  HostedSqlResult,
+  HostedSqlStatement,
+  HostedSqlValue,
+  HostedStorage,
+  HostedViewer,
+  TassyirBinding,
+  VerifyHostedWebhookOptions,
+} from './hosted.js';
 
 export { AdminClient } from './admin-client.js';
 export type {

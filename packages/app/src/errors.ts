@@ -50,7 +50,8 @@ export type VerificationErrorCode =
   | 'WEBHOOK_WRONG_APP'
   | 'WEBHOOK_UNKNOWN_INSTALLATION'
   | 'WEBHOOK_HEADER_MISMATCH'
-  | 'WEBHOOK_TEST_DELIVERY';
+  | 'WEBHOOK_TEST_DELIVERY'
+  | 'WEBHOOK_NOT_A_DELIVERY';
 
 /**
  * An ID token or a webhook delivery failed verification. Answer the request
