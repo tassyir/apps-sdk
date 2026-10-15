@@ -140,11 +140,13 @@ export function createApp(deps: AppDeps): Hono<{ Variables: ApiVariables }> {
     const { businessId } = c.get('session');
     const body: unknown = await c.req.json().catch(() => null);
     const raw = isRecord(body) ? body['highlightFrom'] : undefined;
+    // null clears the setting; a string must be an amount ("5000.001" is
+    // refused, never read as null).
     const highlightFrom =
       raw === null
         ? null
         : typeof raw === 'string'
-          ? normalizeAmount(raw)
+          ? (normalizeAmount(raw) ?? undefined)
           : undefined;
     if (highlightFrom === undefined) {
       return problem(400, {
