@@ -9,9 +9,19 @@ import { cut } from './openapi.js';
 // (headings over body, rare words over common ones); the same query always
 // gives the same results in the same order.
 
-/** Where a guide lives on GitHub today (developers.tassyir.io publishes it later). */
-export const GUIDE_SOURCE =
-  'https://github.com/tassyir/apps-sdk/blob/main/docs/guides';
+/**
+ * Where the guides are published: `<GUIDE_SOURCE>/<slug>`, the index guide
+ * at `<GUIDE_SOURCE>` itself. A section is the page's `#anchor` (the site's
+ * heading ids are the guides' GitHub anchors); a page's Markdown is the same
+ * address with `.md`.
+ */
+export const GUIDE_SOURCE = 'https://developers.tassyir.io/guides';
+
+/** The address of a guide on developers.tassyir.io, or of one of its sections. */
+export function guideUrl(slug: string, anchor?: string): string {
+  const page = slug === 'index' ? GUIDE_SOURCE : `${GUIDE_SOURCE}/${slug}`;
+  return anchor === undefined ? page : `${page}#${anchor}`;
+}
 
 /** Characters of Markdown per fetch_doc page. */
 export const PAGE_CHARS = 3_500;
@@ -335,7 +345,10 @@ export function fetchDoc(
     slug: guide.slug,
     title: guide.title,
     description: guide.description,
-    source: `${GUIDE_SOURCE}/${guide.slug}.md${section && !whole ? `#${section.anchor}` : ''}`,
+    source: guideUrl(
+      guide.slug,
+      section && !whole ? section.anchor : undefined,
+    ),
     section:
       section && !whole
         ? { anchor: section.anchor, title: section.title }

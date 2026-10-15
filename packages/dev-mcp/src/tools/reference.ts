@@ -140,7 +140,12 @@ export const fetchDocTool = defineTool({
     slug: z.string().optional(),
     title: z.string().optional(),
     description: z.string().optional(),
-    source: z.string().optional().describe('Where the guide is published.'),
+    source: z
+      .string()
+      .optional()
+      .describe(
+        'The page on developers.tassyir.io (with #section); add .md to the page for its Markdown.',
+      ),
     section: z
       .object({ anchor: z.string(), title: z.string() })
       .nullable()

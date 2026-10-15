@@ -5,6 +5,9 @@ these apps. An app calls the Tassyir Admin API, receives signed webhooks, and
 shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
+**Docs: [developers.tassyir.io](https://developers.tassyir.io)**: the guides,
+the Admin API reference, every error code and each package's reference.
+
 **Status: in development.** This repo has its workspace, CI and release
 pipeline (AP-K1.1). On npm since 0.1.0: `@tassyir/app-manifest` (AP-K1.2),
 `@tassyir/app` (AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), the `tassyir` CLI
@@ -20,6 +23,9 @@ GitHub Packages, for Tassyir's own repositories. See
 [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Packages
+
+Each package's README below is also its page on the docs site,
+`https://developers.tassyir.io/packages/<folder>`.
 
 ### `@tassyir/app-manifest`
 
@@ -143,7 +149,8 @@ kept in step by `npm run plugin:sync` and a spec.
 
 ## Developer guides
 
-[docs/guides](docs/guides/index.md) (AP-B1.17): one guide per topic, from
+[developers.tassyir.io/guides](https://developers.tassyir.io/guides), written
+in [docs/guides](docs/guides/index.md) (AP-B1.17): one guide per topic, from
 getting started to webhooks, the Admin API's conventions, every resource, dev
 stores and compliance, plus an error reference generated from the OpenAPI
 document. Every code sample is typechecked against the packed packages.
@@ -153,8 +160,10 @@ document. Every code sample is typechecked against the packed packages.
 publishes the guides, the Admin API reference from the OpenAPI document, one
 page per error code at its problem `type` URL, and each package's README,
 all generated from this repo (`npm run docs:sync`, kept in step by a spec),
-with `llms.txt`, `llms-full.txt` and a Markdown mirror of every page once
-hosted.
+with [`llms.txt`](https://developers.tassyir.io/llms.txt),
+[`llms-full.txt`](https://developers.tassyir.io/llms-full.txt), a Markdown
+copy of every page (its address plus `.md`) and an MCP server
+(`https://developers.tassyir.io/mcp`).
 
 ## Contributing
 

@@ -9,6 +9,9 @@ Working with an AI coding agent? It reads [AGENTS.md](AGENTS.md) (Claude Code
 through [CLAUDE.md](CLAUDE.md)) and the `tassyir-app` skill in
 [.claude/skills](.claude/skills/tassyir-app/SKILL.md).
 
+The developer docs, from the manifest to every error code:
+[developers.tassyir.io](https://developers.tassyir.io).
+
 ## What you need
 
 - Node 22.18 or later.
