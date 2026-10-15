@@ -39,6 +39,11 @@ When a merchant uninstalls your app:
    (`data.business.id`). Delete everything your servers still hold about the
    business for it.
 
+On [Tassyir Hosting](tassyir-hosting.md#webhooks), the installation's own
+database (`ctx.props.STORAGE`) is deleted with its app data, and both
+deliveries reach your code with `ctx.props.TASSYIR` refused
+(`HOSTED_CALL_REFUSED`).
+
 ```ts
 import type { VerifiedWebhook } from '@tassyir/app';
 

@@ -1,0 +1,422 @@
+---
+title: Tassyir Hosting
+description: Run your app on Tassyir with no server of your own, deploy it with tassyir deploy, read the scan's findings, and use what each request receives.
+order: 155
+---
+
+# Tassyir Hosting
+
+On Tassyir Hosting your app's code runs on Tassyir, on Cloudflare Workers:
+there is no server for you to run. It is the same app as one on your own
+server: the same manifest, scopes, consent, Admin API, webhooks and App
+Bridge. Only where the code runs changes, and an app may move between the
+two from one version to the next.
+
+**Tassyir Hosting is not open yet.** Until it opens, the API refuses a hosted
+version with `APP_HOSTING_NOT_AVAILABLE` and `tassyir deploy` says so; run
+your app on your own server meanwhile (`hosting.mode = "external"`). This
+guide is the contract hosting opens with, so you can build for it now.
+
+## What a hosted app is
+
+A hosted app sets `hosting.mode = "tassyir"` and lists every host its code
+calls in `allowed_hosts` (an empty list when it calls none):
+
+```toml
+name        = "Review Requests"
+handle      = "review-requests"
+api_version = "2026-10"
+
+[access]
+scopes = ["read_orders"]
+
+[access.scope_reasons]
+read_orders = "Find delivered orders to ask for a review"
+
+[hosting]
+mode          = "tassyir"
+allowed_hosts = ["graph.facebook.com"]
+
+[admin]
+page = "/"
+
+[[webhooks]]
+topics = ["orders/delivered", "app/uninstalled"]
+uri    = "/webhooks"
+```
+
+- **Its address is `https://{handle}.tassyir-apps.com`**, and `admin.page` and
+  each webhook `uri` are paths on it. A hosted app has no `hosting.url`, no
+  `auth.callback_url` and no absolute webhook `uri`.
+- **It answers only inside the dashboard.** The dashboard opens your page in
+  its frame with a session it started for that member and that installation.
+  A visit to the address in a browser tab, a frame on another site, or a
+  request from another app gets a short refusal, never your page.
+- **`/.tassyir/` is Tassyir's.** On a hosted app's origin, `/.tassyir` and
+  every path below it are answered by Tassyir itself (that is where the
+  dashboard's session starts). The manifest refuses `admin.page` or a webhook
+  `uri` there (`MANIFEST_PATH_RESERVED`), and a link of yours to it leads
+  nowhere.
+- **Each installation runs the version its merchant accepted**, the same as
+  for an app on your server: a new version is offered to each installation
+  as an update ([Scopes and consent](scopes-and-consent.md#new-versions-and-updates)).
+  Only a version that passed its scan and was released runs, on a merchant's
+  business and on a [dev store](dev-stores.md) alike.
+
+## The code
+
+The code is one ES module whose default export has a `fetch` handler, the
+Workers way. Everything about the installation arrives in `ctx.props`, per
+request; `env` is empty:
+
+```ts
+interface HostedProps {
+  installation: {
+    id: string;
+    businessId: string;
+    appId: string;
+    handle: string;
+    version: number;
+    scopes: string[];
+    storeAccess: 'all' | 'selected';
+    storeIds: string[];
+    devStore: boolean;
+  };
+  /** The dashboard member looking at your page; null for a webhook. */
+  viewer: { userId: string; sessionId: string } | null;
+  STORAGE: {
+    sql(
+      query: string,
+      ...bindings: unknown[]
+    ): Promise<{ rows: Record<string, unknown>[] }>;
+  };
+  TASSYIR: { fetch(url: string, init?: RequestInit): Promise<Response> };
+}
+
+export default {
+  async fetch(
+    request: Request,
+    env: unknown,
+    ctx: { props: HostedProps },
+  ): Promise<Response> {
+    const { installation, TASSYIR } = ctx.props;
+    if (new URL(request.url).pathname !== '/') {
+      return new Response('Not found', { status: 404 });
+    }
+    const res = await TASSYIR.fetch(
+      'https://api.tassyir.io/apps/2026-10/orders?limit=5',
+    );
+    const page = (await res.json()) as { data: { id: string }[] };
+    return new Response(
+      `${installation.handle}: ${String(page.data.length)} recent orders`,
+    );
+  },
+};
+```
+
+| `ctx.props`    | What it is                                                                                                                                                                                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installation` | The installation this request is for: its `id`, `businessId`, `appId`, `handle`, the `version` it runs, the `scopes` granted, its store access (`storeAccess`, `storeIds`) and `devStore`.                                                                                                                                      |
+| `viewer`       | Who is looking: `userId` and `sessionId` of the dashboard member whose frame made the request, or `null` (a webhook). It says who is looking, not what they may do: the dashboard let them open the app, and what your page shows them is your app's decision. A hosted page needs no ID token: the viewer is already verified. |
+| `STORAGE`      | The installation's own SQLite database ([below](#storage)).                                                                                                                                                                                                                                                                     |
+| `TASSYIR`      | The Admin API, called as the installation, with no token ([below](#call-the-admin-api)).                                                                                                                                                                                                                                        |
+
+`STORAGE` and `TASSYIR` are capabilities: they act for this request's
+installation, and your code can neither read nor change which one.
+
+**Keep per-request state per request.** One copy of your code serves every
+installation that runs the same version, possibly several merchants in one
+process: a variable at the top of a module is shared between them. Never
+cache a merchant's data in one; use `STORAGE` or the request.
+
+**Change things only on a write.** Never change state on a `GET`: change it
+on `POST`, `PUT`, `PATCH` or `DELETE` from your own page, which are refused
+from anywhere else. Your page's requests never carry the dashboard's session,
+and a cookie your app sets stays on your app's host. Do not use your own
+cookies as a CSRF defence (a double-submit cookie): another app's page may be
+able to set a cookie for the whole `tassyir-apps.com` domain.
+
+**Limits per request:** 300 ms of CPU and 50 subrequests (each `fetch`, each
+call to `STORAGE` or `TASSYIR`). Past either, the request fails, and the
+merchant's frame shows an error.
+
+## Deploy with the CLI
+
+[`tassyir deploy`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli#tassyir-hosting)
+does everything in one command, in the folder that holds
+`tassyir.app.toml`:
+
+```bash
+tassyir deploy
+```
+
+1. **Build.** It bundles your Worker's entry (`--entry <file>`, else the
+   first of `src/worker.ts`, `src/worker.js`, `src/index.ts`, `src/index.js`)
+   into one ES module, `worker.js`. `.html` and `.css` files import as text
+   (`import page from './page.html'` is a string).
+2. **Check, before anything is sent.** The bundle rules below and the scan's
+   checks that need nothing of Tassyir's: every problem at once, each at its
+   place in your source (`src/worker.ts:12`), exit code 4. Nothing is
+   uploaded until they pass.
+3. **Upload** the manifest and the bundle, with your lockfile
+   (`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`
+   or `bun.lock`), which is scanned and never deployed.
+4. **Follow the scan** until the version is released or refused, then exit
+   by the verdict.
+
+The `hosted` template of `create-tassyir-app` (Hono and React) starts a
+project that deploys as it is. With `--json`, `deploy` prints one line when
+the version is uploaded (its number, and the command to follow it) and one
+with the verdict, so a tool whose own call times out still knows which
+version to check:
+
+```bash
+tassyir app version 3 --follow --app review-requests
+```
+
+`tassyir app version [n]` shows a version (the latest by default) with its
+scan; `--follow` waits for the verdict and exits as `deploy` does.
+
+### The bundle rules
+
+| Rule               | Limit                                                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files              | 1 to 100, at most 3 MB of UTF-8 together. Text only: ES modules (`.js`, `.mjs`) and text (`.html`, `.css`, `.txt`, `.json`, `.svg`, `.liquid`). No WebAssembly, source map or binary file.                                   |
+| Paths              | At most 200 characters, in at most 9 folders (`a/b/c.js` is in 2); names of letters, digits, `.`, `_` and `-` that never start with `.`.                                                                                     |
+| The entry (`main`) | An ES module whose default export holds a `fetch` handler: `export default { async fetch(request, env, ctx) { … } }`, a class with one, or an object that has one (a Hono app).                                              |
+| Node.js built-ins  | None: a hosted app has no Node.js compatibility, so an import of `node:buffer`, `node:crypto`, … is refused. Use the Web APIs (`fetch`, `crypto.subtle`, `TextEncoder`, `URL`, …) or a package that does not import `node:`. |
+| Other imports      | Only what the bundle holds, and `cloudflare:workers`. No import of a URL or of `cloudflare:sockets`, and no `import()` of a name built at run time.                                                                          |
+| Lockfile           | Optional and recommended, at most 1 MB. Without one, the scan warns that the dependencies were not checked.                                                                                                                  |
+| Uploads            | 10 hosted versions per developer a day (each is a scan), 30 versions an hour.                                                                                                                                                |
+
+The same manifest and bundle as the latest version are not a new version:
+`deploy` answers with that version's state instead.
+
+## The scan
+
+Every hosted version is scanned before it can run, outside Tassyir's servers.
+Each check passes, warns (the version still goes ahead) or fails (it does
+not):
+
+| Check             | What fails the version                                                                                                                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `size`            | Over 3 MB of modules or 100 files.                                                                                                                                                                                                                                               |
+| `unicode`         | A bidi control character (Trojan Source), a tag character, a long run of invisible characters, or an invisible character inside a name.                                                                                                                                          |
+| `banned_apis`     | `eval`, `new Function` or a string timer over code built at run time, `.constructor.constructor()`, `import()` of a run-time name or a URL, `cloudflare:sockets`, an import not in the bundle, a `node:` import, an entry with no `fetch` handler, a module that does not parse. |
+| `manifest_scopes` | A call to an Admin API route that none of the manifest's scopes reach.                                                                                                                                                                                                           |
+| `manifest_hosts`  | A `fetch`, `Request`, `WebSocket` or `EventSource` to a literal host outside `allowed_hosts`, to a Tassyir domain, or over http.                                                                                                                                                 |
+| `semgrep`         | Code matching Tassyir's own rules: mining, a Tassyir credential in code, raw sockets.                                                                                                                                                                                            |
+| `gitleaks`        | A secret in the code.                                                                                                                                                                                                                                                            |
+| `osv`             | A malicious or critical (CVSS 9 or more) package in the lockfile.                                                                                                                                                                                                                |
+
+An AI review then reads the code against the manifest. It can only add
+caution: it fails a version, or holds it for a person at Tassyir, but it
+never passes a version a check failed.
+
+Each finding names its `rule`, `severity` (`error` fails, `warning` does not),
+`file`, `line` and a `message`. The checks read the code and never run it:
+a host or a path built at run time is left to the limits at run time
+([egress](#call-other-services), the installation's scopes).
+
+| Finding (`rule`)                                                            | What to do                                                                                           |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `eval`, `function-constructor`, `string-timer`, `constructor-constructor`   | Remove code built from strings: read data with `JSON.parse`, pass a function to `setTimeout`.        |
+| `dynamic-import`, `remote-import`, `unbundled-import`                       | Install the package and import it by name, so the bundle holds it; `import()` only a literal path.   |
+| `node-builtin`                                                              | Use the Web APIs, or a package that does not import `node:`.                                         |
+| `no-fetch-handler`                                                          | Export the handler from the entry: `export default { async fetch(request, env, ctx) { … } }`.        |
+| `raw-socket`                                                                | Use `fetch()` to a host in `allowed_hosts`: sockets are not available.                               |
+| `host-not-allowed`                                                          | Add the host to `allowed_hosts` (a new version: the merchant consents to it), or remove the request. |
+| `tassyir-host`                                                              | Call Tassyir through `ctx.props.TASSYIR`, never over the network.                                    |
+| `not-https`                                                                 | Use `https://` (or `wss://`).                                                                        |
+| `dynamic-host` (warns)                                                      | A host built at run time: only `allowed_hosts` will answer it.                                       |
+| `scope-not-requested`                                                       | Request the scope the route needs in the manifest, or remove the call.                               |
+| `bidi-control`, `invisible-run`, `hidden-character`, `invisible-identifier` | Remove the invisible characters: a reader of the code cannot see what it does.                       |
+| `too-large`, `too-many-files`                                               | Make the bundle smaller: minify, and leave out what the Worker does not import.                      |
+
+### Where a version stands
+
+`tassyir app version` shows it, and `deploy` exits by it:
+
+| The version                                            | Exit                                   | Next step                                                                                                            |
+| ------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Released: scanned, then deployed                       | 0                                      | Installations get it as an update; new installations get it at once when it is the latest.                           |
+| Held for a person (`in_review`)                        | 0, `"released": false`                 | A person at Tassyir releases or rejects it; `tassyir app version <n> --follow` waits.                                |
+| Failed its scan (`VERSION_SCAN_FAILED`)                | 1, each finding in `errors`            | Fix every finding, then deploy again: a new bundle is a new version.                                                 |
+| Its scan ended without a verdict (`SCAN_TIMED_OUT`, …) | 5                                      | Deploy the same bundle again: it is scanned again.                                                                   |
+| Scanned, but the deployment failed                     | 1, its code (`CLOUDFLARE_REJECTED`, …) | The message carries what Cloudflare answered (`10021`: the Worker failed to start); fix it and deploy a new version. |
+| Rejected by a person at Tassyir                        | 1, `VERSION_REJECTED`                  | Change the app as the reason says, then deploy again.                                                                |
+| Still scanning at `--timeout`, or after Ctrl-C         | 5, `VERSION_IN_PROGRESS`               | `tassyir app version <n> --follow` picks it up; stopping never stops the scan.                                       |
+
+## Call the Admin API
+
+`ctx.props.TASSYIR.fetch` calls the Admin API as the installation, with no
+token: the same routes, scopes, store access and answers as an access token
+of the installation, from the [Admin API](admin-api.md) and its reference.
+
+```ts
+async function confirm(
+  TASSYIR: { fetch(url: string, init?: RequestInit): Promise<Response> },
+  orderId: string,
+): Promise<void> {
+  const res = await TASSYIR.fetch(
+    `https://api.tassyir.io/apps/2026-10/orders/${orderId}/confirm`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': `confirm-${orderId}`,
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  if (!res.ok) {
+    const problem = (await res.json()) as { code: string; fix?: string };
+    throw new Error(`${problem.code}: ${problem.fix ?? ''}`);
+  }
+}
+```
+
+- **Only Admin API paths:** `/apps/<version>/` and segments of letters,
+  digits, `_` and `-`; no other path, no `//`, trailing `/`, `%` or `;`. The
+  URL's host does not matter: the call always goes to Tassyir's API.
+- **Only GET, POST, PUT, PATCH and DELETE, and only a JSON body** of at most
+  100 KB. It is re-serialised before it is sent, so **send ids as strings**: a
+  number past 2^53 would be rounded (the Admin API's ids always are strings).
+- **Only three of your headers pass:** `Accept`, `Content-Type` and
+  `Idempotency-Key` (1 to 255 printable ASCII characters). Retrying a write
+  with the same key is safe, as for any app.
+- **The answer** is the API's, at most 8 MiB, with `Content-Type`, the
+  `RateLimit-*` headers, `Retry-After`, `Idempotent-Replayed` and
+  `X-Request-Id`. Ask for less with `limit` or `?fields=`.
+- **The installation acts**, never the viewer: the activity log names your
+  app. Rate limits are the installation's, as for any app.
+
+Some refusals come from the binding itself, before the call reaches the API,
+in the same problem shape without a `requestId`:
+[`HOSTED_PATH_NOT_ALLOWED`](errors.md#hosted_path_not_allowed),
+[`RESPONSE_TOO_LARGE`](errors.md#response_too_large),
+[`TASSYIR_BINDING_NOT_AVAILABLE`](errors.md#tassyir_binding_not_available),
+and `METHOD_NOT_ALLOWED`, `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`,
+`PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `SERVICE_UNAVAILABLE` (the API
+did not answer in 30 seconds). The API answers `HOSTED_CALL_REFUSED` (401)
+when the installation can no longer call it: uninstalled, suspended, or no
+longer on a released version.
+
+`@tassyir/app`'s typed Admin API client can send its requests through the
+binding too: its `fetch` is `ctx.props.TASSYIR.fetch`, and it needs no
+access token.
+
+## Storage
+
+Each installation has its own SQLite database, `ctx.props.STORAGE`:
+
+| Method                             | Answer                                                       |
+| ---------------------------------- | ------------------------------------------------------------ |
+| `sql(query, ...bindings)`          | `{ rows, rowsRead, rowsWritten }`; the last statement's rows |
+| `batch([{ query, bindings? }, …])` | One result per statement, all in one transaction             |
+| `usage()`                          | `{ bytes, limitBytes }`                                      |
+
+```ts
+async function remember(
+  STORAGE: {
+    sql(query: string, ...bindings: unknown[]): Promise<unknown>;
+  },
+  orderId: string,
+  stars: number,
+): Promise<void> {
+  await STORAGE.sql(
+    'CREATE TABLE IF NOT EXISTS reviews (order_id TEXT PRIMARY KEY, stars INTEGER)',
+  );
+  await STORAGE.sql(
+    'INSERT OR REPLACE INTO reviews (order_id, stars) VALUES (?, ?)',
+    orderId,
+    stars,
+  );
+}
+```
+
+- **Limits:** 50 MiB per installation; a query of at most 100,000
+  characters; at most 100 bound values, 1 MiB together; a batch of at most
+  50 statements; at most 5,000 rows and about 4 MiB in an answer (page with
+  `LIMIT`).
+- **Each call is one transaction:** a statement that fails, an answer too
+  large or a database grown past its size rolls back everything the call
+  wrote. Reads and deletes always run, so a full database can be emptied.
+  `BEGIN`, `COMMIT` and most `PRAGMA`s are refused.
+- **Errors** are thrown with a message that starts with `STORAGE_FULL`,
+  `STORAGE_LIMIT`, `STORAGE_INVALID` or `STORAGE_UNAVAILABLE`, or SQLite's
+  own message.
+- **It is deleted 48 hours after the app is uninstalled**, with the
+  installation's [app data](app-data.md)
+  ([Compliance and uninstall](compliance-and-uninstall.md)).
+
+## Call other services
+
+Your code's `fetch()` reaches the hosts of `allowed_hosts` only: an exact
+name, or `*.` + a name for its subdomains (never the name itself), over https
+on port 443, with no user or password in the URL. Everything else is refused
+with a `403` whose `tassyir-egress-refused` header says why (`not_allowed`,
+`tassyir_host`, `not_https`, `port`, `credentials_in_url`, `ip_literal`,
+`private_name`); the request is never sent. Tassyir's own domains are always
+refused: call Tassyir through `TASSYIR`. A redirect is not followed: your code
+gets the `3xx`, and following it is a new request, checked again. Sockets are
+not available.
+
+The merchant sees every host in `allowed_hosts` on the install screen, and a
+version that adds one asks for their consent again.
+
+## Webhooks
+
+A hosted app receives the same deliveries as an app on your server, at
+`https://{handle}.tassyir-apps.com` + the webhook `uri`: the same headers,
+the same signed body ([Webhooks](webhooks.md)). Your handler runs with
+`viewer` set to `null`, with the installation's `STORAGE` and `TASSYIR`.
+Answer within 10 seconds; only your status and `Retry-After` are read. An
+exception, or a request past its limits, counts as a failed attempt and is
+retried.
+
+Verify each delivery with `verifyWebhook`. Your code cannot fetch the key
+document (`GET https://api.tassyir.io/apps/webhook-keys`: Tassyir's hosts are
+refused, and `TASSYIR` calls only Admin API paths), so give it the keys that
+document lists:
+
+```ts
+import { WebhookKeys, verifyWebhook } from '@tassyir/app';
+
+// The whpk_… keys of GET https://api.tassyir.io/apps/webhook-keys.
+const keys = WebhookKeys.fromPublicKeys([
+  'whpk_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+]);
+
+async function onWebhook(
+  request: Request,
+  installation: { id: string; appId: string },
+): Promise<Response> {
+  const body = await request.text();
+  const delivery = await verifyWebhook(
+    { headers: request.headers, body },
+    { keys, appId: installation.appId, installationId: installation.id },
+  );
+  console.log(delivery.event.type);
+  return new Response(null, { status: 200 });
+}
+```
+
+**`app/uninstalled` and `business/redact` reach an uninstalled
+installation too**, as they reach an app on your server. During those two
+deliveries `TASSYIR` answers `HOSTED_CALL_REFUSED` (the installation is no
+longer active). `STORAGE` still holds everything for `app/uninstalled` (it is
+deleted 48 hours later) and nothing for `business/redact`. Clean up what you
+keep elsewhere, through `fetch()` to your `allowed_hosts`.
+
+## Checklist
+
+- Every host the code calls is in `allowed_hosts`; nothing calls Tassyir but
+  `ctx.props.TASSYIR`.
+- No `node:` import, and the entry exports a `fetch` handler.
+- No page, webhook or link under `/.tassyir/`.
+- No merchant data in module-level variables.
+- Nothing changes on a `GET`.
+- Ids are strings in every body.
+- `tassyir deploy` passes its checks before it uploads; the scan's findings
+  are fixed, not silenced.

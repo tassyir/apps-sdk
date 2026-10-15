@@ -4,8 +4,7 @@ import { checkBundleCode, hostAllowed, isTassyirHost } from './bundle-code.js';
 // The scan's code checks as the CLI runs them before an upload. The cases
 // are the scan's own (tassyir/backend `tools/app-scans/test/js-analysis.test.mjs`
 // and `static-checks.test.mjs`: the same sources, the same rules and
-// severities), plus the CLI's two rules of its own (`node:` refused, a
-// `fetch` handler required).
+// severities), the `node:` and fetch-handler rules included.
 
 const HANDLER =
   'export default { async fetch() { return new Response("ok"); } };\n';
@@ -59,7 +58,7 @@ describe('the scan’s banned_apis, before the upload', () => {
     ]);
   });
 
-  it('imports: sockets, URLs and unbundled packages fail; node: fails too (the scan only warns)', () => {
+  it('imports: sockets, URLs, unbundled packages and node: built-ins fail', () => {
     expect(
       rules(`
         import { connect } from 'cloudflare:sockets';
@@ -79,6 +78,16 @@ describe('the scan’s banned_apis, before the upload', () => {
       'node-builtin:error',
     ]);
     expect(rules("export * from 'node:path';")).toEqual(['node-builtin:error']);
+  });
+
+  it('a node: import alone fails: hosted Workers have no nodejs_compat', () => {
+    const result = check("import { createHash } from 'node:crypto';");
+    expect(result.findings.map((f) => `${f.rule}:${f.severity}`)).toEqual([
+      'node-builtin:error',
+    ]);
+    expect(result.findings[0]?.message).toMatch(
+      /^node:crypto needs Node\.js compatibility/,
+    );
   });
 
   it('a module that does not parse says so', () => {
@@ -171,7 +180,7 @@ describe('the scan’s manifest_hosts (requests), before the upload', () => {
   });
 });
 
-describe('the fetch handler (the CLI’s own rule)', () => {
+describe('the scan’s fetch handler rule (banned_apis)', () => {
   const handler = (source: string) =>
     checkBundleCode([{ path: 'worker.js', content: source }], 'worker.js', [])
       .errors;
@@ -200,6 +209,15 @@ describe('the fetch handler (the CLI’s own rule)', () => {
       'const app = new Hono(); export default app;',
     ],
     ['an object with a spread', 'export default { ...handlers };'],
+    ['a quoted key', 'export default { "fetch": handler };'],
+    [
+      'a class bound to a name',
+      'class W { async fetch() {} } export default W;',
+    ],
+    ['a call', 'export default make();'],
+    ['a constructed object', 'export default new Hono();'],
+    ['a re-export', "export { default } from './app.js';"],
+    ['an import', "import app from './app.js'; export default app;"],
   ])('passes %s', (_name, source) => {
     expect(handler(source)).toEqual([]);
   });
@@ -214,6 +232,9 @@ describe('the fetch handler (the CLI’s own rule)', () => {
     ],
     ['an arrow function', 'const h = () => 1; export default h;'],
     ['a literal', 'export default 42;'],
+    ['a string', 'export default "worker";'],
+    ['a computed key only', 'export default { [name]: f };'],
+    ['a static fetch only', 'export default class { static fetch() {} }'],
   ])('refuses %s', (_name, source) => {
     expect(handler(source)).toEqual([
       expect.objectContaining({
@@ -222,6 +243,21 @@ describe('the fetch handler (the CLI’s own rule)', () => {
         fix: expect.stringContaining('export default { async fetch') as string,
       }),
     ]);
+  });
+
+  it('says it in the scan’s words', () => {
+    const [finding] = checkBundleCode(
+      [{ path: 'worker.js', content: 'export const handler = 1;' }],
+      'worker.js',
+      [],
+    ).findings;
+    expect(finding).toMatchObject({
+      rule: 'no-fetch-handler',
+      severity: 'error',
+    });
+    expect(finding?.message).toBe(
+      "worker.js has no default export: Cloudflare runs a hosted app through its default export's fetch(request, env)",
+    );
   });
 
   it('checks main only: another module needs no handler', () => {

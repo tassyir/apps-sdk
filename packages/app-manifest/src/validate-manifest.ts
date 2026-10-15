@@ -17,6 +17,7 @@ import {
   DATA_OWNERS,
   DATA_TYPES,
   DATA_VISIBILITIES,
+  HOSTED_RESERVED_PATH_PREFIX,
   HOSTING_MODES,
   MANIFEST_FILE_NAME,
   MANIFEST_LIMITS,
@@ -983,6 +984,7 @@ function checkHosting(root: unknown, report: Report): void {
         );
       }
     });
+    checkHostedReservedPaths(root, report);
   }
 
   const hosts = own(hosting, 'allowed_hosts');
@@ -1001,6 +1003,40 @@ function checkHosting(root: unknown, report: Report): void {
       seen.add(host);
     });
   }
+}
+
+/** Whether the dispatcher keeps `path` for itself on a hosted app's origin. */
+function isHostedReservedPath(path: string): boolean {
+  return (
+    path === HOSTED_RESERVED_PATH_PREFIX.slice(0, -1) ||
+    path.startsWith(HOSTED_RESERVED_PATH_PREFIX)
+  );
+}
+
+/**
+ * A hosted app's page and webhook paths outside `/.tassyir/`, which the
+ * dispatcher answers itself on every hosted origin: a page there never loads
+ * and a delivery there is never made. Only for hosted apps: an external app's
+ * origin is its own, Tassyir serves nothing there. A path that breaks the
+ * path rules already has its MANIFEST_PATH_INVALID and is not judged here.
+ */
+function checkHostedReservedPaths(root: unknown, report: Report): void {
+  const reserved = (path: Path, value: unknown, example: string) => {
+    if (typeof value !== 'string' || !isHostedReservedPath(value)) return;
+    const at = formatManifestPath(path);
+    if (relativePathProblem(value, at, example)) return;
+    report.error(
+      path,
+      'MANIFEST_PATH_RESERVED',
+      `\`${at}\` is ${quote(value)}, under "${HOSTED_RESERVED_PATH_PREFIX}", which Tassyir keeps for itself on a hosted app's origin.`,
+      `Move it to a path outside "${HOSTED_RESERVED_PATH_PREFIX}", e.g. "${example}".`,
+    );
+  };
+  reserved(['admin', 'page'], valueAt(root, ['admin', 'page']), '/');
+  (listAt(root, ['webhooks']) ?? []).forEach((entry, index) => {
+    if (!isTable(entry)) return;
+    reserved(['webhooks', index, 'uri'], own(entry, 'uri'), '/webhooks');
+  });
 }
 
 function checkTopics(lookup: Lookup, root: unknown, report: Report): void {

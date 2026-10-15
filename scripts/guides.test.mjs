@@ -9,7 +9,10 @@ import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { validateManifest } from '@tassyir/app-manifest';
 import {
+  HOSTED_BINDING_CODES,
+  HOSTED_BINDING_SHARED_CODES,
   codeBlocks,
+  errorCatalogue,
   explainedCodes,
   guideSetProblems,
   leakProblems,
@@ -125,14 +128,53 @@ describe('docs/guides', () => {
       ).toBe(source);
     });
 
-    it('explains only codes the API answers', () => {
+    it('explains only codes the API or the hosted binding answers', () => {
       const known = new Set([
         ...problemCodes(document).codes.keys(),
+        ...errorCatalogue(document).keys(),
         ...oauthErrors(document).keys(),
+        ...HOSTED_BINDING_CODES.keys(),
       ]);
       const explained = explainedCodes(source);
       expect(explained.length).toBeGreaterThan(10);
       expect(explained.filter((code) => !known.has(code))).toEqual([]);
+    });
+
+    it("explains each of the hosted binding's own codes", () => {
+      const explained = explainedCodes(source);
+      expect(
+        [...HOSTED_BINDING_CODES.keys()].filter(
+          (code) => !explained.includes(code),
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe('the error catalogue (x-tassyir-errors)', () => {
+    const document = /** @type {import('./lib/guides.mjs').OpenApiDocument} */ (
+      readJson(OPENAPI_DOCUMENT)
+    );
+    const catalogue = errorCatalogue(document);
+
+    it('holds every code an operation lists, with a title', () => {
+      expect(catalogue.size).toBeGreaterThan(50);
+      expect(
+        [...problemCodes(document).codes.keys()].filter(
+          (code) => !catalogue.has(code),
+        ),
+      ).toEqual([]);
+      for (const [code, entry] of catalogue) {
+        expect(entry.title, code).not.toBe('');
+      }
+    });
+
+    it("never names the hosted binding's own codes, and names the six it shares", () => {
+      expect(
+        [...HOSTED_BINDING_CODES.keys()].filter((code) => catalogue.has(code)),
+      ).toEqual([]);
+      expect(
+        HOSTED_BINDING_SHARED_CODES.filter((code) => !catalogue.has(code)),
+      ).toEqual([]);
     });
   });
 });

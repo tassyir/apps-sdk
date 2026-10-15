@@ -78,6 +78,15 @@ the installation was uninstalled, suspended or had its scopes changed: an
 embedded app gets a new token on the next page view, a headless app needs a
 new install code.
 
+### `HOSTED_CALL_REFUSED`
+
+HTTP 401. A hosted app's call through `ctx.props.TASSYIR` was refused: its
+installation is uninstalled or suspended, or no longer runs a released
+version. It is also the answer during an `app/uninstalled` or
+`business/redact` delivery. Make the call from the request that received
+`ctx.props.TASSYIR`; if the installation is active, retry after a short wait
+([Tassyir Hosting](tassyir-hosting.md#call-the-admin-api)).
+
 ### `PERMISSION_DENIED`
 
 HTTP 403. Your installation lacks the permission the route checks (`permission`).
@@ -173,11 +182,38 @@ same `Idempotency-Key`. Quote the `requestId` if it persists.
 HTTP 503. Something Tassyir depends on is down. Retry with backoff, writes with the
 same `Idempotency-Key`.
 
+## Hosted apps: the binding's own codes
+
+A hosted app calls the Admin API through `ctx.props.TASSYIR.fetch`
+([Tassyir Hosting](tassyir-hosting.md#call-the-admin-api)). The binding checks
+each call before it sends it and answers some refusals itself, in the same
+problem shape but without a `requestId`: they never reached the API. Six of
+them are the API's own codes (`METHOD_NOT_ALLOWED`, `BAD_REQUEST`,
+`IDEMPOTENCY_KEY_INVALID`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, and
+`SERVICE_UNAVAILABLE` when the API did not answer within 30 seconds). Three
+exist only there, so the API's reference does not list them:
+
+### `HOSTED_PATH_NOT_ALLOWED`
+
+HTTP 400. The call was not to an Admin API path. Call `/apps/<version>/…`
+with segments of letters, digits, `_` and `-` only: no other path, no `//`,
+no trailing `/`, no percent-encoding and no `;`.
+
+### `RESPONSE_TOO_LARGE`
+
+HTTP 502. The API's answer was larger than a hosted app may receive (8 MiB).
+Ask for less: a smaller `limit`, or `?fields=` with only the fields you read.
+
+### `TASSYIR_BINDING_NOT_AVAILABLE`
+
+HTTP 503. Calls to the Admin API from a hosted app are not available right
+now; nothing was sent. Try again later.
+
 <!-- generated:error-reference: npm run guides:errors writes everything up to the end marker -->
 
 ## Every Admin API code
 
-Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (41 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document.
+Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (41 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.
 
 | Code                                    | HTTP     | Answered by                                                                                                                           |
 | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -203,10 +239,12 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `COLLECTION_PARENT_NOT_FOUND`           | 404      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
 | `COLLECTION_PRODUCT_WRONG_STORE`        | 400      | `PATCH /collections/{id}/products`                                                                                                    |
 | `COLLECTION_RULE_INVALID`               | 400      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
+| `CONFLICT`                              | 409      | any operation, as a fallback                                                                                                          |
 | `DELIVERY_SPEED_UNAVAILABLE`            | 400      | `PATCH /orders/{id}`, `POST /orders`                                                                                                  |
 | `DELIVERY_SPEED_UNSUPPORTED`            | 400      | `PATCH /orders/{id}`                                                                                                                  |
 | `DEV_STORE_ORDER_LIMIT_REACHED`         | 429      | `POST /orders`                                                                                                                        |
 | `FORBIDDEN`                             | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`, `POST /orders`                           |
+| `HOSTED_CALL_REFUSED`                   | 401      | every operation                                                                                                                       |
 | `HTML_NOT_ALLOWED`                      | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `POST /collections`, `POST /products`                                              |
 | `IDEMPOTENCY_KEY_INVALID`               | 400      | 18 operations                                                                                                                         |
 | `IDEMPOTENCY_KEY_IN_USE`                | 409      | 18 operations                                                                                                                         |
@@ -223,6 +261,7 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `INVALID_FIELDS`                        | 400      | 37 operations                                                                                                                         |
 | `LOCATION_NOT_FOUND`                    | 400, 404 | `POST /inventory-levels/{id}/adjust`                                                                                                  |
 | `MEDIA_URL_NOT_ALLOWED`                 | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /collections`, `POST /products` |
+| `METHOD_NOT_ALLOWED`                    | 405      | any operation, as a fallback                                                                                                          |
 | `NOT_FOUND`                             | 404      | 28 operations                                                                                                                         |
 | `ORDER_DUPLICATE`                       | 409      | `POST /orders`                                                                                                                        |
 | `ORDER_LIMIT_REACHED`                   | 403      | `POST /orders/{id}/confirm`                                                                                                           |
@@ -253,10 +292,13 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `PRODUCT_VARIANT_UNKNOWN_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
 | `PRODUCT_WRITE_TIMEOUT`                 | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                 |
 | `RATE_LIMITED`                          | 429      | every operation                                                                                                                       |
+| `REQUEST_FAILED`                        | 4xx      | any operation, as a fallback                                                                                                          |
 | `SERVICE_UNAVAILABLE`                   | 503      | every operation                                                                                                                       |
 | `STORE_REQUIRED`                        | 400      | `POST /orders`                                                                                                                        |
 | `STORE_SCOPE_FORBIDDEN`                 | 460      | 15 operations                                                                                                                         |
 | `SUBSCRIPTION_REQUIRED`                 | 422      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                           |
+| `UNAUTHORIZED`                          | 401      | any operation, as a fallback                                                                                                          |
+| `UNPROCESSABLE_ENTITY`                  | 422      | any operation, as a fallback                                                                                                          |
 | `UNSUPPORTED_MEDIA_TYPE`                | 415      | 15 operations                                                                                                                         |
 | `VALIDATION_FAILED`                     | 400      | 40 operations                                                                                                                         |
 

@@ -279,7 +279,7 @@ describe('tassyir deploy, hosted: build, check, upload', () => {
 });
 
 describe('tassyir deploy, hosted: refused before the upload (exit 4, nothing sent)', () => {
-  it('refuses the scan’s and the CLI’s rules at once, each pointing at the source', async () => {
+  it('refuses the scan’s rules at once, each pointing at the source', async () => {
     const harness = await ready({
       changes: {
         'src/worker.ts': `import { readFile } from 'node:fs/promises';
@@ -317,7 +317,7 @@ export default {
       expect.objectContaining({
         code: 'BUNDLE_TASSYIR_HOST',
         path: 'src/worker.ts:7',
-        fix: expect.stringContaining('env.TASSYIR') as string,
+        fix: expect.stringContaining('ctx.props.TASSYIR') as string,
       }),
       expect.objectContaining({
         code: 'BUNDLE_HOST_NOT_ALLOWED',
@@ -606,8 +606,61 @@ describe('tassyir deploy, hosted: the verdict', () => {
     expect(result.json()['error']).toMatchObject({
       code: 'CLOUDFLARE_REJECTED',
       message:
-        'review-requests version 1 passed its scan, but its upload to Cloudflare (staging) failed: CLOUDFLARE_REJECTED',
+        'review-requests version 1 passed its scan, but its upload to Cloudflare (staging) failed: CLOUDFLARE_REJECTED. Cloudflare answered 10021: Uncaught Error: No such module "node:fs". imported from "worker.js"',
       fix: expect.stringContaining('exports fetch') as string,
+      details: {
+        version: {
+          hosting: {
+            deploy: {
+              staging: {
+                status: 'failed',
+                errorCode: 'CLOUDFLARE_REJECTED',
+                refusal: { code: 10021 },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("people read Cloudflare's answer too", async () => {
+    const harness = await ready({
+      script: ['dispatched', 'passed', 'deploy_failed'],
+    });
+    const result = await harness.run('deploy');
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      'Cloudflare answered 10021: Uncaught Error: No such module "node:fs"',
+    );
+  });
+
+  it("`tassyir app version` shows Cloudflare's answer under the uploads", async () => {
+    const harness = await ready({
+      script: ['dispatched', 'passed', 'deploy_failed'],
+    });
+    expect((await harness.run('deploy', '--json')).code).toBe(1);
+    const result = await harness.run('app', 'version', '1');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      'Uploads: staging failed (CLOUDFLARE_REJECTED), production none',
+    );
+    expect(result.stdout).toContain(
+      'Cloudflare (staging): 10021: Uncaught Error: No such module "node:fs"',
+    );
+  });
+
+  it('a failed upload whose record carries no answer keeps the bare code', async () => {
+    const harness = await ready({
+      script: ['dispatched', 'passed', 'deploy_failed'],
+    });
+    harness.fake.deployRefusal = null;
+    const result = await harness.run('deploy', '--json');
+    expect(result.code).toBe(1);
+    expect(result.json()['error']).toMatchObject({
+      code: 'CLOUDFLARE_REJECTED',
+      message:
+        'review-requests version 1 passed its scan, but its upload to Cloudflare (staging) failed: CLOUDFLARE_REJECTED',
     });
   });
 });
@@ -735,7 +788,50 @@ describe('tassyir deploy, hosted: the API’s refusals, each with a fix', () => 
     });
   });
 
-  it('PAYLOAD_TOO_LARGE says why a hosted upload can be too large', async () => {
+  it("PAYLOAD_TOO_LARGE with hosting off keeps the API's reason and adds --api-origin", async () => {
+    const harness = await ready();
+    harness.fake.nextUploadRefusal = {
+      status: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+      message:
+        'The upload is over 131072 bytes, the limit while Tassyir Hosting is not available',
+      fix: 'Only a hosted version (one with a bundle) is that large, and Tassyir Hosting does not take uploads yet: host the app on your own server (hosting.mode = "external"), whose manifest alone fits.',
+      extra: { limitBytes: 131072, hostingAvailable: false },
+    };
+    const result = await harness.run('deploy', '--json');
+    expect(result.code).toBe(1);
+    expect(result.json()['error']).toEqual(
+      expect.objectContaining({
+        code: 'PAYLOAD_TOO_LARGE',
+        message:
+          'The upload is over 131072 bytes, the limit while Tassyir Hosting is not available',
+        fix: 'Only a hosted version (one with a bundle) is that large, and Tassyir Hosting does not take uploads yet: host the app on your own server (hosting.mode = "external"), whose manifest alone fits. Or deploy to an API where Tassyir Hosting is on (--api-origin).',
+        details: { limitBytes: 131072, hostingAvailable: false },
+      }),
+    );
+  });
+
+  it("PAYLOAD_TOO_LARGE with hosting on is the API's own answer", async () => {
+    const harness = await ready();
+    const fix =
+      'Keep the bundle within its limits: 3145728 bytes of modules and a lockfile of 1048576 bytes (minify, and leave out what the Worker does not import).';
+    harness.fake.nextUploadRefusal = {
+      status: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+      message: 'The upload is over 8519680 bytes',
+      fix,
+      extra: { limitBytes: 8519680, hostingAvailable: true },
+    };
+    const result = await harness.run('deploy', '--json');
+    expect(result.code).toBe(1);
+    expect(result.json()['error']).toMatchObject({
+      code: 'PAYLOAD_TOO_LARGE',
+      fix,
+      details: { limitBytes: 8519680, hostingAvailable: true },
+    });
+  });
+
+  it('PAYLOAD_TOO_LARGE from an older API (a bare 413) says why a hosted upload can be too large', async () => {
     const harness = await ready();
     harness.fake.nextUploadRefusal = {
       status: 413,

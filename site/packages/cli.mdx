@@ -311,21 +311,22 @@ bundle the CLI passes is one the API takes:
   files, at most 3 MB of UTF-8 together; text only (ES modules `.js` /
   `.mjs`, text `.html` `.css` `.txt` `.json` `.svg` `.liquid`), no
   WebAssembly, source map or binary; paths of letters, digits, `.`, `_`, `-`
-  that never start with `.`, at most 200 characters and 10 segments; `main`
-  one of the ES modules; a lockfile of at most 1 MB;
+  that never start with `.`, at most 200 characters and in at most 9
+  folders (`a/b/c.js` is in 2); `main` one of the ES modules; a lockfile of
+  at most 1 MB;
 - the code checks of the scan that do not need Tassyir's data: `eval` or
   `new Function` over code built at run time, a string timer,
   `.constructor.constructor()`, `import()` of a name built at run time, an
   import of a URL, of `cloudflare:sockets` or of anything outside the
-  bundle (`BUNDLE_DYNAMIC_IMPORT`, `BUNDLE_EVAL`, …), and every `fetch` /
-  `new Request` / `new WebSocket` / `new EventSource` to a literal host: a
-  Tassyir domain (`BUNDLE_TASSYIR_HOST`: call Tassyir through `env.TASSYIR`),
-  a host outside `hosting.allowed_hosts` (`BUNDLE_HOST_NOT_ALLOWED`; `*.x.com`
-  is the subdomains of `x.com`, never `x.com`), or http;
-- two rules of the CLI's own: a `node:` import (`BUNDLE_NODE_IMPORT`; the
-  scan only warns, but a hosted Worker has no Node.js compatibility, so
-  Cloudflare would refuse it) and a `main` that does not export a `fetch`
-  handler (`BUNDLE_NO_FETCH_HANDLER`).
+  bundle (`BUNDLE_DYNAMIC_IMPORT`, `BUNDLE_EVAL`, …), a `node:` import
+  (`BUNDLE_NODE_IMPORT`: a hosted Worker has no Node.js compatibility), a
+  `main` that surely exports no `fetch` handler (`BUNDLE_NO_FETCH_HANDLER`;
+  a default built at run time, inherited or re-exported passes), and every
+  `fetch` / `new Request` / `new WebSocket` / `new EventSource` to a literal
+  host: a Tassyir domain (`BUNDLE_TASSYIR_HOST`: call Tassyir through
+  `ctx.props.TASSYIR`), a host outside `hosting.allowed_hosts`
+  (`BUNDLE_HOST_NOT_ALLOWED`; `*.x.com` is the subdomains of `x.com`, never
+  `x.com`), or http.
 
 Every problem at once is `BUNDLE_INVALID` (exit 4), each in `errors` with its
 place in your source (`src/worker.ts:12`). What the scan would only warn
@@ -353,7 +354,7 @@ the scan. Then:
 | Held for a person (`in_review`)                | exit 0, `"released": false`, `"state": "in_review"`: the checks passed, the AI review asked for a look                                    |
 | Failed its scan (`scan_failed`, on findings)   | exit 1, `VERSION_SCAN_FAILED`, every failing finding and review concern in `errors`                                                       |
 | Its scan ended without a verdict               | exit 5, the API's code (`SCAN_TIMED_OUT`, `SCAN_INCOMPLETE`, `SCAN_DISPATCH_FAILED`, `SCAN_RESULT_INVALID`): upload the same bundle again |
-| Scanned, but the upload to Cloudflare failed   | exit 1, the API's code (`CLOUDFLARE_REJECTED`, …)                                                                                         |
+| Scanned, but the upload to Cloudflare failed   | exit 1, the API's code (`CLOUDFLARE_REJECTED`, …) and, when it sent one, Cloudflare's own code and message (`refusal`)                    |
 | Rejected by a person at Tassyir                | exit 1, `VERSION_REJECTED` with the reason                                                                                                |
 | Still scanning at `--timeout`, or after Ctrl-C | exit 5, `VERSION_IN_PROGRESS`: `tassyir app version <n> --follow` picks it up                                                             |
 
@@ -378,15 +379,15 @@ follows it if its scan is still running. After a scan that ended without a
 verdict, the same bundle is scanned again as a new version. The API's
 refusals of a hosted upload, with the CLI's fix:
 
-| Code                         | Why, and what to do                                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `APP_HOSTING_NOT_AVAILABLE`  | Tassyir Hosting is off on this API (production, for now): run the app on your own server, or use `--api-origin`. |
-| `APP_HOSTING_NOT_CONFIGURED` | On, but not ready to take uploads; nothing was stored (exit 5): try again later.                                 |
-| `APP_VERSION_CONFLICT`       | Another upload of the app took the version number first: run `tassyir deploy` again.                             |
-| `APP_HOSTING_BUSY`           | Tassyir scanned all it can for today (exit 5, `retryAfterSeconds`).                                              |
-| `DEVELOPER_RATE_LIMITED`     | 10 hosted versions per developer per 24 hours (each is a scan), 30 versions an hour.                             |
-| `APP_BUNDLE_INVALID`         | The API refused what the CLI's check passed (exit 4, `errors`): update the CLI.                                  |
-| `PAYLOAD_TOO_LARGE`          | An upload is at most 128 KB where Tassyir Hosting is off, 8 MB + 128 KB where it is on.                          |
+| Code                         | Why, and what to do                                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_HOSTING_NOT_AVAILABLE`  | Tassyir Hosting is off on this API (production, for now): run the app on your own server, or use `--api-origin`.                    |
+| `APP_HOSTING_NOT_CONFIGURED` | On, but not ready to take uploads; nothing was stored (exit 5): try again later.                                                    |
+| `APP_VERSION_CONFLICT`       | Another upload of the app took the version number first: run `tassyir deploy` again.                                                |
+| `APP_HOSTING_BUSY`           | Tassyir scanned all it can for today (exit 5, `retryAfterSeconds`).                                                                 |
+| `DEVELOPER_RATE_LIMITED`     | 10 hosted versions per developer per 24 hours (each is a scan), 30 versions an hour.                                                |
+| `APP_BUNDLE_INVALID`         | The API refused what the CLI's check passed (exit 4, `errors`): update the CLI.                                                     |
+| `PAYLOAD_TOO_LARGE`          | An upload is at most 128 KB where Tassyir Hosting is off, 8 MB + 128 KB where it is on: the API's `fix` and `limitBytes` say which. |
 
 ## From code
 
@@ -403,7 +404,7 @@ const exitCode = await runCli(['validate', '--json'], io);
 `fetch`, a clock, how to run a program and, optionally, Ctrl-C
 (`onInterrupt`). The hosted bundle's checks are exported too:
 `validateHostedBundle` (the API's upload rules), `checkBundleCode` (the
-scan's code checks and the CLI's two) and `buildHostedBundle`. `DeveloperApi` is the typed
+scan's code checks) and `buildHostedBundle`. `DeveloperApi` is the typed
 developer-API client the commands use. Its routes, bodies and answers are
 typed from the developer API's OpenAPI document, vendored in `openapi/` at a
 recorded backend commit (`SOURCE.json`); the package exports the types

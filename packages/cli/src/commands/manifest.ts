@@ -161,11 +161,22 @@ function hostedUploadError(error: unknown, apiOrigin: string): unknown {
         `${first ? `${first.fix} ` : ''}The CLI's own check of the bundle missed this: update the CLI (npm install -g tassyir@latest), and tell Tassyir if it is the latest.`,
       );
     }
-    case 'PAYLOAD_TOO_LARGE':
+    case 'PAYLOAD_TOO_LARGE': {
+      // Since AP-B1.23 the API's 413 says why (`fix`, `limitBytes`,
+      // `hostingAvailable`); an older API answers a bare 413.
+      const available = error.details?.['hostingAvailable'];
+      if (available === true) return error;
+      if (available === false) {
+        return withFix(
+          error,
+          `${error.fix} Or deploy to an API where Tassyir Hosting is on (--api-origin).`,
+        );
+      }
       return withFix(
         error,
         `${apiOrigin} took less than this bundle: an upload is at most 128 KB while Tassyir Hosting is off there (8 MB + 128 KB when it is on). Deploy to an API where it is on (--api-origin), or run the app on your own server (hosting.mode = "external").`,
       );
+    }
     default:
       return error;
   }

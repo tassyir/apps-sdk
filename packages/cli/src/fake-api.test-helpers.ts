@@ -154,6 +154,7 @@ export type ScanStep =
 
 type HostedRecord = NonNullable<AppVersionDetail['hosting']>;
 type ScanCheck = HostedRecord['checks'][number];
+type DeployRefusal = HostedRecord['deploy']['staging']['refusal'];
 
 /** The nine checks the API requires, every one passed. */
 export function passingChecks(): ScanCheck[] {
@@ -233,6 +234,12 @@ export class FakeDeveloperApi {
   scanReview: HostedRecord['review'] = null;
   /** The next upload's refusal, once (a conflict, a busy pipeline, …). */
   nextUploadRefusal: UploadRefusal | undefined;
+  /** What Cloudflare answered, on a `deploy_failed` step. */
+  deployRefusal: DeployRefusal = {
+    code: 10021,
+    message:
+      'Uncaught Error: No such module "node:fs". imported from "worker.js"',
+  };
   /** Runs at every read of a version, before the answer (a spec's Ctrl-C). */
   onVersionRead: (() => void) | undefined;
   /** Every bundle a hosted upload sent, as sent. */
@@ -1012,6 +1019,7 @@ export class FakeDeveloperApi {
           status: 'deployed',
           deployedAt: now,
           errorCode: null,
+          refusal: null,
         };
         hosting.deploy.production.status = 'pending';
         return;
@@ -1020,6 +1028,7 @@ export class FakeDeveloperApi {
           status: 'deployed',
           deployedAt: now,
           errorCode: null,
+          refusal: null,
         };
         version.reviewState = 'approved';
         version.releasedAt = now;
@@ -1048,6 +1057,7 @@ export class FakeDeveloperApi {
           status: 'deployed',
           deployedAt: now,
           errorCode: null,
+          refusal: null,
         };
         return;
       case 'incomplete':
@@ -1068,6 +1078,7 @@ export class FakeDeveloperApi {
           status: 'failed',
           deployedAt: null,
           errorCode: 'CLOUDFLARE_REJECTED',
+          refusal: this.deployRefusal,
         };
         return;
       case 'rejected':
@@ -1186,8 +1197,18 @@ function initialHosting(bundle: unknown): HostedRecord {
       reasons: [],
     },
     deploy: {
-      staging: { status: 'none', deployedAt: null, errorCode: null },
-      production: { status: 'none', deployedAt: null, errorCode: null },
+      staging: {
+        status: 'none',
+        deployedAt: null,
+        errorCode: null,
+        refusal: null,
+      },
+      production: {
+        status: 'none',
+        deployedAt: null,
+        errorCode: null,
+        refusal: null,
+      },
     },
     checks: [],
     review: null,

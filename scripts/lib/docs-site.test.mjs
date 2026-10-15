@@ -54,6 +54,20 @@ const DOCUMENT = {
   components: {
     responses: { Unauthorized: problem(['APP_TOKEN_REQUIRED']) },
   },
+  'x-tassyir-errors': {
+    APP_TOKEN_REQUIRED: {
+      title: 'Token required',
+      statuses: [401],
+      fix: 'Send the access token as Authorization: Bearer {token}.',
+    },
+    CONFLICT: {
+      title: 'Conflict',
+      statuses: [409],
+      fix: 'Read the resource again.',
+      fallback: 'A refusal with HTTP 409 that carries no more specific code.',
+    },
+    PERMISSION_DENIED: { title: 'Permission denied', statuses: [403] },
+  },
 };
 
 /** @param {string[]} codes */
@@ -241,7 +255,11 @@ describe('error pages', () => {
     const pages = errorPages(DOCUMENT, guideSource, 'api-reference/admin');
     expect([...pages.keys()]).toEqual([
       'errors/app-token-required.mdx',
+      'errors/conflict.mdx',
+      'errors/hosted-path-not-allowed.mdx',
       'errors/permission-denied.mdx',
+      'errors/response-too-large.mdx',
+      'errors/tassyir-binding-not-available.mdx',
     ]);
     const denied = pages.get('errors/permission-denied.mdx') ?? '';
     expect(denied).toContain('title: "PERMISSION_DENIED"');
@@ -257,11 +275,42 @@ describe('error pages', () => {
     expect(denied).toContain(
       '- [`GET /orders/{id}/comments`](/api-reference/admin/orders/list-an-orders-comments)',
     );
+    expect(denied).toContain('its `title`: Permission denied.');
+    expect(denied).not.toContain("The answer's `fix`");
     const required = pages.get('errors/app-token-required.mdx') ?? '';
     expect(required).toContain(
       'description: "HTTP 401, from every operation of the Admin API."',
     );
-    expect(required).toContain("Read the answer's `fix`");
+    // No guide text: the catalogue's fix, braces escaped for MDX.
+    expect(required).toContain(
+      'Send the access token as Authorization: Bearer \\{token\\}.',
+    );
+  });
+
+  it("writes the catalogue's fallback codes no operation lists", () => {
+    const pages = errorPages(DOCUMENT, guideSource, 'api-reference/admin');
+    const conflict = pages.get('errors/conflict.mdx') ?? '';
+    expect(conflict).toContain(
+      'description: "A refusal with HTTP 409 that carries no more specific code."',
+    );
+    expect(conflict).toContain('Read the resource again.');
+    expect(conflict).toContain(
+      'The code of a refusal with HTTP 409 that carries no more specific code. Any operation may answer it.',
+    );
+  });
+
+  it("writes the hosted binding's own codes, which the document never lists", () => {
+    const pages = errorPages(DOCUMENT, guideSource, 'api-reference/admin');
+    const path = pages.get('errors/hosted-path-not-allowed.mdx') ?? '';
+    expect(path).toContain(
+      'description: "HTTP 400, from a hosted app\'s TASSYIR binding, before the Admin API."',
+    );
+    expect(path).toContain('its `title`: Not an Admin API path.');
+    expect(path).toContain("Read the answer's `fix`");
+    expect(path).toContain(
+      '[Tassyir Hosting](/guides/tassyir-hosting#call-the-admin-api)',
+    );
+    expect(pages.get('errors/response-too-large.mdx')).toContain('HTTP 502');
   });
 });
 

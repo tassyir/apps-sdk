@@ -3,9 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as published from './index.js';
-import * as limits from './manifest-limits.js';
 import {
   DECODE_SOURCE,
   EVALUATE_SOURCE,
@@ -34,22 +34,30 @@ import {
 import { MANIFEST_VOCABULARY } from './vocabulary.js';
 
 /**
- * This package against the backend's own code (AP-K1.2). Skipped unless
- * TASSYIR_BACKEND_DIR names a tassyir/backend checkout (on master, its
- * dependencies installed: a worktree inside the main checkout resolves the
- * main checkout's node_modules):
+ * This package against the backend that runs it (AP-K1.2, reworked after
+ * AP-K1.2b). Skipped unless TASSYIR_BACKEND_DIR names a tassyir/backend
+ * checkout (on master, its dependencies installed: a worktree inside the
+ * main checkout resolves the main checkout's node_modules):
  *
  *   TASSYIR_BACKEND_DIR=../backend npm run parity -w @tassyir/app-manifest
  *
- * The backend side runs in the backend's toolchain (its ts-node, TypeScript
- * and zod), through `validateAppManifest`, the door that injects the live
- * vocabulary, and through the pure `validateManifest` with two fixture
- * vocabularies (one with storefront blocks available, the Phase 2 shape).
- * This side runs the package's DEFAULT call (the shipped vocabulary) and the
- * same fixtures. Both run the same corpus through the
- * same evaluator (`manifest-corpus.test-harness.ts`), and the outputs must
- * be the same JSON, key order included. Also compared: the vocabulary, the
- * published JSON Schema bytes, every constant, and the export names.
+ * Since AP-K1.2b the backend has no validator of its own: it pins this
+ * package and its door (`src/app-platform/registry/app-manifest.ts`) passes
+ * the live vocabulary, built from its scope and event catalogues. So the
+ * check asks "what would the backend answer if it pinned THIS build?": the
+ * backend side runs in the backend's toolchain (its ts-node, TypeScript and
+ * zod) with `@tassyir/app-manifest` resolved to this package's `dist/` (the
+ * script builds it first) and the package's own imports (zod) resolved from
+ * the backend, as an installed copy would be. Compared, as JSON with key
+ * order: the door's vocabulary with `MANIFEST_VOCABULARY`; the schema files
+ * the door generates with `schemas/`, byte for byte; the door's
+ * `validateAppManifest` (live vocabulary) with this package's DEFAULT call
+ * (shipped vocabulary) over the corpus; and the built package with the
+ * source on two fixture vocabularies (one with storefront blocks available,
+ * the Phase 2 shape), the field checks, paths and origins. Both sides run
+ * the same corpus through the same evaluator
+ * (`manifest-corpus.test-harness.ts`), and the outputs must be the same
+ * JSON, key order included.
  */
 
 const BACKEND_DIR = process.env['TASSYIR_BACKEND_DIR'];
@@ -126,14 +134,38 @@ function buildInput(): string {
 // Built only when the comparison runs: ~20,000 documents.
 const INPUT_TEXT = BACKEND_DIR === undefined ? '{}' : buildInput();
 
-/** The backend side: run in the backend checkout, by its own toolchain. */
+/** This package's CommonJS build, which the backend side loads. */
+const PACKAGE_ENTRY = fileURLToPath(
+  new URL('../dist/index.cjs', import.meta.url),
+);
+
+/**
+ * The backend side: run in the backend checkout, by its own toolchain, with
+ * `@tassyir/app-manifest` resolved to this package's build and the build's
+ * own bare imports (zod) resolved from the backend.
+ */
 const RUNNER = `
 'use strict';
+const Module = require('module');
+const path = require('path');
+const entry = process.env.TASSYIR_MANIFEST_PACKAGE_ENTRY;
+const packageDir = path.dirname(entry);
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, ...rest) {
+  if (request === '@tassyir/app-manifest') return entry;
+  if (
+    parent && parent.filename && parent.filename.startsWith(packageDir) &&
+    !request.startsWith('.') && !request.startsWith('node:')
+  ) {
+    return require.resolve(request, { paths: [process.cwd()] });
+  }
+  return resolveFilename.call(this, request, parent, ...rest);
+};
 ${DECODE_SOURCE}
 ${EVALUATE_SOURCE}
 const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));
 const door = require('./src/app-platform/registry/app-manifest');
-const pure = require('./src/app-platform/registry/manifest');
+const pure = require('@tassyir/app-manifest');
 const api = {
   validate: (doc, kind) =>
     kind === 'shipped'
@@ -154,13 +186,10 @@ process.stdout.write(JSON.stringify({
     zod: require('zod/package.json').version,
     typescript: require('typescript/package.json').version,
   },
+  pinned: require('./package.json').dependencies['@tassyir/app-manifest'] ?? null,
+  loaded: require.resolve('@tassyir/app-manifest'),
   vocabulary: door.appManifestVocabulary(),
   schemaDocuments: door.appManifestSchemaDocuments(),
-  constants: {
-    limits: constantsOf(require('./src/app-platform/registry/manifest/manifest-limits')),
-    types: constantsOf(require('./src/app-platform/registry/manifest/manifest-types')),
-  },
-  exports: Object.keys(pure).sort(),
   evaluation: evaluate(api, input),
 }));
 `;
@@ -203,6 +232,7 @@ function runBackend(dir: string): any {
         ...process.env,
         TS_NODE_TRANSPILE_ONLY: 'true',
         TS_NODE_PROJECT: join(dir, 'tsconfig.json'),
+        TASSYIR_MANIFEST_PACKAGE_ENTRY: PACKAGE_ENTRY,
       },
     },
   );
@@ -259,6 +289,10 @@ describe.runIf(BACKEND_DIR !== undefined)(
         existsSync(join(dir, 'src/app-platform/registry/app-manifest.ts')),
         `${dir} is not a tassyir/backend checkout with the manifest validator`,
       ).toBe(true);
+      expect(
+        existsSync(PACKAGE_ENTRY),
+        'dist/index.cjs is missing: run npm run build -w @tassyir/app-manifest (npm run parity builds it first)',
+      ).toBe(true);
       backend = runBackend(dir);
       ours = shared.evaluate(PACKAGE_API, input);
     }, 600_000);
@@ -269,6 +303,13 @@ describe.runIf(BACKEND_DIR !== undefined)(
       expect(
         `backend zod ${backend.versions.zod}, TypeScript ${backend.versions.typescript}; package zod ${zod}`,
       ).toMatch(/^backend zod 4\./);
+    });
+
+    it("loads this package's build in place of the backend's pinned copy", () => {
+      expect(backend.loaded).toBe(PACKAGE_ENTRY);
+      // The backend pins an exact version (AP-K1.2b): moving it to this
+      // package's next release is the backend's own change.
+      expect(backend.pinned).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
     it('ships the vocabulary the backend builds from its catalogues, key order included', () => {
@@ -294,28 +335,18 @@ describe.runIf(BACKEND_DIR !== undefined)(
         );
         expect(
           shipped,
-          `schemas/${name} = the backend's generated ${file}`,
+          `schemas/${name} = the file the backend's door generates with this build`,
         ).toBe(content);
-        expect(
-          readFileSync(join(dir, file), 'utf8'),
-          `the backend's committed ${file} is fresh`,
-        ).toBe(content);
+        // The backend's own spec holds its committed file to its PINNED
+        // package; a schema change here makes its pin move regenerate it
+        // (npm run apps:manifest-schema). Said, not failed: the backend
+        // cannot move before this package is released.
+        if (readFileSync(join(dir, file), 'utf8') !== content) {
+          console.warn(
+            `The backend's committed ${file} differs from this build's: moving its pin to this release must run npm run apps:manifest-schema.`,
+          );
+        }
       }
-    });
-
-    it('has the same constants: limits, reserved names, patterns, error codes', () => {
-      expect(shared.constantsOf(limits)).toEqual(backend.constants.limits);
-      expect(shared.constantsOf(types)).toEqual(backend.constants.types);
-    });
-
-    it("exports everything the backend's folder exports, plus the shipped vocabulary", () => {
-      const ours = Object.keys(published).sort();
-      expect(
-        backend.exports.filter((name: string) => !ours.includes(name)),
-      ).toEqual([]);
-      expect(ours.filter((name) => !backend.exports.includes(name))).toEqual([
-        'MANIFEST_VOCABULARY',
-      ]);
     });
 
     it(`gives the same result for each of the ${String(input.cases?.length)} corpus documents`, () => {

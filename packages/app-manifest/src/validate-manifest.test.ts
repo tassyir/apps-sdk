@@ -901,6 +901,101 @@ describe('validateManifest', () => {
     });
   });
 
+  describe('paths the dispatcher keeps on a hosted origin (/.tassyir/)', () => {
+    it.each(['/.tassyir', '/.tassyir/', '/.tassyir/launch', '/.tassyir/a/b/'])(
+      'refuses admin.page %j for a hosted app',
+      (page) => {
+        expectErrors(
+          hosted((doc) => {
+            doc.admin.page = page;
+          }),
+          ['MANIFEST_PATH_RESERVED admin.page'],
+        );
+      },
+    );
+
+    it('says what is reserved and where to move it', () => {
+      const [error] = expectErrors(
+        hosted((doc) => {
+          doc.admin.page = '/.tassyir/settings';
+        }),
+        ['MANIFEST_PATH_RESERVED admin.page'],
+      );
+      expect(error).toEqual({
+        code: 'MANIFEST_PATH_RESERVED',
+        path: 'admin.page',
+        message:
+          '`admin.page` is "/.tassyir/settings", under "/.tassyir/", which Tassyir keeps for itself on a hosted app\'s origin.',
+        fix: 'Move it to a path outside "/.tassyir/", e.g. "/".',
+      });
+    });
+
+    it('refuses a hosted webhook uri there, in manifest order', () => {
+      const errors = expectErrors(
+        hosted((doc) => {
+          doc.admin.page = '/.tassyir';
+          doc.webhooks[0].uri = '/.tassyir/webhooks';
+        }),
+        [
+          'MANIFEST_PATH_RESERVED admin.page',
+          'MANIFEST_PATH_RESERVED webhooks[0].uri',
+        ],
+      );
+      expect(errors[1]?.fix).toBe(
+        'Move it to a path outside "/.tassyir/", e.g. "/webhooks".',
+      );
+    });
+
+    it.each([
+      '/.tassyir-app',
+      '/.tassyirx/a',
+      '/.Tassyir/a',
+      '/.TASSYIR',
+      '/a/.tassyir/b',
+      '/%2etassyir/a',
+    ])('takes %j: the dispatcher keeps only "/.tassyir" and below', (page) => {
+      expect(
+        errorsOf(
+          hosted((doc) => {
+            doc.admin.page = page;
+            doc.webhooks[0].uri = page;
+          }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('lets an external app use the path: its origin is its own', () => {
+      expect(
+        errorsOf(
+          external((doc) => {
+            doc.admin = { page: '/.tassyir/settings' };
+            doc.webhooks[0].uri = '/.tassyir/hooks';
+            doc.webhooks[1].uri =
+              'https://compliance.example.com/.tassyir/redact';
+          }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('a path that breaks the path rules is only MANIFEST_PATH_INVALID', () => {
+      expectErrors(
+        hosted((doc) => {
+          doc.admin.page = '/.tassyir//x';
+          doc.webhooks[0].uri = '/.tassyir/../x';
+        }),
+        [
+          'MANIFEST_PATH_INVALID admin.page',
+          'MANIFEST_PATH_INVALID webhooks[0].uri',
+        ],
+      );
+    });
+
+    it('a normalised hosted manifest never holds such a path', () => {
+      const result = validateManifest(hostedManifest(), FIXTURE_VOCABULARY);
+      expect(result.ok).toBe(true);
+    });
+  });
+
   describe('topics', () => {
     it('refuses an unknown topic, suggesting the near one', () => {
       const [error] = expectErrors(
