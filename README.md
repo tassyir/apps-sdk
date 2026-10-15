@@ -93,7 +93,8 @@ printed. Then: `app init` (the starter), `app create`, `app list`, `validate`
 `webhook trigger | deliveries | replay`. `dev` prints the checklist for now;
 `logs --tail` waits for Tassyir Hosting and `submit` for the marketplace.
 Every command prints `--json`, every error has a stable `code` and a `fix`,
-and the exit codes are documented. Published to npm only.
+and the exit codes are documented. Its developer-API client is typed from the
+API's OpenAPI document. Published to npm only.
 
 ### `create-tassyir-app`
 
@@ -116,7 +117,8 @@ starts it (`npm run check:template`). Published to npm only.
 [`packages/dev-mcp`](packages/dev-mcp) (AP-K1.8). An MCP server, over stdio,
 for the AI coding agent that builds a Tassyir app:
 `claude mcp add tassyir -- npx -y @tassyir/dev-mcp`. Offline, from the guides
-and the OpenAPI document it ships with: `search_docs`, `fetch_doc`,
+and the OpenAPI documents it ships with (the Admin API's and the developer
+API's): `search_docs`, `fetch_doc`,
 `get_api_operation`, `get_event_schema`, and `validate_manifest` (the API's
 own validator). `scaffold` writes a new app from `create-tassyir-app`.
 `trigger_test_webhook`, `seed_dev_store` and `list_dev_stores` call the
