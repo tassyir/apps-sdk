@@ -6,11 +6,12 @@ shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
 **Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and six packages whose first
+workspace, CI and release pipeline (AP-K1.1) and seven packages whose first
 release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
 (AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), `@tassyir/ui` (AP-K1.5), the
-`tassyir` CLI (AP-K1.6) and `create-tassyir-app` (AP-K1.7). The other
-packages arrive one ticket at a time.
+`tassyir` CLI (AP-K1.6), `create-tassyir-app` (AP-K1.7) and
+`@tassyir/dev-mcp` (AP-K1.8). The other packages arrive one ticket at a
+time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -111,11 +112,19 @@ starts it (`npm run check:template`). Published to npm only.
 
 ### `@tassyir/dev-mcp`
 
-_Planned: AP-K1.8._ An MCP server for AI coding agents that build Tassyir apps.
-It can search and fetch the developer docs, look up an API operation or an
-event schema, validate a manifest or a storefront block, scaffold an app,
-trigger a test webhook, tail logs, seed a dev store and run the review checks.
-It comes with a Claude Code plugin.
+[`packages/dev-mcp`](packages/dev-mcp) (AP-K1.8). An MCP server, over stdio,
+for the AI coding agent that builds a Tassyir app:
+`claude mcp add tassyir -- npx -y @tassyir/dev-mcp`. Offline, from the guides
+and the OpenAPI document it ships with: `search_docs`, `fetch_doc`,
+`get_api_operation`, `get_event_schema`, and `validate_manifest` (the API's
+own validator). `scaffold` writes a new app from `create-tassyir-app`.
+`trigger_test_webhook`, `seed_dev_store` and `list_dev_stores` call the
+developer API with the sign-in of `tassyir login`, whose token never appears
+in an answer. `validate_block`, `tail_logs` and `run_review_checks` are listed
+and answer that they are not available yet (the marketplace, Tassyir
+Hosting). Every tool has a JSON Schema input and output, every answer is at
+most 8 KB, and every refusal has a `code` and a `fix`. A Claude Code plugin
+comes later.
 
 ## Developer guides
 

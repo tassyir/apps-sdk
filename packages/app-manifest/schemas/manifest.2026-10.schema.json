@@ -180,7 +180,7 @@
         "properties": {
           "topics": {
             "minItems": 1,
-            "maxItems": 19,
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -203,7 +203,8 @@
                 "app/scopes_updated",
                 "customers/data_request",
                 "customers/redact",
-                "business/redact"
+                "business/redact",
+                "bulk/finished"
               ]
             },
             "uniqueItems": true,

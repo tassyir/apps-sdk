@@ -297,15 +297,19 @@ const created = await admin.request('post', '/orders', { body }); // created.sta
 - **Retries** are off by default; turn them on with `retries: 3`. When on, the
   SDK waits `Retry-After` and retries, writes included, 429 `RATE_LIMITED`
   (the installation's bucket), 429 `BUSINESS_RATE_LIMITED` (the ceiling all
-  the business's apps share) and 503 `API_BUSY` (the API was too busy and did
-  nothing). It retries 409 `IDEMPOTENCY_KEY_IN_USE`, and any other 503,
+  the business's apps share), 429 `BULK_EXPORT_RATE_LIMITED` (5 bulk exports
+  per business an hour) and 503 `API_BUSY` (the API was too busy and did
+  nothing); a `Retry-After` longer than `maxDelayMs` (30 s by default) throws
+  at once. It retries 409 `IDEMPOTENCY_KEY_IN_USE`, and any other 503,
   network errors, 502 and 504 for requests that are safe to repeat (reads,
   and writes with a key). It retries 500 only for reads. A 401
   `APP_TOKEN_INVALID` gets a new token and one more try. It never retries
   429 `IMAGE_QUOTA_REACHED` (`POST /images`): a daily quota is not worth
   retrying, so it throws at once and the error's `problem` says which quota
   is full (`per`, `window`: `day` or `minute`, `limit`, `retryAfter`), for
-  the app to wait or stop.
+  the app to wait or stop. Nor 503 `BULK_EXPORTS_NOT_CONFIGURED` (exports
+  are off on that Tassyir environment) or 409 `BULK_EXPORT_IN_PROGRESS`
+  (wait for `bulk/finished`, or read `GET /bulk/exports/{id}`).
 - **Pagination.** `admin.paginate(path, { query })` walks the keyset cursors
   and yields items.
 - **`fields`** takes a list of field names, typed per resource:

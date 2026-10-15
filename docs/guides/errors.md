@@ -177,7 +177,7 @@ same `Idempotency-Key`.
 
 ## Every Admin API code
 
-Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (38 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document.
+Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (41 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document.
 
 | Code                                    | HTTP     | Answered by                                                                                                                           |
 | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -188,8 +188,11 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `APP_DATA_VALUE_TOO_LARGE`              | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                               |
 | `APP_TOKEN_INVALID`                     | 401      | every operation                                                                                                                       |
 | `APP_TOKEN_REQUIRED`                    | 401      | every operation                                                                                                                       |
-| `BAD_REQUEST`                           | 400      | 15 operations                                                                                                                         |
+| `BAD_REQUEST`                           | 400      | 16 operations                                                                                                                         |
 | `BRAND_NOT_FOUND`                       | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
+| `BULK_EXPORTS_NOT_CONFIGURED`           | 503      | `POST /bulk/exports`                                                                                                                  |
+| `BULK_EXPORT_IN_PROGRESS`               | 409      | `POST /bulk/exports`                                                                                                                  |
+| `BULK_EXPORT_RATE_LIMITED`              | 429      | `POST /bulk/exports`                                                                                                                  |
 | `BUSINESS_RATE_LIMITED`                 | 429      | every operation                                                                                                                       |
 | `CANCEL_NOTE_REQUIRED`                  | 400      | `POST /orders/{id}/cancel`                                                                                                            |
 | `CANCEL_REASON_INVALID`                 | 400      | `POST /orders/{id}/cancel`                                                                                                            |
@@ -205,10 +208,10 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `DEV_STORE_ORDER_LIMIT_REACHED`         | 429      | `POST /orders`                                                                                                                        |
 | `FORBIDDEN`                             | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`, `POST /orders`                           |
 | `HTML_NOT_ALLOWED`                      | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `POST /collections`, `POST /products`                                              |
-| `IDEMPOTENCY_KEY_INVALID`               | 400      | 17 operations                                                                                                                         |
-| `IDEMPOTENCY_KEY_IN_USE`                | 409      | 17 operations                                                                                                                         |
-| `IDEMPOTENCY_KEY_REUSED`                | 422      | 17 operations                                                                                                                         |
-| `IDEMPOTENCY_UNAVAILABLE`               | 503      | 17 operations                                                                                                                         |
+| `IDEMPOTENCY_KEY_INVALID`               | 400      | 18 operations                                                                                                                         |
+| `IDEMPOTENCY_KEY_IN_USE`                | 409      | 18 operations                                                                                                                         |
+| `IDEMPOTENCY_KEY_REUSED`                | 422      | 18 operations                                                                                                                         |
+| `IDEMPOTENCY_UNAVAILABLE`               | 503      | 18 operations                                                                                                                         |
 | `IMAGE_FETCH_FAILED`                    | 400      | `POST /images`                                                                                                                        |
 | `IMAGE_QUOTA_REACHED`                   | 429      | `POST /images`                                                                                                                        |
 | `IMAGE_TOO_LARGE`                       | 400      | `POST /images`                                                                                                                        |
@@ -216,18 +219,18 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `IMAGE_URL_NOT_ALLOWED`                 | 400      | `POST /images`                                                                                                                        |
 | `INSUFFICIENT_AT_LOCATION`              | 409      | `POST /inventory-levels/{id}/adjust`                                                                                                  |
 | `INTERNAL_ERROR`                        | 500      | every operation                                                                                                                       |
-| `INVALID_CURSOR`                        | 400      | 9 operations                                                                                                                          |
-| `INVALID_FIELDS`                        | 400      | 35 operations                                                                                                                         |
+| `INVALID_CURSOR`                        | 400      | 10 operations                                                                                                                         |
+| `INVALID_FIELDS`                        | 400      | 37 operations                                                                                                                         |
 | `LOCATION_NOT_FOUND`                    | 400, 404 | `POST /inventory-levels/{id}/adjust`                                                                                                  |
 | `MEDIA_URL_NOT_ALLOWED`                 | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /collections`, `POST /products` |
-| `NOT_FOUND`                             | 404      | 27 operations                                                                                                                         |
+| `NOT_FOUND`                             | 404      | 28 operations                                                                                                                         |
 | `ORDER_DUPLICATE`                       | 409      | `POST /orders`                                                                                                                        |
 | `ORDER_LIMIT_REACHED`                   | 403      | `POST /orders/{id}/confirm`                                                                                                           |
 | `ORDER_NOT_EDITABLE`                    | 409      | `PATCH /orders/{id}`, `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                           |
 | `ORDER_PRICING_LOCKED`                  | 400      | `PATCH /orders/{id}`                                                                                                                  |
 | `ORDER_STATUS_CONFLICT`                 | 409      | `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                 |
-| `PAYLOAD_TOO_LARGE`                     | 413      | 14 operations                                                                                                                         |
-| `PERMISSION_DENIED`                     | 403      | 37 operations                                                                                                                         |
+| `PAYLOAD_TOO_LARGE`                     | 413      | 15 operations                                                                                                                         |
+| `PERMISSION_DENIED`                     | 403      | 40 operations                                                                                                                         |
 | `PLAN_FEATURE_REQUIRED`                 | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                           |
 | `PRODUCT_DEFAULT_VARIANT`               | 409      | `PATCH /products/{id}/variants/{variantId}`                                                                                           |
 | `PRODUCT_OPTIONS_REQUIRE_VARIANTS`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
@@ -252,10 +255,10 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `RATE_LIMITED`                          | 429      | every operation                                                                                                                       |
 | `SERVICE_UNAVAILABLE`                   | 503      | every operation                                                                                                                       |
 | `STORE_REQUIRED`                        | 400      | `POST /orders`                                                                                                                        |
-| `STORE_SCOPE_FORBIDDEN`                 | 460      | 14 operations                                                                                                                         |
+| `STORE_SCOPE_FORBIDDEN`                 | 460      | 15 operations                                                                                                                         |
 | `SUBSCRIPTION_REQUIRED`                 | 422      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                           |
-| `UNSUPPORTED_MEDIA_TYPE`                | 415      | 14 operations                                                                                                                         |
-| `VALIDATION_FAILED`                     | 400      | 37 operations                                                                                                                         |
+| `UNSUPPORTED_MEDIA_TYPE`                | 415      | 15 operations                                                                                                                         |
+| `VALIDATION_FAILED`                     | 400      | 40 operations                                                                                                                         |
 
 ## Token endpoint errors
 
