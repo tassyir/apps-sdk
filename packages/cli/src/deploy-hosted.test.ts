@@ -822,6 +822,24 @@ describe('tassyir deploy, hosted: waiting', () => {
     expect(harness.interruptListeners.size).toBe(0);
   });
 
+  it('Ctrl-C also stops a read that is still waiting on the API', async () => {
+    const harness = await ready({ script: ['dispatched', 'hang'] });
+    let count = 0;
+    harness.fake.onVersionRead = () => {
+      count += 1;
+      // The second read hangs; Ctrl-C lands while it waits.
+      if (count === 2) harness.interrupt();
+    };
+    const result = await harness.run('deploy', '--json');
+    expect(result.code).toBe(5);
+    expect(result.json()['error']).toMatchObject({
+      code: 'VERSION_IN_PROGRESS',
+      message: expect.stringMatching(/^Stopped waiting: /) as string,
+      details: { version: { version: 1 } },
+    });
+    expect(harness.interruptListeners.size).toBe(0);
+  });
+
   it('keeps following through a busy or unreachable API', async () => {
     const harness = await ready({
       script: ['throttled', 'network', ...RELEASE],

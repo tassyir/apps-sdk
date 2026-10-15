@@ -223,9 +223,12 @@ export async function followVersion(
       // Ctrl-C may have come during the wait.
       if (interrupted()) return { version, stage, stopped: 'interrupted' };
       try {
-        version = (await api.getVersion(appId, version.version)).data;
+        // Ctrl-C also stops a read that is still waiting on the API.
+        version = (await api.getVersion(appId, version.version, stop.signal))
+          .data;
         delay = FOLLOW_INTERVAL_MS;
       } catch (error) {
+        if (interrupted()) return { version, stage, stopped: 'interrupted' };
         if (!isCliError(error) || error.exitCode !== EXIT_CODES.TRY_LATER) {
           throw error;
         }

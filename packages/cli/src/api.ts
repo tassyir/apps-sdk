@@ -71,6 +71,8 @@ type CallOptions<O> = ([PathParams<O>] extends [never]
   ([JsonBody<O>] extends [never] ? { body?: never } : { body: JsonBody<O> }) & {
     /** This request's timeout, when the client's default is too short. */
     timeoutMs?: number;
+    /** Stops the request early (Ctrl-C while following a scan). */
+    signal?: AbortSignal;
   };
 
 /** `[options?]` when every option is optional, `[options]` otherwise. */
@@ -295,13 +297,18 @@ export class DeveloperApi {
     });
   }
 
-  /** One version with its manifest; a hosted one with its scan report. */
+  /**
+   * One version with its manifest; a hosted one with its scan report.
+   * `signal` stops the request early (it then fails as TIMEOUT).
+   */
   getVersion(
     appId: string,
     version: number,
+    signal?: AbortSignal,
   ): Promise<Answer<'get', '/developer/apps/{appId}/versions/{version}'>> {
     return this.#call('get', '/developer/apps/{appId}/versions/{version}', {
       path: { appId, version: String(version) },
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -416,17 +423,19 @@ export class DeveloperApi {
       query,
       body,
       timeoutMs,
+      signal,
     } = (options ?? {}) as {
       path?: Readonly<Record<string, string | number>>;
       query?: Readonly<Record<string, unknown>>;
       body?: unknown;
       timeoutMs?: number;
+      signal?: AbortSignal;
     };
     const concrete = fillPath(path, params);
     const { response, body: answer } = await this.#send(
       method.toUpperCase(),
       concrete,
-      { body, query, auth: true, timeoutMs },
+      { body, query, auth: true, timeoutMs, signal },
     );
     if (!response.ok) throw apiError(response, answer);
     if (!isRecord(answer)) throw invalidResponse(concrete);
@@ -450,6 +459,7 @@ export class DeveloperApi {
       query?: Readonly<Record<string, unknown>> | undefined;
       auth?: boolean;
       timeoutMs?: number | undefined;
+      signal?: AbortSignal | undefined;
     },
   ): Promise<{ response: Response; body: unknown }> {
     const headers: Record<string, string> = {
@@ -476,6 +486,7 @@ export class DeveloperApi {
       payload = JSON.stringify(options.body);
     }
     const url = `${this.apiOrigin}${path}${queryString(options.query)}`;
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? this.#timeoutMs);
     const started = Date.now();
     this.#debug?.(`→ ${method} ${path}`);
     let response: Response;
@@ -485,7 +496,9 @@ export class DeveloperApi {
         headers,
         ...(payload === undefined ? {} : { body: payload }),
         redirect: 'error',
-        signal: AbortSignal.timeout(options.timeoutMs ?? this.#timeoutMs),
+        signal: options.signal
+          ? AbortSignal.any([timeout, options.signal])
+          : timeout,
       });
     } catch (error) {
       this.#debug?.(`✗ ${method} ${path}: ${networkReason(error)}`);

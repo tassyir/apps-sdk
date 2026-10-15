@@ -148,7 +148,9 @@ export type ScanStep =
   /** This read answers 429 (the rate limiter, Retry-After 30). */
   | 'throttled'
   /** This read never reaches the API. */
-  | 'network';
+  | 'network'
+  /** This read waits until the CLI aborts it (`onVersionRead` runs first). */
+  | 'hang';
 
 type HostedRecord = NonNullable<AppVersionDetail['hosting']>;
 type ScanCheck = HostedRecord['checks'][number];
@@ -303,6 +305,21 @@ export class FakeDeveloperApi {
     input: string,
     init: RequestInit = {},
   ): Promise<Response> => {
+    if (
+      this.scanScript[0] === 'hang' &&
+      /\/versions\/\d+$/.test(new URL(input).pathname)
+    ) {
+      this.scanScript.shift();
+      this.onVersionRead?.();
+      return new Promise<Response>((_, reject) => {
+        const signal = init.signal;
+        const abort = () => {
+          reject(new DOMException('The operation was aborted', 'AbortError'));
+        };
+        if (signal?.aborted) abort();
+        else signal?.addEventListener('abort', abort, { once: true });
+      });
+    }
     const response = this.#dispatch(input, init);
     await this.#check(input, init, response);
     return response;
