@@ -77,6 +77,9 @@ A refusal is an MCP error result whose structured content is
 }
 ```
 
+Arguments that do not match a tool's input schema never reach the tool: the
+MCP SDK refuses them first, with its own validation message naming the field.
+
 ## Tools
 
 | Tool                   | What it does                                                                                                                 |

@@ -5,13 +5,14 @@ these apps. An app calls the Tassyir Admin API, receives signed webhooks, and
 shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
-**Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and seven packages whose first
-release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
-(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), `@tassyir/ui` (AP-K1.5), the
-`tassyir` CLI (AP-K1.6), `create-tassyir-app` (AP-K1.7) and
-`@tassyir/dev-mcp` (AP-K1.8). The other packages arrive one ticket at a
-time.
+**Status: in development.** This repo has its workspace, CI and release
+pipeline (AP-K1.1). On npm since 0.1.0: `@tassyir/app-manifest` (AP-K1.2),
+`@tassyir/app` (AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), the `tassyir` CLI
+(AP-K1.6) and `create-tassyir-app` (AP-K1.7). `@tassyir/dev-mcp` (AP-K1.8)
+has its first release, 0.1.0, from the Version Packages PR of 2026-10-15.
+`@tassyir/ui` (AP-K1.5) awaits its first release, 0.1.0: the owner's npm
+stub and trusted publisher come first. Each package's CHANGELOG says what
+each version changed. The other packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -123,7 +124,7 @@ developer API with the sign-in of `tassyir login`, whose token never appears
 in an answer. `validate_block`, `tail_logs` and `run_review_checks` are listed
 and answer that they are not available yet (the marketplace, Tassyir
 Hosting). Every tool has a JSON Schema input and output, every answer is at
-most 8 KB, and every refusal has a `code` and a `fix`. A Claude Code plugin
+most 8 KB, and every refusal of a well-formed call has a `code` and a `fix`. A Claude Code plugin
 comes later.
 
 ## Developer guides

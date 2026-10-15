@@ -1,5 +1,11 @@
 # @tassyir/app
 
+## 0.1.1
+
+### Patch Changes
+
+- cc6d0c2: The Admin API types follow the API's OpenAPI document at backend `fd60d953`, which adds bulk exports (`POST /bulk/exports`, `GET /bulk/exports`, `GET /bulk/exports/{id}`: one JSON Lines file of an orders, products or customers list, downloaded from a URL valid 7 days) and the `bulk/finished` webhook. With retries on, 429 `BULK_EXPORT_RATE_LIMITED` waits `Retry-After` like the other rate limits (a wait longer than `maxDelayMs` throws at once), and 503 `BULK_EXPORTS_NOT_CONFIGURED` and 409 `BULK_EXPORT_IN_PROGRESS` are never retried.
+
 ## 0.1.0
 
 ### Minor Changes
