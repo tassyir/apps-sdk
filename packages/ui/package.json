@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Web components for Tassyir app pages: the dashboard's look (ink-on-paper tokens, right-to-left, dark mode) as custom elements that work in any framework or none.",
   "license": "MIT",
   "repository": {
