@@ -39,6 +39,8 @@ const KEYWORDS = new Set([
   'pattern',
   'minLength',
   'maxLength',
+  'minItems',
+  'maxItems',
   'minimum',
   'maximum',
   'format',
@@ -214,6 +216,16 @@ export function schemaProblems(
       for (const key of Object.keys(value)) {
         problems.push(...schemaProblems(names, key, `${at}[${key}]`, document));
       }
+    }
+  }
+  if (Array.isArray(value)) {
+    const min = schema['minItems'];
+    if (typeof min === 'number' && value.length < min) {
+      problems.push(`${at}: fewer than ${String(min)} items`);
+    }
+    const max = schema['maxItems'];
+    if (typeof max === 'number' && value.length > max) {
+      problems.push(`${at}: more than ${String(max)} items`);
     }
   }
   if (Array.isArray(value) && schema['items'] !== undefined) {

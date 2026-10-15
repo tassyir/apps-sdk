@@ -100,7 +100,14 @@ process.exitCode = await runCli(process.argv.slice(2), {
   interactive: process.stdin.isTTY && process.stdout.isTTY,
   fetch: (input, init) => fetch(input, init),
   now: () => Date.now(),
-  sleep: (ms) => sleep(ms),
+  sleep: (ms, signal) =>
+    sleep(ms, undefined, signal ? { signal } : {}).catch(() => undefined),
   exec,
   waitForEnter,
+  onInterrupt: (listener) => {
+    process.on('SIGINT', listener);
+    return () => {
+      process.off('SIGINT', listener);
+    };
+  },
 });

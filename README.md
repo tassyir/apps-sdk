@@ -93,7 +93,10 @@ signs in with a code you approve in the dashboard (the OAuth device grant)
 and keeps a developer token that works on the developer API only, in the OS
 keychain when one answers, otherwise in a file only you can read; it is never
 printed. Then: `app init` (the starter), `app create`, `app list`, `validate`
-(offline, the API's own validator), `deploy` (the manifest as a new version),
+(offline, the API's own validator), `deploy` (the manifest as a new version;
+for an app on Tassyir Hosting, the bundle built with esbuild, checked by the
+API's rules before the upload, and its scan followed to the verdict, AP-K1.11),
+`app version` (one version and its scan's findings),
 `secrets create | rotate | revoke` (a secret is shown once, or written to
 `.env` only when asked), `store create | list` (seeded dev stores), and
 `webhook trigger | deliveries | replay`. `dev` prints the checklist for now;

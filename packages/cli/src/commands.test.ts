@@ -363,7 +363,7 @@ describe('tassyir deploy', () => {
     expect(harness.fake.requests).toEqual([]);
   });
 
-  it('a hosted manifest is answered by the API: APP_HOSTING_NOT_AVAILABLE', async () => {
+  it('a hosted manifest is built first: without its Worker, nothing is sent (deploy-hosted.test.ts has the rest)', async () => {
     const harness = await createHarness();
     await harness.signIn();
     harness.fake.seedApp();
@@ -375,11 +375,11 @@ describe('tassyir deploy', () => {
       ),
     );
     const result = await harness.run('deploy', '--json');
-    expect(result.code).toBe(1);
+    expect(result.code).toBe(4);
     expect(result.json()).toMatchObject({
-      error: { code: 'APP_HOSTING_NOT_AVAILABLE' },
+      error: { code: 'BUNDLE_ENTRY_NOT_FOUND' },
     });
-    expect(posts(harness, /\/versions$/)).toHaveLength(1);
+    expect(posts(harness, /\/versions$/)).toHaveLength(0);
   });
 
   it('an app that does not exist yet: APP_NOT_FOUND with the way to create it', async () => {
@@ -949,14 +949,14 @@ describe('the command line', () => {
     }
     expect(help.stdout).toMatch(/logs +.+\(not available yet\)/);
     expect(help.stdout).toContain(
-      'Exit codes: 0 done, 1 failed, 2 usage, 3 sign in again, 4 manifest invalid, 5 try again later.',
+      'Exit codes: 0 done, 1 failed, 2 usage, 3 sign in again, 4 manifest or bundle invalid, 5 try again later.',
     );
     const catalogue = (await harness.run('--help', '--json')).json();
     expect(catalogue).toMatchObject({
       ok: true,
       exitCodes: { OK: 0, AUTH: 3, MANIFEST: 4, TRY_LATER: 5 },
     });
-    expect((catalogue['commands'] as unknown[]).length).toBe(20);
+    expect((catalogue['commands'] as unknown[]).length).toBe(21);
     expect((await harness.run('deploy', '--help')).stdout).toMatch(
       /^Usage: tassyir deploy \[options\]/,
     );

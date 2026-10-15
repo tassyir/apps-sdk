@@ -13,9 +13,12 @@ export const EXIT_CODES = Object.freeze({
   USAGE: 2,
   /** Not signed in, or the token was refused: run `tassyir login`. */
   AUTH: 3,
-  /** `tassyir.app.toml` is missing, not TOML, or invalid. */
+  /** `tassyir.app.toml` is missing, not TOML, or invalid; or a hosted bundle does not build or pass. */
   MANIFEST: 4,
-  /** Rate limited, or the API is busy or unreachable: wait, then run it again. */
+  /**
+   * Rate limited, or the API is busy or unreachable; or a hosted version's
+   * scan is still running or ended without a verdict: wait, then run it again.
+   */
   TRY_LATER: 5,
 });
 

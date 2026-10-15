@@ -495,7 +495,7 @@
           "Apps"
         ],
         "summary": "Create an app",
-        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused until Tassyir Hosting ships.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused while Tassyir Hosting is switched off; the mode follows the app's current version.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
         "security": [
           {
             "dashboardSession": []
@@ -2066,7 +2066,7 @@
           "Versions"
         ],
         "summary": "Upload a version of the app's manifest",
-        "description": "The body is at most 128 KB and nests at most 16 levels (its own parser). The validator checks the manifest (every error at once); `hosting.mode` must be `external` for now; `handle` must be the app's; a manifest identical to the latest version's is refused. The version is numbered latest + 1, approved and current at once. 30 uploads per developer per hour.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline (docs/api/apps/developer.md \"Hosted versions\"). 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
         "security": [
           {
             "dashboardSession": []
@@ -2114,7 +2114,7 @@
             }
           },
           "400": {
-            "description": "Bad request: `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "description": "Bad request: `APP_BUNDLE_INVALID`, `APP_BUNDLE_NOT_ALLOWED`, `APP_BUNDLE_REQUIRED`, `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`; a field refused by validation (no `code`).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -2133,6 +2133,9 @@
                           "properties": {
                             "code": {
                               "enum": [
+                                "APP_BUNDLE_INVALID",
+                                "APP_BUNDLE_NOT_ALLOWED",
+                                "APP_BUNDLE_REQUIRED",
                                 "APP_HOSTING_NOT_AVAILABLE",
                                 "APP_MANIFEST_HANDLE_MISMATCH",
                                 "APP_MANIFEST_INVALID",
@@ -2213,7 +2216,7 @@
             }
           },
           "409": {
-            "description": "Conflict: `APP_READ_ONLY`, `APP_VERSION_UNCHANGED`.",
+            "description": "Conflict: `APP_READ_ONLY`, `APP_VERSION_CONFLICT`, `APP_VERSION_UNCHANGED`.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -2231,6 +2234,7 @@
                         "code": {
                           "enum": [
                             "APP_READ_ONLY",
+                            "APP_VERSION_CONFLICT",
                             "APP_VERSION_UNCHANGED"
                           ]
                         }
@@ -2290,7 +2294,44 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/Unavailable"
+            "description": "Unavailable: `APP_BUNDLE_STORAGE_FAILED`, `APP_HOSTING_BUSY`, `APP_HOSTING_NOT_CONFIGURED`; a database that cannot be reached.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "APP_BUNDLE_STORAGE_FAILED",
+                                "APP_HOSTING_BUSY",
+                                "APP_HOSTING_NOT_CONFIGURED"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "x-tassyir-auth": "developer"
@@ -4839,7 +4880,7 @@
           },
           "reviewState": {
             "type": "string",
-            "description": "`approved` for every Phase 1 upload; `draft`, `scanning`, `scan_failed`, `ready`, `in_review`, `rejected`, `retired` are later states."
+            "description": "`approved` for an external upload; a hosted one (AP-B1.14) goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
           },
           "current": {
             "type": "boolean",
@@ -4863,6 +4904,267 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 date-time, UTC."
+          },
+          "hosting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "bundleSha256": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "SHA-256 of the bundle's canonical document."
+                  },
+                  "bundleBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "The modules' UTF-8 bytes."
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "main": {
+                    "type": "string",
+                    "description": "The module exporting the fetch handler."
+                  },
+                  "lockfile": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The lockfile sent, if any."
+                  },
+                  "scan": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "dispatched",
+                          "passed",
+                          "held",
+                          "failed",
+                          "error",
+                          "timed_out"
+                        ]
+                      },
+                      "dispatchedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "description": "ISO 8601 date-time, UTC."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "finishedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "description": "ISO 8601 date-time, UTC."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "failureCode": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "SCAN_DISPATCH_FAILED",
+                              "SCAN_TIMED_OUT",
+                              "SCAN_INCOMPLETE",
+                              "SCAN_RESULT_INVALID",
+                              "CLOUDFLARE_REJECTED",
+                              "CLOUDFLARE_UNAVAILABLE",
+                              "CLOUDFLARE_NOT_CONFIGURED",
+                              "BUNDLE_INTEGRITY_FAILED",
+                              "STORAGE_FAILED"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Why a scan or an upload stopped without a verdict on the code."
+                      },
+                      "reasons": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "`CHECK_FAILED:<id>`, `CHECK_MISSING:<id>`, `CHECK_ERROR:<id>`, `REVIEW_FAILED`, `REVIEW_NEEDS_HUMAN`."
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "dispatchedAt",
+                      "finishedAt",
+                      "failureCode",
+                      "reasons"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deploy": {
+                    "type": "object",
+                    "properties": {
+                      "staging": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "pending",
+                              "deployed",
+                              "failed"
+                            ]
+                          },
+                          "deployedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                "description": "ISO 8601 date-time, UTC."
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "SCAN_DISPATCH_FAILED",
+                                  "SCAN_TIMED_OUT",
+                                  "SCAN_INCOMPLETE",
+                                  "SCAN_RESULT_INVALID",
+                                  "CLOUDFLARE_REJECTED",
+                                  "CLOUDFLARE_UNAVAILABLE",
+                                  "CLOUDFLARE_NOT_CONFIGURED",
+                                  "BUNDLE_INTEGRITY_FAILED",
+                                  "STORAGE_FAILED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Why a scan or an upload stopped without a verdict on the code."
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "deployedAt",
+                          "errorCode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "production": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "pending",
+                              "deployed",
+                              "failed"
+                            ]
+                          },
+                          "deployedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                "description": "ISO 8601 date-time, UTC."
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "SCAN_DISPATCH_FAILED",
+                                  "SCAN_TIMED_OUT",
+                                  "SCAN_INCOMPLETE",
+                                  "SCAN_RESULT_INVALID",
+                                  "CLOUDFLARE_REJECTED",
+                                  "CLOUDFLARE_UNAVAILABLE",
+                                  "CLOUDFLARE_NOT_CONFIGURED",
+                                  "BUNDLE_INTEGRITY_FAILED",
+                                  "STORAGE_FAILED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Why a scan or an upload stopped without a verdict on the code."
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "deployedAt",
+                          "errorCode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "staging",
+                      "production"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "bundleSha256",
+                  "bundleBytes",
+                  "files",
+                  "main",
+                  "lockfile",
+                  "scan",
+                  "deploy"
+                ],
+                "additionalProperties": false,
+                "description": "A hosted version's bundle, scan and uploads (no findings)."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A hosted version's state; null for an external version."
           }
         },
         "required": [
@@ -4876,7 +5178,8 @@
           "reviewState",
           "current",
           "releasedAt",
-          "createdAt"
+          "createdAt",
+          "hosting"
         ],
         "additionalProperties": false,
         "description": "A version of an app, without its manifest."
@@ -4923,7 +5226,7 @@
           },
           "reviewState": {
             "type": "string",
-            "description": "`approved` for every Phase 1 upload; `draft`, `scanning`, `scan_failed`, `ready`, `in_review`, `rejected`, `retired` are later states."
+            "description": "`approved` for an external upload; a hosted one (AP-B1.14) goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
           },
           "current": {
             "type": "boolean",
@@ -4948,6 +5251,449 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 date-time, UTC."
           },
+          "hosting": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "bundleSha256": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "SHA-256 of the bundle's canonical document."
+                  },
+                  "bundleBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "The modules' UTF-8 bytes."
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "main": {
+                    "type": "string",
+                    "description": "The module exporting the fetch handler."
+                  },
+                  "lockfile": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The lockfile sent, if any."
+                  },
+                  "scan": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "dispatched",
+                          "passed",
+                          "held",
+                          "failed",
+                          "error",
+                          "timed_out"
+                        ]
+                      },
+                      "dispatchedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "description": "ISO 8601 date-time, UTC."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "finishedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                            "description": "ISO 8601 date-time, UTC."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "failureCode": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "SCAN_DISPATCH_FAILED",
+                              "SCAN_TIMED_OUT",
+                              "SCAN_INCOMPLETE",
+                              "SCAN_RESULT_INVALID",
+                              "CLOUDFLARE_REJECTED",
+                              "CLOUDFLARE_UNAVAILABLE",
+                              "CLOUDFLARE_NOT_CONFIGURED",
+                              "BUNDLE_INTEGRITY_FAILED",
+                              "STORAGE_FAILED"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Why a scan or an upload stopped without a verdict on the code."
+                      },
+                      "reasons": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "`CHECK_FAILED:<id>`, `CHECK_MISSING:<id>`, `CHECK_ERROR:<id>`, `REVIEW_FAILED`, `REVIEW_NEEDS_HUMAN`."
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "dispatchedAt",
+                      "finishedAt",
+                      "failureCode",
+                      "reasons"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deploy": {
+                    "type": "object",
+                    "properties": {
+                      "staging": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "pending",
+                              "deployed",
+                              "failed"
+                            ]
+                          },
+                          "deployedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                "description": "ISO 8601 date-time, UTC."
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "SCAN_DISPATCH_FAILED",
+                                  "SCAN_TIMED_OUT",
+                                  "SCAN_INCOMPLETE",
+                                  "SCAN_RESULT_INVALID",
+                                  "CLOUDFLARE_REJECTED",
+                                  "CLOUDFLARE_UNAVAILABLE",
+                                  "CLOUDFLARE_NOT_CONFIGURED",
+                                  "BUNDLE_INTEGRITY_FAILED",
+                                  "STORAGE_FAILED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Why a scan or an upload stopped without a verdict on the code."
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "deployedAt",
+                          "errorCode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "production": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "pending",
+                              "deployed",
+                              "failed"
+                            ]
+                          },
+                          "deployedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                "description": "ISO 8601 date-time, UTC."
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "errorCode": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "SCAN_DISPATCH_FAILED",
+                                  "SCAN_TIMED_OUT",
+                                  "SCAN_INCOMPLETE",
+                                  "SCAN_RESULT_INVALID",
+                                  "CLOUDFLARE_REJECTED",
+                                  "CLOUDFLARE_UNAVAILABLE",
+                                  "CLOUDFLARE_NOT_CONFIGURED",
+                                  "BUNDLE_INTEGRITY_FAILED",
+                                  "STORAGE_FAILED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Why a scan or an upload stopped without a verdict on the code."
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "deployedAt",
+                          "errorCode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "staging",
+                      "production"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "checks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pass",
+                            "warn",
+                            "fail",
+                            "error",
+                            "skipped"
+                          ]
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "rule": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "error",
+                                  "warning",
+                                  "info"
+                                ]
+                              },
+                              "file": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "line": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "rule",
+                              "severity",
+                              "file",
+                              "line",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "summary",
+                        "findings",
+                        "truncated"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "review": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pass",
+                              "fail",
+                              "needs_human",
+                              "skipped",
+                              "error"
+                            ]
+                          },
+                          "model": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "concerns": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "severity": {
+                                  "type": "string",
+                                  "enum": [
+                                    "high",
+                                    "medium",
+                                    "low"
+                                  ]
+                                },
+                                "file": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "message": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "severity",
+                                "file",
+                                "message"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "truncated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "model",
+                          "summary",
+                          "concerns",
+                          "truncated"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The AI review; it can only add caution."
+                  },
+                  "rejectionReason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "bundleSha256",
+                  "bundleBytes",
+                  "files",
+                  "main",
+                  "lockfile",
+                  "scan",
+                  "deploy",
+                  "checks",
+                  "review",
+                  "rejectionReason"
+                ],
+                "additionalProperties": false,
+                "description": "A hosted version's scan report: every check's findings and the review (docs/api/apps/developer.md \"Hosted versions\")."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A hosted version's scan report; null for an external version."
+          },
           "manifest": {
             "type": "object",
             "propertyNames": {
@@ -4969,6 +5715,7 @@
           "current",
           "releasedAt",
           "createdAt",
+          "hosting",
           "manifest"
         ],
         "additionalProperties": false,
@@ -6498,6 +7245,65 @@
           "manifest": {
             "type": "object",
             "description": "`tassyir.app.toml` exactly as a TOML parser returns it, handed to the manifest validator untouched (rules: docs/api/apps/manifest.md, schema: docs/api/apps/manifest.2026-10.schema.json). Anything else is 400 `APP_MANIFEST_INVALID`."
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "A hosted version's code (required for `hosting.mode = \"tassyir\"`, refused otherwise): `{ main, files: [{ path, content }], lockfile? }`, text modules only, at most 100 files and 3 MB; checked by the bundle validator (every error at once, 400 `APP_BUNDLE_INVALID`). Rules: docs/api/apps/developer.md \"Hosted versions\".",
+                "properties": {
+                  "main": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "content"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "lockfile": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "content"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "enum": [
+                          "package-lock.json",
+                          "npm-shrinkwrap.json",
+                          "pnpm-lock.yaml",
+                          "yarn.lock",
+                          "bun.lock"
+                        ]
+                      },
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

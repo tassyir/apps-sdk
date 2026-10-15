@@ -116,6 +116,72 @@ export interface RecordedRequest {
   at: number;
 }
 
+/** Whether the fake API takes hosted versions (`APPS_HOSTING_ENABLED`). */
+export type HostingAvailability = 'off' | 'on' | 'unconfigured';
+
+/**
+ * What the next `GET …/versions/:n` of a hosted version finds, in order (one
+ * step per read; then the version stays as it is). The pipeline's states as
+ * the API moves them (AP-B1.14), plus two answers of the route itself.
+ */
+export type ScanStep =
+  | 'dispatched'
+  /** Every check passed: `ready`, the staging upload queued. */
+  | 'passed'
+  /** Uploaded to staging; production queued. */
+  | 'staging'
+  /** Uploaded to production: approved, released, current. */
+  | 'released'
+  /** A check failed on findings (`scanChecks`, `scanReview`). */
+  | 'failed'
+  /** The AI review asked for a person: `in_review`, staging only. */
+  | 'held'
+  /** `SCAN_INCOMPLETE`, `SCAN_TIMED_OUT`, `SCAN_DISPATCH_FAILED`, `SCAN_RESULT_INVALID`. */
+  | 'incomplete'
+  | 'timed_out'
+  | 'dispatch_failed'
+  | 'result_invalid'
+  /** Cloudflare refused the staging upload. */
+  | 'deploy_failed'
+  /** A Tassyir admin rejected the held version. */
+  | 'rejected'
+  /** This read answers 429 (the rate limiter, Retry-After 30). */
+  | 'throttled'
+  /** This read never reaches the API. */
+  | 'network';
+
+type HostedRecord = NonNullable<AppVersionDetail['hosting']>;
+type ScanCheck = HostedRecord['checks'][number];
+
+/** The nine checks the API requires, every one passed. */
+export function passingChecks(): ScanCheck[] {
+  return [
+    'bundle',
+    'size',
+    'unicode',
+    'banned_apis',
+    'manifest_scopes',
+    'manifest_hosts',
+    'semgrep',
+    'gitleaks',
+    'osv',
+  ].map((id) => ({
+    id,
+    status: 'pass',
+    summary: id === 'size' ? '1 module(s), 120 bytes' : '',
+    findings: [],
+    truncated: false,
+  }));
+}
+
+export interface UploadRefusal {
+  status: number;
+  code: string;
+  message: string;
+  fix?: string;
+  extra?: Record<string, unknown>;
+}
+
 export const FAKE_EMAIL = 'amina@example.com';
 export const FAKE_USER_ID = '741939488313319175';
 
@@ -155,6 +221,20 @@ export class FakeDeveloperApi {
   testResult: Partial<TestDelivery> = {};
   /** Set to echo this text in every refusal's message (a hostile API). */
   echoInErrors: string | undefined;
+
+  /** Tassyir Hosting on this API: off (production today), on, or on but not set up. */
+  hosting: HostingAvailability = 'off';
+  /** The pipeline, one step per read of a hosted version. */
+  scanScript: ScanStep[] = [];
+  /** What the scan reports (a `failed` step expects a failing check here). */
+  scanChecks: ScanCheck[] = passingChecks();
+  scanReview: HostedRecord['review'] = null;
+  /** The next upload's refusal, once (a conflict, a busy pipeline, …). */
+  nextUploadRefusal: UploadRefusal | undefined;
+  /** Runs at every read of a version, before the answer (a spec's Ctrl-C). */
+  onVersionRead: (() => void) | undefined;
+  /** Every bundle a hosted upload sent, as sent. */
+  bundles: unknown[] = [];
 
   #ids = 100;
 
@@ -563,7 +643,19 @@ export class FakeDeveloperApi {
     const rest = appMatch[2] ?? '';
     if (method === 'GET' && rest === '') return json(200, { data: app });
     if (rest === '/versions' && method === 'POST')
-      return this.#upload(app, body['manifest']);
+      return this.#upload(app, body['manifest'], body['bundle']);
+    if (rest === '/versions' && method === 'GET') {
+      const list = [...(this.versions.get(app.id) ?? [])].reverse();
+      const limit = Number(query.get('limit') ?? '20');
+      return json(200, {
+        data: list.slice(0, limit).map((version) => summaryOf(version)),
+        nextCursor: null,
+      });
+    }
+    const versionMatch = /^\/versions\/([^/]+)$/.exec(rest);
+    if (versionMatch && method === 'GET') {
+      return this.#readVersion(app, versionMatch[1] ?? '');
+    }
     if (rest === '/credentials') {
       const list = this.credentials.get(app.id) ?? [];
       if (method === 'GET') return json(200, { data: [...list].reverse() });
@@ -717,7 +809,7 @@ export class FakeDeveloperApi {
     });
   }
 
-  #upload(app: DeveloperApp, manifest: unknown): Response {
+  #upload(app: DeveloperApp, manifest: unknown, bundle: unknown): Response {
     const result = validateManifest(manifest);
     if (!result.ok) {
       return this.#refuse(
@@ -728,13 +820,50 @@ export class FakeDeveloperApi {
         { errors: result.errors },
       );
     }
-    if (result.manifest.hosting.mode === 'tassyir') {
+    const hosted = result.manifest.hosting.mode === 'tassyir';
+    if (hosted && this.hosting === 'off') {
       return this.#refuse(
         400,
         'APP_HOSTING_NOT_AVAILABLE',
         'Tassyir Hosting is not available yet',
-        'Set hosting.mode = "external" and hosting.url to your server until Tassyir Hosting opens.',
+        'Host the app on your own server: set hosting.mode = "external" and hosting.url to its https base URL.',
         { hostingMode: 'tassyir' },
+      );
+    }
+    if (hosted && this.hosting === 'unconfigured') {
+      return this.#refuse(
+        503,
+        'APP_HOSTING_NOT_CONFIGURED',
+        'Tassyir Hosting cannot take uploads right now',
+        'Try again later, or host the app on your own server (hosting.mode = "external").',
+      );
+    }
+    if (hosted && (bundle === undefined || bundle === null)) {
+      return this.#refuse(
+        400,
+        'APP_BUNDLE_REQUIRED',
+        'A hosted version needs its bundle',
+        'Send "bundle": { "main", "files" } next to "manifest" (`tassyir deploy` builds it).',
+      );
+    }
+    if (!hosted && bundle !== undefined && bundle !== null) {
+      return this.#refuse(
+        400,
+        'APP_BUNDLE_NOT_ALLOWED',
+        'An external version has no bundle',
+        'Leave "bundle" out, or set hosting.mode = "tassyir" to run the bundle on Tassyir Hosting.',
+      );
+    }
+    if (hosted) this.bundles.push(bundle);
+    const refusal = this.nextUploadRefusal;
+    if (refusal) {
+      this.nextUploadRefusal = undefined;
+      return this.#refuse(
+        refusal.status,
+        refusal.code,
+        refusal.message,
+        refusal.fix,
+        refusal.extra,
       );
     }
     if (result.manifest.handle !== app.handle) {
@@ -748,9 +877,15 @@ export class FakeDeveloperApi {
     }
     const list = this.versions.get(app.id) ?? [];
     const latest = list.at(-1);
+    const bundleKey = hosted ? JSON.stringify(bundle) : null;
+    const scanBroke =
+      latest?.hosting?.scan.status === 'error' ||
+      latest?.hosting?.scan.status === 'timed_out';
     if (
       latest &&
-      JSON.stringify(latest.manifest) === JSON.stringify(result.manifest)
+      JSON.stringify(latest.manifest) === JSON.stringify(result.manifest) &&
+      (this.#bundleKeys.get(latest.id) ?? null) === bundleKey &&
+      !scanBroke
     ) {
       return this.#refuse(
         409,
@@ -760,8 +895,8 @@ export class FakeDeveloperApi {
         { version: latest.version },
       );
     }
-    for (const version of list) version.current = false;
-    const version = {
+    const now = new Date(this.clock.now()).toISOString();
+    const version: AppVersionDetail = {
       id: this.#id(),
       version: list.length + 1,
       apiVersion: result.manifest.api_version,
@@ -770,17 +905,161 @@ export class FakeDeveloperApi {
       webhookTopics: result.manifest.webhooks.flatMap(
         (webhook) => webhook.topics,
       ),
-      allowedHosts: [],
-      reviewState: 'approved',
-      current: true,
-      releasedAt: new Date(this.clock.now()).toISOString(),
-      createdAt: new Date(this.clock.now()).toISOString(),
+      allowedHosts:
+        result.manifest.hosting.mode === 'tassyir'
+          ? result.manifest.hosting.allowed_hosts
+          : [],
+      reviewState: hosted ? 'scanning' : 'approved',
+      current: !hosted,
+      releasedAt: hosted ? null : now,
+      createdAt: now,
+      hosting: hosted ? initialHosting(bundle) : null,
       manifest: result.manifest as unknown as Record<string, unknown>,
     };
+    if (!hosted) {
+      for (const other of list) other.current = false;
+      app.currentVersion = version.version;
+      app.status = 'active';
+    }
+    this.#bundleKeys.set(version.id, bundleKey);
     this.versions.set(app.id, [...list, version]);
-    app.currentVersion = version.version;
-    app.status = 'active';
     return json(201, { data: version });
+  }
+
+  /** `GET …/versions/:n`: the next scan step first, for a hosted version. */
+  #readVersion(app: DeveloperApp, raw: string): Response {
+    this.onVersionRead?.();
+    const version = (this.versions.get(app.id) ?? []).find(
+      (candidate) => String(candidate.version) === raw,
+    );
+    if (!version) {
+      return this.#refuse(
+        404,
+        'APP_VERSION_NOT_FOUND',
+        'Version not found',
+        'List the versions: GET /developer/apps/:appId/versions.',
+        { version: raw },
+      );
+    }
+    if (version.hosting) {
+      const step = this.scanScript.shift();
+      if (step === 'throttled') {
+        return json(429, 'ThrottlerException: Too Many Requests', {
+          'retry-after': '30',
+        });
+      }
+      if (step === 'network') {
+        throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+      }
+      if (step) this.#advance(app, version, version.hosting, step);
+    }
+    return json(200, { data: version });
+  }
+
+  /** Moves a hosted version the way the API's pipeline does. */
+  #advance(
+    app: DeveloperApp,
+    version: AppVersionDetail,
+    hosting: HostedRecord,
+    step: ScanStep,
+  ): void {
+    const now = new Date(this.clock.now()).toISOString();
+    const scan = hosting.scan;
+    const finish = (status: HostedRecord['scan']['status']) => {
+      scan.status = status;
+      scan.finishedAt = now;
+      hosting.checks = this.scanChecks;
+      hosting.review = this.scanReview;
+    };
+    const broke = (
+      status: 'error' | 'timed_out',
+      code: NonNullable<HostedRecord['scan']['failureCode']>,
+    ) => {
+      scan.status = status;
+      scan.failureCode = code;
+      scan.finishedAt = now;
+      version.reviewState = 'scan_failed';
+    };
+    switch (step) {
+      case 'dispatched':
+        scan.status = 'dispatched';
+        scan.dispatchedAt = now;
+        return;
+      case 'passed':
+        finish('passed');
+        version.reviewState = 'ready';
+        hosting.deploy.staging.status = 'pending';
+        return;
+      case 'staging':
+        hosting.deploy.staging = {
+          status: 'deployed',
+          deployedAt: now,
+          errorCode: null,
+        };
+        hosting.deploy.production.status = 'pending';
+        return;
+      case 'released': {
+        hosting.deploy.production = {
+          status: 'deployed',
+          deployedAt: now,
+          errorCode: null,
+        };
+        version.reviewState = 'approved';
+        version.releasedAt = now;
+        for (const other of this.versions.get(app.id) ?? []) {
+          other.current = false;
+        }
+        version.current = true;
+        app.currentVersion = version.version;
+        app.status = 'active';
+        return;
+      }
+      case 'failed':
+        finish('failed');
+        scan.reasons = this.scanChecks
+          .filter((check) => check.status === 'fail')
+          .map((check) => `CHECK_FAILED:${check.id}`);
+        if (this.scanReview?.status === 'fail')
+          scan.reasons.push('REVIEW_FAILED');
+        version.reviewState = 'scan_failed';
+        return;
+      case 'held':
+        finish('held');
+        scan.reasons = ['REVIEW_NEEDS_HUMAN'];
+        version.reviewState = 'in_review';
+        hosting.deploy.staging = {
+          status: 'deployed',
+          deployedAt: now,
+          errorCode: null,
+        };
+        return;
+      case 'incomplete':
+        broke('error', 'SCAN_INCOMPLETE');
+        scan.reasons = ['CHECK_ERROR:semgrep'];
+        return;
+      case 'timed_out':
+        broke('timed_out', 'SCAN_TIMED_OUT');
+        return;
+      case 'dispatch_failed':
+        broke('error', 'SCAN_DISPATCH_FAILED');
+        return;
+      case 'result_invalid':
+        broke('error', 'SCAN_RESULT_INVALID');
+        return;
+      case 'deploy_failed':
+        hosting.deploy.staging = {
+          status: 'failed',
+          deployedAt: null,
+          errorCode: 'CLOUDFLARE_REJECTED',
+        };
+        return;
+      case 'rejected':
+        version.reviewState = 'rejected';
+        hosting.rejectionReason = 'The page asks buyers for their card number.';
+        return;
+      default:
+        return;
+    }
   }
 
   #newApp(fields: {
@@ -860,6 +1139,57 @@ export class FakeDeveloperApi {
     this.#ids += 1;
     return String(this.#ids);
   }
+
+  /** Each version's bundle as uploaded (JSON), to tell an unchanged upload. */
+  #bundleKeys = new Map<string, string | null>();
+}
+
+/** A hosted version's record right after its upload: scan pending. */
+function initialHosting(bundle: unknown): HostedRecord {
+  const record = bundle as {
+    main?: string;
+    files?: { content: string }[];
+    lockfile?: { name: string };
+  };
+  const files = record.files ?? [];
+  return {
+    bundleSha256: 'ab'.repeat(32),
+    bundleBytes: files.reduce(
+      (sum, file) => sum + Buffer.byteLength(file.content, 'utf8'),
+      0,
+    ),
+    files: Math.max(1, files.length),
+    main: record.main ?? 'worker.js',
+    lockfile: record.lockfile?.name ?? null,
+    scan: {
+      status: 'pending',
+      dispatchedAt: null,
+      finishedAt: null,
+      failureCode: null,
+      reasons: [],
+    },
+    deploy: {
+      staging: { status: 'none', deployedAt: null, errorCode: null },
+      production: { status: 'none', deployedAt: null, errorCode: null },
+    },
+    checks: [],
+    review: null,
+    rejectionReason: null,
+  };
+}
+
+/** The list's view of a version: no manifest, no findings. */
+function summaryOf(version: AppVersionDetail): Record<string, unknown> {
+  const view: Record<string, unknown> = { ...version };
+  delete view['manifest'];
+  if (version.hosting) {
+    const hosting: Record<string, unknown> = { ...version.hosting };
+    delete hosting['checks'];
+    delete hosting['review'];
+    delete hosting['rejectionReason'];
+    view['hosting'] = hosting;
+  }
+  return view;
 }
 
 /** What the sign-in routes say for each OAuth error (RFC 6749 §5.2). */

@@ -69,6 +69,8 @@ export async function createHarness(options: HarnessOptions = {}) {
   const keychain = new Map<string, string>();
   const execCalls: ExecCall[] = [];
   const printed: string[] = [];
+  /** Who listens for Ctrl-C right now (`io.onInterrupt`). */
+  const interruptListeners = new Set<() => void>();
   const keychainState = options.keychain ?? 'working';
   const env: Record<string, string | undefined> = {
     TASSYIR_CONFIG_DIR: configDir,
@@ -177,6 +179,12 @@ export async function createHarness(options: HarnessOptions = {}) {
         : new Promise<void>(() => undefined),
       cancel: () => undefined,
     }),
+    onInterrupt: (listener) => {
+      interruptListeners.add(listener);
+      return () => {
+        interruptListeners.delete(listener);
+      };
+    },
   });
 
   return {
@@ -190,6 +198,11 @@ export async function createHarness(options: HarnessOptions = {}) {
     root,
     /** Everything the CLI printed so far, in every run. */
     printed,
+    interruptListeners,
+    /** Ctrl-C, as the process would receive it. */
+    interrupt(): void {
+      for (const listener of [...interruptListeners]) listener();
+    },
     async run(...argv: string[]): Promise<RunResult> {
       const out: string[] = [];
       const err: string[] = [];

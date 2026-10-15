@@ -12,9 +12,13 @@ Every command prints `--json`, and every refusal has a stable `code`, a
 `message` and a one-sentence `fix`, so an AI coding agent can drive it as
 well as you can.
 
-Phase 1 serves apps on **your own server** (`hosting.mode = "external"`).
-Tassyir Hosting, `logs --tail` and `submit` come later; their commands
-already exist and say so.
+An app runs on **your own server** (`hosting.mode = "external"`) or on
+**Tassyir Hosting** (`hosting.mode = "tassyir"`), where `deploy` builds the
+code, checks it by the API's rules before uploading it, and follows Tassyir's
+scan of it to the verdict ([below](#tassyir-hosting)). The production API
+keeps Tassyir Hosting switched off until hosted apps can be reached, and
+answers a hosted deploy `APP_HOSTING_NOT_AVAILABLE`. `logs --tail` and
+`submit` come later; their commands already exist and say so.
 
 ## Install
 
@@ -92,6 +96,7 @@ tassyir deploy --json   # the same manifest again
 | `tassyir app list`                | Your apps                                                      |
 | `tassyir validate [path]`         | Check `tassyir.app.toml` with the API's own validator, offline |
 | `tassyir deploy`                  | Validate the manifest, then upload it as the app's new version |
+| `tassyir app version [n]`         | One version (default the latest), a hosted one with its scan   |
 | `tassyir secrets list`            | An app's client secrets (never the secrets)                    |
 | `tassyir secrets create`          | Mint the app's first client secret, shown once                 |
 | `tassyir secrets rotate`          | Mint a new one; the current ones keep working 24 hours         |
@@ -194,13 +199,15 @@ A client secret (`tsy_cs_…`) is shown **once**: Tassyir keeps only its hash.
 With `--json`, a command prints one JSON document on one line on stdout:
 `{"ok":true,…}`, or `{"ok":false,"error":{…}}`. `login` prints two lines:
 first the code to approve (`"step":"authorize"`, `userCode`,
-`verificationUriComplete`), then the result. Without `--json`, results go to
-stdout and refusals to stderr.
+`verificationUriComplete`), then the result. A hosted `deploy` that waits
+for its scan prints two too: first the uploaded version
+(`"step":"uploaded"`, `next`), then the verdict. The result is always the
+last line. Without `--json`, results go to stdout and refusals to stderr.
 
 An error has a stable `code`, a `message` and a one-sentence `fix`, and when
 they apply `status` (the API's HTTP status), `requestId`,
-`retryAfterSeconds`, `errors` (every manifest problem: `code`, `path`,
-`message`, `fix`), `details` (what the refusal is about: `limit`,
+`retryAfterSeconds`, `errors` (every manifest or bundle problem, or scan
+finding: `code`, `path`, `message`, `fix`), `details` (what the refusal is about: `limit`,
 `handle`, …) and `reveal` (values you must see although the command failed,
 such as a secret minted before its `.env` write broke). The API's own codes are passed on as they are. For example,
 `tassyir validate` on a manifest with `handle = "API"` and no reason for its
@@ -242,21 +249,23 @@ With `--json`, the same (on one line when printed):
 }
 ```
 
-| Exit code | Meaning                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------- |
-| 0         | Done.                                                                                              |
-| 1         | Failed: the API refused, or something else went wrong. The `code` says what.                       |
-| 2         | Usage: an unknown command or option, a missing or malformed argument.                              |
-| 3         | Sign in again: not signed in, the token was refused, or the sign-in was denied or expired.         |
-| 4         | The manifest is missing, not TOML, or invalid. Nothing was uploaded.                               |
-| 5         | Try again later: rate limited, or the API is busy or unreachable (`retryAfterSeconds` when known). |
+| Exit code | Meaning                                                                                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0         | Done.                                                                                                                                                                           |
+| 1         | Failed: the API refused, or something else went wrong. The `code` says what.                                                                                                    |
+| 2         | Usage: an unknown command or option, a missing or malformed argument.                                                                                                           |
+| 3         | Sign in again: not signed in, the token was refused, or the sign-in was denied or expired.                                                                                      |
+| 4         | The manifest is missing, not TOML, or invalid, or a hosted app's bundle does not build or pass its checks. Nothing was uploaded.                                                |
+| 5         | Try again later: rate limited, or the API is busy or unreachable (`retryAfterSeconds` when known); a hosted version still being scanned, or whose scan ended without a verdict. |
 
 Codes of the CLI's own (the API's pass through as they are):
 `NOT_LOGGED_IN`, `LOGIN_DENIED`, `LOGIN_EXPIRED`, `LOGIN_INVALID_GRANT`,
 `LOGIN_RATE_LIMITED`, `LOGIN_FAILED`, `TOKEN_ENV_INVALID`, `TOKEN_FROM_ENV`,
 `CREDENTIALS_UNAVAILABLE`, `CREDENTIALS_UNREADABLE`, `CREDENTIALS_UNWRITABLE`,
 `KEYCHAIN_UNAVAILABLE`, `MANIFEST_NOT_FOUND`, `MANIFEST_UNREADABLE`,
-`MANIFEST_TOML_INVALID`, `MANIFEST_INVALID`, `APP_REQUIRED`, `APP_NOT_FOUND`,
+`MANIFEST_TOML_INVALID`, `MANIFEST_INVALID`, `BUNDLE_ENTRY_NOT_FOUND`,
+`BUNDLE_BUILD_FAILED`, `BUNDLE_INVALID`, `VERSION_SCAN_FAILED`,
+`VERSION_REJECTED`, `VERSION_IN_PROGRESS`, `APP_REQUIRED`, `APP_NOT_FOUND`,
 `APP_FIELDS_REQUIRED`, `APP_SECRET_EXISTS`, `ENV_VALUE_EXISTS`,
 `ENV_FILE_MISSING`, `ENV_FILE_UNREADABLE`, `ENV_FILE_UNWRITABLE`,
 `INSTALLATION_REQUIRED`, `WEBHOOK_ENDPOINT_FAILED`, `WEBHOOK_REPLAY_SKIPPED`,
@@ -276,8 +285,108 @@ check comes on top: no field of the manifest takes a TOML date or time, so
 the CLI refuses one wherever it is (the validator would read a date where a
 table goes as an empty table, and the API would see a string there).
 `deploy` uploads only a manifest that passed, and the same manifest twice is
-answered `unchanged` (exit 0). A hosted app (`hosting.mode = "tassyir"`) is
-answered by the API: `APP_HOSTING_NOT_AVAILABLE` until Tassyir Hosting opens.
+answered `unchanged` (exit 0). A hosted app also needs its bundle: next
+section.
+
+## Tassyir Hosting
+
+For `hosting.mode = "tassyir"`, `deploy` does four things, and stops at the
+first that fails.
+
+**1. Build.** esbuild (0.28.2, a dependency of the CLI) bundles the Worker's
+entry into one ES module, `worker.js`: `--entry <file>`, or the first of
+`src/worker.ts`, `src/worker.js`, `src/index.ts`, `src/index.js` in the
+manifest's folder. Target ES2022, the `workerd` / `worker` / `browser` export
+conditions, `.html` and `.css` imported as text (`import page from
+'./page.html'` is a string). `cloudflare:*` and `node:*` stay imports, so the
+checks can name them. The source map stays on your machine: the checks use
+it to point at your source, and a bundle never carries one. A build error
+is `BUNDLE_BUILD_FAILED` (exit 4) with each of esbuild's errors in `errors`
+(a package that is not installed, a Node.js built-in, a binary file).
+
+**2. Check, before anything is sent.** The same rules the API applies, so a
+bundle the CLI passes is one the API takes:
+
+- the API's upload rules (`BUNDLE_*` codes, exactly the API's): 1 to 100
+  files, at most 3 MB of UTF-8 together; text only (ES modules `.js` /
+  `.mjs`, text `.html` `.css` `.txt` `.json` `.svg` `.liquid`), no
+  WebAssembly, source map or binary; paths of letters, digits, `.`, `_`, `-`
+  that never start with `.`, at most 200 characters and 10 segments; `main`
+  one of the ES modules; a lockfile of at most 1 MB;
+- the code checks of the scan that do not need Tassyir's data: `eval` or
+  `new Function` over code built at run time, a string timer,
+  `.constructor.constructor()`, `import()` of a name built at run time, an
+  import of a URL, of `cloudflare:sockets` or of anything outside the
+  bundle (`BUNDLE_DYNAMIC_IMPORT`, `BUNDLE_EVAL`, …), and every `fetch` /
+  `new Request` / `new WebSocket` / `new EventSource` to a literal host: a
+  Tassyir domain (`BUNDLE_TASSYIR_HOST`: call Tassyir through `env.TASSYIR`),
+  a host outside `hosting.allowed_hosts` (`BUNDLE_HOST_NOT_ALLOWED`; `*.x.com`
+  is the subdomains of `x.com`, never `x.com`), or http;
+- two rules of the CLI's own: a `node:` import (`BUNDLE_NODE_IMPORT`; the
+  scan only warns, but a hosted Worker has no Node.js compatibility, so
+  Cloudflare would refuse it) and a `main` that does not export a `fetch`
+  handler (`BUNDLE_NO_FETCH_HANDLER`).
+
+Every problem at once is `BUNDLE_INVALID` (exit 4), each in `errors` with its
+place in your source (`src/worker.ts:12`). What the scan would only warn
+about (`eval("…")` of a literal, a host built at run time, WebAssembly) is
+printed and does not stop the deploy. The scan's other checks (invisible
+Unicode, Admin API calls against the requested scopes, Semgrep, Gitleaks,
+OSV on the lockfile, the AI review) run on Tassyir's side only.
+
+**3. Upload** `{ manifest, bundle: { main, files, lockfile } }` to
+`POST developer/apps/{appId}/versions`. The lockfile is the project's
+`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock` or
+`bun.lock` (the first found, in that order), scanned for known
+vulnerabilities and malicious packages, never deployed. Without one the scan
+warns that the dependencies were not checked.
+
+**4. Follow the scan.** Every 10 seconds the CLI reads the version
+(`GET developer/apps/{appId}/versions/{n}`) until it settles, or `--timeout`
+seconds pass (default 1800, the time the API gives a scan; `0` answers at
+once). A busy or unreachable API is asked again. Ctrl-C stops waiting, never
+the scan. Then:
+
+| The version                                    | `deploy`                                                                                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Released (`approved`): scanned, on Cloudflare  | exit 0, `"released": true`, the findings that only warned                                                                                 |
+| Held for a person (`in_review`)                | exit 0, `"released": false`, `"state": "in_review"`: the checks passed, the AI review asked for a look                                    |
+| Failed its scan (`scan_failed`, on findings)   | exit 1, `VERSION_SCAN_FAILED`, every failing finding and review concern in `errors`                                                       |
+| Its scan ended without a verdict               | exit 5, the API's code (`SCAN_TIMED_OUT`, `SCAN_INCOMPLETE`, `SCAN_DISPATCH_FAILED`, `SCAN_RESULT_INVALID`): upload the same bundle again |
+| Scanned, but the upload to Cloudflare failed   | exit 1, the API's code (`CLOUDFLARE_REJECTED`, …)                                                                                         |
+| Rejected by a person at Tassyir                | exit 1, `VERSION_REJECTED` with the reason                                                                                                |
+| Still scanning at `--timeout`, or after Ctrl-C | exit 5, `VERSION_IN_PROGRESS`: `tassyir app version <n> --follow` picks it up                                                             |
+
+Every answer carries the whole version as the API sent it (`version`, or
+`error.details.version`): the scan's `status` and `reasons`, each check with
+its findings (`rule`, `severity`, `file`, `line`, `message`), the AI review,
+and both uploads. `tassyir app version [n]` shows it again; with `--follow`
+it waits and exits as `deploy` does.
+
+```bash
+tassyir deploy --json
+```
+
+```json
+{ "ok": true, "step": "uploaded", "app": { "id": "741…", "handle": "review-requests" }, "unchanged": false, "version": { "version": 3, "reviewState": "scanning", "scan": "pending" }, "next": "tassyir app version 3 --follow --app review-requests" }
+{ "ok": true, "released": true, "state": "released", "unchanged": false, "app": { "…": "…" }, "version": { "version": 3, "reviewState": "approved", "current": true, "hosting": { "scan": { "status": "passed", "…": "…" }, "checks": ["…"], "review": null, "…": "…" } }, "warnings": [] }
+```
+
+The same manifest and bundle as the latest version are not a new version
+(`APP_VERSION_UNCHANGED`): `deploy` answers with that version's state, and
+follows it if its scan is still running. After a scan that ended without a
+verdict, the same bundle is scanned again as a new version. The API's
+refusals of a hosted upload, with the CLI's fix:
+
+| Code                         | Why, and what to do                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `APP_HOSTING_NOT_AVAILABLE`  | Tassyir Hosting is off on this API (production, for now): run the app on your own server, or use `--api-origin`. |
+| `APP_HOSTING_NOT_CONFIGURED` | On, but not ready to take uploads; nothing was stored (exit 5): try again later.                                 |
+| `APP_VERSION_CONFLICT`       | Another upload of the app took the version number first: run `tassyir deploy` again.                             |
+| `APP_HOSTING_BUSY`           | Tassyir scanned all it can for today (exit 5, `retryAfterSeconds`).                                              |
+| `DEVELOPER_RATE_LIMITED`     | 10 hosted versions per developer per 24 hours (each is a scan), 30 versions an hour.                             |
+| `APP_BUNDLE_INVALID`         | The API refused what the CLI's check passed (exit 4, `errors`): update the CLI.                                  |
+| `PAYLOAD_TOO_LARGE`          | An upload is at most 128 KB where Tassyir Hosting is off, 8 MB + 128 KB where it is on.                          |
 
 ## From code
 
@@ -291,7 +400,10 @@ const exitCode = await runCli(['validate', '--json'], io);
 ```
 
 `io` is a `CliIo`: stdout, stderr, the environment, the working folder,
-`fetch`, a clock, and how to run a program. `DeveloperApi` is the typed
+`fetch`, a clock, how to run a program and, optionally, Ctrl-C
+(`onInterrupt`). The hosted bundle's checks are exported too:
+`validateHostedBundle` (the API's upload rules), `checkBundleCode` (the
+scan's code checks and the CLI's two) and `buildHostedBundle`. `DeveloperApi` is the typed
 developer-API client the commands use. Its routes, bodies and answers are
 typed from the developer API's OpenAPI document, vendored in `openapi/` at a
 recorded backend commit (`SOURCE.json`); the package exports the types
