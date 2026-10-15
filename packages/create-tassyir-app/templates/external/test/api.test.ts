@@ -89,6 +89,21 @@ describe('the page API', () => {
     });
     expect(number.status).toBe(400);
     expect(await number.json()).toMatchObject({ code: 'SETTINGS_INVALID' });
+
+    // A string that is not an amount is refused too, never read as null
+    // (which would clear the saved setting).
+    for (const highlightFrom of ['5000.001', 'abc']) {
+      const invalid = await call('/api/settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ highlightFrom }),
+      });
+      expect(invalid.status).toBe(400);
+      expect(await invalid.json()).toMatchObject({ code: 'SETTINGS_INVALID' });
+    }
+    expect(server.fake.appData.get('test-business/settings')).toEqual({
+      highlightFrom: '5000.50',
+    });
   });
 });
 
