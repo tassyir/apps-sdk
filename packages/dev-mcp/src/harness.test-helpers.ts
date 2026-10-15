@@ -20,13 +20,20 @@ import { createDevMcpServer, MAX_RESULT_BYTES } from './index.js';
 // through its in-memory transport; the tassyir CLI's fake developer API
 // (AP-K1.6) behind `fetch`; the credential store in a scratch folder (as
 // `tassyir login` leaves it, the file backend); the repo's guides and OpenAPI
-// document as the content.
+// documents as the content.
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 export const CONTENT: ContentPaths = {
   guides: join(REPO, 'docs', 'guides'),
   openapi: join(REPO, 'packages', 'app', 'openapi', 'openapi.2026-10.json'),
+  developerOpenapi: join(
+    REPO,
+    'packages',
+    'cli',
+    'openapi',
+    'openapi.developer.json',
+  ),
 };
 
 export interface Answer {

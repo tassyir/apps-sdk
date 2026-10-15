@@ -16,13 +16,28 @@ describe('content', () => {
     expect(defaultContentPaths()).toEqual(CONTENT);
   });
 
-  it('loads every guide but README.md, by order, and the API reference', async () => {
+  it('loads every guide but README.md, by order, and the two API references', async () => {
     const content = await loadContent(CONTENT);
     expect(content.guides.map((guide) => guide.slug)).not.toContain('README');
     const orders = content.guides.map((guide) => guide.order);
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
-    expect(content.api.version).toBe('2026-10');
+    expect(content.api).toMatchObject({ name: 'admin', version: '2026-10' });
     expect(content.api.operations.length).toBeGreaterThan(40);
+    expect(content.developerApi.name).toBe('developer');
+    expect(content.developerApi.operations.length).toBeGreaterThanOrEqual(30);
+    expect(
+      content.developerApi.operations.every((operation) =>
+        operation.path.startsWith('/developer/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('reads the shipped developer API reference when the paths leave it out', async () => {
+    const content = await loadContent({
+      guides: CONTENT.guides,
+      openapi: CONTENT.openapi,
+    });
+    expect(content.developerApi.operations.length).toBeGreaterThanOrEqual(30);
   });
 
   it('answers CONTENT_UNAVAILABLE when the files are missing', async () => {
@@ -31,6 +46,13 @@ describe('content', () => {
       openapi: CONTENT.openapi,
     });
     await expect(missing).rejects.toMatchObject({
+      code: 'CONTENT_UNAVAILABLE',
+    });
+    const developer = loadContent({
+      ...CONTENT,
+      developerOpenapi: join(REPO, 'no-such-file.json'),
+    });
+    await expect(developer).rejects.toMatchObject({
       code: 'CONTENT_UNAVAILABLE',
     });
   });

@@ -1,7 +1,8 @@
 import { ToolError } from './errors.js';
 
-// The Admin API's OpenAPI 3.1 document (the copy @tassyir/app is typed from),
-// indexed for an agent: its operations, its webhooks (one per topic) and its
+// An OpenAPI 3.1 document indexed for an agent: the Admin API's (the copy
+// @tassyir/app is typed from) or the developer API's (the copy the tassyir
+// CLI is typed from). Its operations, its webhooks (one per topic) and its
 // component schemas, rendered compactly: `$ref`s stay names the agent can ask
 // for, long patterns and examples are dropped, descriptions are cut, and a
 // rendering that would not fit the tool's answer is made shorter until it
@@ -14,6 +15,17 @@ type JsonObject = Record<string, unknown>;
 
 /** The versioned prefix of every Admin API route; `@tassyir/app` paths leave it out. */
 export const API_PREFIX = '/apps/2026-10';
+
+/** The developer API's routes, all under one unversioned prefix. */
+export const DEVELOPER_PREFIX = '/developer';
+
+/** `admin`: what an installed app calls; `developer`: what the tassyir CLI calls. */
+export type ApiName = 'admin' | 'developer';
+
+export const API_TITLES: Readonly<Record<ApiName, string>> = {
+  admin: 'Admin API',
+  developer: 'developer API',
+};
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
@@ -39,6 +51,7 @@ export interface ApiEvent {
 }
 
 export interface ApiIndex {
+  name: ApiName;
   document: JsonObject;
   version: string;
   operations: ApiOperation[];
@@ -56,8 +69,9 @@ function text(value: unknown): string {
 
 /**
  * A description without its pointers to the API's own reference files
- * (`Reference: docs/api/apps/…`): they live in Tassyir's private source, so
- * an agent cannot read them; the guides say the same publicly.
+ * (`Reference: docs/api/apps/…`, `(docs/api/apps/…)`): they live in
+ * Tassyir's private source, so an agent cannot read them; the guides say the
+ * same publicly.
  */
 export function clean(value: string): string {
   return value
@@ -65,11 +79,12 @@ export function clean(value: string): string {
       /\s*Reference: docs\/api\/apps\/[\w.-]+(?:,\s*docs\/api\/apps\/[\w.-]+)*\.?/g,
       '',
     )
+    .replace(/\s*\([^()]*docs\/api\/apps\/[^()]*\)/g, '')
     .trim();
 }
 
 /** The operations, webhooks and schemas of an OpenAPI document. */
-export function indexApi(document: unknown): ApiIndex {
+export function indexApi(document: unknown, name: ApiName = 'admin'): ApiIndex {
   if (!isObject(document) || !isObject(document['paths'])) {
     throw new ToolError({
       code: 'CONTENT_UNAVAILABLE',
@@ -122,6 +137,7 @@ export function indexApi(document: unknown): ApiIndex {
       : {};
   const info = document['info'];
   return {
+    name,
     document,
     version: isObject(info) ? text(info['version']) : '',
     operations,
@@ -142,9 +158,14 @@ function words(value: string): string[] {
 }
 
 /** The closest operation ids to what was asked, for a fix. */
-function suggestions(index: ApiIndex, asked: string, limit = 5): string[] {
+function suggestions(
+  indexes: readonly ApiIndex[],
+  asked: string,
+  limit = 5,
+): string[] {
   const wanted = new Set(words(asked));
-  return index.operations
+  return indexes
+    .flatMap((index) => index.operations)
     .map((operation) => {
       const have = new Set([
         ...words(operation.id),
@@ -196,7 +217,12 @@ export function findOperation(index: ApiIndex, asked: string): ApiOperation {
     path = path.replace(/\/+$/, '') || '/';
     // `:id` placeholders read as `{id}`.
     path = path.replace(/\/:([A-Za-z_][\w]*)/g, '/{$1}');
-    const full = path.startsWith('/apps/') ? path : `${API_PREFIX}${path}`;
+    const full =
+      path.startsWith('/apps/') ||
+      path === DEVELOPER_PREFIX ||
+      path.startsWith(`${DEVELOPER_PREFIX}/`)
+        ? path
+        : `${API_PREFIX}${path}`;
     const found = index.operations.filter(
       (operation) =>
         (method === undefined || operation.method === method) &&
@@ -215,36 +241,89 @@ export function findOperation(index: ApiIndex, asked: string): ApiOperation {
       });
     }
   }
-  const close = suggestions(index, query);
-  throw new ToolError({
+  throw operationNotFound([index], query);
+}
+
+function operationNotFound(
+  indexes: readonly ApiIndex[],
+  query: string,
+): ToolError {
+  const close = suggestions(indexes, query);
+  const titles = indexes.map((index) => API_TITLES[index.name]).join(' or ');
+  const lists = indexes
+    .map((index) =>
+      index.name === 'admin'
+        ? 'with no argument'
+        : `with { "api": "${index.name}" }`,
+    )
+    .join(' or ');
+  return new ToolError({
     code: 'OPERATION_NOT_FOUND',
-    message: `No Admin API operation is "${query.slice(0, 80)}"`,
+    message: `No ${titles} operation is "${query.slice(0, 80)}"`,
     fix:
       close.length > 0
-        ? `Try one of: ${close.join(', ')}; or call get_api_operation with no argument to list every operation.`
-        : 'Call get_api_operation with no argument to list every operation, or search_docs to find the one you need.',
+        ? `Try one of: ${close.join(', ')}; or call get_api_operation ${lists} to list every operation.`
+        : `Call get_api_operation ${lists} to list every operation, or search_docs to find the one you need.`,
   });
 }
 
+/**
+ * An operation of the first API that has it, in order: `operationId`s never
+ * repeat across the two documents, and their paths never overlap.
+ */
+export function findOperationIn(
+  indexes: readonly ApiIndex[],
+  asked: string,
+): { index: ApiIndex; operation: ApiOperation } {
+  for (const index of indexes) {
+    try {
+      return { index, operation: findOperation(index, asked) };
+    } catch (error) {
+      if (!(error instanceof ToolError) || error.code !== 'OPERATION_NOT_FOUND')
+        throw error;
+    }
+  }
+  throw operationNotFound(indexes, asked.trim());
+}
+
 export function findSchema(index: ApiIndex, asked: string): string {
-  const name = asked.trim().replace(/^#\/components\/schemas\//, '');
-  const found =
-    index.schemaNames.find((candidate) => candidate === name) ??
-    index.schemaNames.find(
-      (candidate) => candidate.toLowerCase() === name.toLowerCase(),
-    );
-  if (found) return found;
+  return findSchemaIn([index], asked).name;
+}
+
+function schemaName(asked: string): string {
+  return asked.trim().replace(/^#\/components\/schemas\//, '');
+}
+
+/**
+ * A schema of the first API that has it, in order (the two documents share
+ * a few names: `OAuthError`, `ServerError`).
+ */
+export function findSchemaIn(
+  indexes: readonly ApiIndex[],
+  asked: string,
+): { index: ApiIndex; name: string } {
+  const name = schemaName(asked);
+  for (const index of indexes) {
+    const found =
+      index.schemaNames.find((candidate) => candidate === name) ??
+      index.schemaNames.find(
+        (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+      );
+    if (found) return { index, name: found };
+  }
   const wanted = new Set(words(name));
-  const close = index.schemaNames
+  const close = indexes
+    .flatMap((index) => index.schemaNames)
     .filter((candidate) => words(candidate).some((word) => wanted.has(word)))
     .slice(0, 8);
+  const titles = indexes.map((index) => API_TITLES[index.name]).join(' or ');
   throw new ToolError({
     code: 'SCHEMA_NOT_FOUND',
-    message: `The API reference has no schema "${name.slice(0, 80)}"`,
+    message: `The ${titles} reference has no schema "${name.slice(0, 80)}"`,
     fix:
       close.length > 0
         ? `Try one of: ${close.join(', ')} (names are case-sensitive, as $ref names them).`
-        : 'Use a name from a "$ref" or a "schemas" list of get_api_operation or get_event_schema.',
+        : 'Use a name from a "$ref" or a "schemas" list of get_api_operation or get_event_schema, with the same "api".',
   });
 }
 
@@ -452,21 +531,45 @@ function errorCodes(schema: unknown, index: ApiIndex): string[] {
     }
     for (const key of ['allOf', 'anyOf', 'oneOf']) {
       const list = resolved[key];
-      if (Array.isArray(list))
-        for (const child of list) visit(child, depth + 1);
+      if (!Array.isArray(list)) continue;
+      // In an allOf, a refinement narrows the base it sits beside: only the
+      // refinement's enum, not the base's (Problem's open `code`, or
+      // OAuthError's every `error`). At any depth: the developer API nests
+      // them in an anyOf.
+      const refinements =
+        key === 'allOf'
+          ? list.filter((child) => !isObject(child) || !('$ref' in child))
+          : [];
+      for (const child of refinements.length > 0 ? refinements : list)
+        visit(child, depth + 1);
     }
   };
-  // Only the refinement's enum, not the base Problem's open `code`.
-  if (isObject(schema)) {
-    const list = schema['allOf'];
-    if (Array.isArray(list)) {
-      for (const child of list)
-        if (!isObject(child) || !('$ref' in child)) visit(child, 0);
-    } else {
-      visit(schema, 0);
-    }
-  }
+  visit(schema, 0);
   return [...codes].sort();
+}
+
+/**
+ * The components a body may be when it may be one of several (`anyOf`): the
+ * developer API answers a status with a coded `DeveloperError` or a body
+ * without a code (`ValidationError`, `HttpError`, `ThrottlerError`).
+ */
+function alternatives(schema: unknown): string[] {
+  if (!isObject(schema) || !Array.isArray(schema['anyOf'])) return [];
+  const refs = (schema['anyOf'] as unknown[]).flatMap((child) => {
+    if (!isObject(child)) return [];
+    if (typeof child['$ref'] === 'string') return [child['$ref']];
+    const parts = child['allOf'];
+    return Array.isArray(parts)
+      ? parts.flatMap((part) =>
+          isObject(part) && typeof part['$ref'] === 'string'
+            ? [part['$ref']]
+            : [],
+        )
+      : [];
+  });
+  return [
+    ...new Set(refs.map((ref) => ref.replace(/^#\/components\/schemas\//, ''))),
+  ];
 }
 
 function contentSchema(
@@ -556,11 +659,14 @@ export function renderOperation(
         });
       } else {
         const codes = media ? errorCodes(media.schema, index) : [];
+        const shapes = media ? alternatives(media.schema) : [];
+        if (shapes.length > 1) for (const shape of shapes) refs.add(shape);
         errors.push({
           status,
           ...(codes.length > 0
             ? { codes }
             : { description: cut(text(response['description']), 160) }),
+          ...(shapes.length > 1 ? { shapes } : {}),
         });
       }
     }

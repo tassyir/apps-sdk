@@ -26,6 +26,17 @@ describe('README.md', () => {
     );
   });
 
+  it('says get_api_operation reads each API its `api` argument names', async () => {
+    const row = /^\| `get_api_operation` +\| (.*) \|$/m.exec(README)?.[1] ?? '';
+    const harness = await createHarness();
+    const { tools } = await harness.client.listTools();
+    const input = tools.find((tool) => tool.name === 'get_api_operation')
+      ?.inputSchema as { properties: { api: { enum: string[] } } };
+    expect(input.properties.api.enum).toEqual(['admin', 'developer']);
+    expect(row).toContain('Admin API');
+    expect(row).toContain('`"api": "developer"`');
+  });
+
   it('shows the refusal the server really answers without a sign-in', async () => {
     const sample = /```json\n(\{\n {2}"error"[\s\S]*?)\n```/.exec(README)?.[1];
     const harness = await createHarness({

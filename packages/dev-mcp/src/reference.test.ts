@@ -6,7 +6,7 @@ import { CONTENT, createHarness } from './harness.test-helpers.js';
 import type { Harness } from './harness.test-helpers.js';
 
 // search_docs, fetch_doc, get_api_operation and get_event_schema over the
-// repo's own guides and OpenAPI document, through the MCP SDK's client.
+// repo's own guides and OpenAPI documents, through the MCP SDK's client.
 
 let harness: Harness;
 beforeAll(async () => {
@@ -37,11 +37,24 @@ async function guideSlugs(): Promise<string[]> {
     .map((file) => file.slice(0, -3));
 }
 
-const OPENAPI = JSON.parse(await readFile(CONTENT.openapi, 'utf8')) as {
+interface Document {
   paths: Record<string, Record<string, { operationId?: string }>>;
   webhooks: Record<string, unknown>;
   components: { schemas: Record<string, unknown> };
-};
+}
+
+const OPENAPI = JSON.parse(await readFile(CONTENT.openapi, 'utf8')) as Document;
+const DEVELOPER_OPENAPI = JSON.parse(
+  await readFile(CONTENT.developerOpenapi ?? '', 'utf8'),
+) as Document;
+
+function operationIdsOf(document: Document): string[] {
+  return Object.values(document.paths).flatMap((item) =>
+    Object.values(item).flatMap((operation) =>
+      operation.operationId ? [operation.operationId] : [],
+    ),
+  );
+}
 
 describe('search_docs', () => {
   it.each([
@@ -204,14 +217,11 @@ describe('fetch_doc', () => {
 });
 
 describe('get_api_operation', () => {
-  const operationIds = Object.values(OPENAPI.paths).flatMap((item) =>
-    Object.values(item).flatMap((operation) =>
-      operation.operationId ? [operation.operationId] : [],
-    ),
-  );
+  const operationIds = operationIdsOf(OPENAPI);
 
   it('lists every operation with no argument', async () => {
     const answer = await harness.ok('get_api_operation');
+    expect(answer['api']).toBe('admin');
     const operations = answer['operations'] as {
       id: string;
       sdkPath: string;
@@ -227,6 +237,7 @@ describe('get_api_operation', () => {
     for (const id of operationIds) {
       const answer = await harness.ok('get_api_operation', { operation: id });
       expect((answer['operation'] as { id: string }).id).toBe(id);
+      expect(answer['api']).toBe('admin');
       for (const name of answer['schemas'] as string[]) {
         expect([id, name in OPENAPI.components.schemas]).toEqual([id, true]);
       }
@@ -319,6 +330,168 @@ describe('get_api_operation', () => {
       schema: 'OrderLine',
     });
     expect(missing.code).toBe('SCHEMA_NOT_FOUND');
+  });
+});
+
+describe('get_api_operation, developer API', () => {
+  const operationIds = operationIdsOf(DEVELOPER_OPENAPI);
+
+  it('lists every developer operation with api "developer"', async () => {
+    const answer = await harness.ok('get_api_operation', { api: 'developer' });
+    expect(answer['api']).toBe('developer');
+    const operations = answer['operations'] as {
+      id: string;
+      sdkPath: string;
+    }[];
+    expect(operations.map((operation) => operation.id)).toEqual(operationIds);
+    expect(operationIds.length).toBeGreaterThanOrEqual(30);
+    expect(
+      operations.find((operation) => operation.id === 'listDeveloperApps')
+        ?.sdkPath,
+    ).toBe('/developer/apps');
+  });
+
+  it('renders every developer operation under the size limit, naming only its own schemas', async () => {
+    for (const id of operationIds) {
+      // Found by id without naming the API: ids never repeat across the two.
+      const answer = await harness.ok('get_api_operation', { operation: id });
+      expect([id, answer['api']]).toEqual([id, 'developer']);
+      expect((answer['operation'] as { id: string }).id).toBe(id);
+      for (const name of answer['schemas'] as string[]) {
+        expect([id, name in DEVELOPER_OPENAPI.components.schemas]).toEqual([
+          id,
+          true,
+        ]);
+      }
+      expect(JSON.stringify(answer)).not.toMatch(/docs\/api\/apps/);
+    }
+  });
+
+  it('answers the credential, every code and the bodies without a code', async () => {
+    const answer = await harness.ok('get_api_operation', {
+      operation: 'POST /developer/apps',
+    });
+    const operation = answer['operation'] as Record<string, unknown>;
+    expect(operation).toMatchObject({
+      id: 'createDeveloperApp',
+      method: 'POST',
+      path: '/developer/apps',
+      sdkPath: null,
+      auth: ['dashboardSession (HTTP bearer)', 'developerToken (HTTP bearer)'],
+      access: { auth: 'developer' },
+      requestBody: { required: true, schemaName: 'CreateDeveloperAppInput' },
+    });
+    expect(operation['errors']).toContainEqual({
+      status: '400',
+      codes: [
+        'APP_CUSTOM_BUSINESS_NOT_FOUND',
+        'APP_FIELDS_INVALID',
+        'APP_HOSTING_NOT_AVAILABLE',
+        'BAD_REQUEST',
+      ],
+      shapes: ['DeveloperError', 'ValidationError'],
+    });
+    expect(operation['errors']).toContainEqual({
+      status: '429',
+      codes: ['DEVELOPER_TOKEN_RATE_LIMITED'],
+      shapes: ['DeveloperError', 'ThrottlerError'],
+    });
+    expect(answer['schemas']).toEqual(
+      expect.arrayContaining([
+        'DeveloperApp',
+        'DeveloperError',
+        'ThrottlerError',
+        'ValidationError',
+      ]) as unknown,
+    );
+
+    const poll = await harness.ok('get_api_operation', {
+      operation: 'pollCliToken',
+    });
+    expect(poll['operation']).toMatchObject({
+      auth: [],
+      access: { auth: 'none' },
+      requestBody: {
+        contentType: 'application/x-www-form-urlencoded',
+        schemaName: 'DeviceTokenRequest',
+      },
+    });
+    expect((poll['operation'] as { errors: unknown[] }).errors).toContainEqual({
+      status: '429',
+      codes: ['slow_down'],
+      shapes: ['OAuthError', 'ThrottlerError'],
+    });
+  });
+
+  it.each([
+    ['listDeveloperApps', {}, 'listDeveloperApps'],
+    ['GET /developer/apps/{appId}', {}, 'getDeveloperApp'],
+    ['GET /developer/apps/741000000000032000', {}, 'getDeveloperApp'],
+    ['DELETE /developer/cli/tokens/current', {}, 'revokeCurrentCliToken'],
+    ['DELETE /developer/cli/tokens/42', {}, 'revokeCliToken'],
+    [
+      'POST https://api.tassyir.io/developer/dev-stores',
+      { api: 'developer' },
+      'createDevStore',
+    ],
+  ])('finds %s', async (asked, extra, id) => {
+    const answer = await harness.ok('get_api_operation', {
+      operation: asked,
+      ...extra,
+    });
+    expect((answer['operation'] as { id: string }).id).toBe(id);
+    expect(answer['api']).toBe('developer');
+  });
+
+  it('keeps each API to its own operations when asked for one', async () => {
+    const admin = await harness.refused('get_api_operation', {
+      operation: 'listDeveloperApps',
+      api: 'admin',
+    });
+    expect(admin.code).toBe('OPERATION_NOT_FOUND');
+    expect(admin.message).toMatch(/^No Admin API operation/);
+    const developer = await harness.refused('get_api_operation', {
+      operation: 'GET /orders/{id}',
+      api: 'developer',
+    });
+    expect(developer.code).toBe('OPERATION_NOT_FOUND');
+    expect(developer.fix).toContain('{ "api": "developer" }');
+    const neither = await harness.refused('get_api_operation', {
+      operation: 'createDeveloperApps',
+    });
+    expect(neither.message).toMatch(/^No Admin API or developer API operation/);
+    expect(neither.fix).toContain('createDeveloperApp');
+  });
+
+  it('renders every developer schema; a name in both documents is the Admin API one unless asked', async () => {
+    for (const name of Object.keys(DEVELOPER_OPENAPI.components.schemas)) {
+      const answer = await harness.ok('get_api_operation', {
+        schema: name,
+        api: 'developer',
+      });
+      expect((answer['schema'] as { name: string }).name).toBe(name);
+      for (const ref of answer['schemas'] as string[]) {
+        expect(ref in DEVELOPER_OPENAPI.components.schemas).toBe(true);
+      }
+      expect(JSON.stringify(answer)).not.toMatch(/docs\/api\/apps/);
+    }
+    const app = await harness.ok('get_api_operation', {
+      schema: 'DeveloperApp',
+    });
+    expect(app['api']).toBe('developer');
+    const shared = Object.keys(DEVELOPER_OPENAPI.components.schemas).filter(
+      (name) => name in OPENAPI.components.schemas,
+    );
+    expect(shared).toContain('ServerError');
+    for (const name of shared) {
+      const plain = await harness.ok('get_api_operation', { schema: name });
+      expect([name, plain['api']]).toEqual([name, 'admin']);
+      const developer = await harness.ok('get_api_operation', {
+        schema: name,
+        api: 'developer',
+      });
+      expect([name, developer['api']]).toEqual([name, 'developer']);
+    }
   });
 });
 

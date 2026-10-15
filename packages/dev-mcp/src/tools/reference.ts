@@ -4,16 +4,19 @@ import { ToolError } from '../errors.js';
 import {
   cut,
   findEvent,
-  findOperation,
-  findSchema,
+  findOperationIn,
+  findSchemaIn,
   renderEvent,
   renderOperation,
   renderSchema,
 } from '../openapi.js';
+import type { ApiIndex, ApiName } from '../openapi.js';
+import type { Content } from '../content.js';
 import { defineTool, MAX_RESULT_BYTES } from '../tool.js';
 
-// The offline reference: the guides and the Admin API's OpenAPI document as
-// they were when this server was released. Read only, no network.
+// The offline reference: the guides and the OpenAPI documents of the Admin
+// API and the developer API as they were when this server was released.
+// Read only, no network.
 
 /** What a rendering may take, leaving room for the answer around it. */
 const RENDER_BUDGET = MAX_RESULT_BYTES - 1_024;
@@ -164,17 +167,30 @@ const operationSummary = z.object({
   summary: z.string(),
 });
 
+const API_NAMES = ['admin', 'developer'] as const;
+
+/** The APIs to look in: the one asked for, else the Admin API first. */
+function apisOf(content: Content, api: ApiName | undefined): ApiIndex[] {
+  if (api === 'admin') return [content.api];
+  if (api === 'developer') return [content.developerApi];
+  return [content.api, content.developerApi];
+}
+
 export const getApiOperation = defineTool({
   name: 'get_api_operation',
-  title: 'Look up the Tassyir Admin API',
+  title: 'Look up the Tassyir Admin API and developer API',
   description: [
     'Look up the Tassyir Admin API (version 2026-10, the OpenAPI document @tassyir/app is',
-    'typed from): one operation, one component schema, or, with no argument, every',
-    'operation. `operation` takes an operationId (createBulkExport) or a method and path',
-    '(POST /bulk/exports, GET /orders/{id}, with or without the /apps/2026-10 prefix). It',
-    'answers the scope and permission, parameters, request body, success answers and every',
-    "error `code` per status. `sdkPath` is the path @tassyir/app's AdminClient takes",
-    "(admin.post('/bulk/exports', …)). A `$ref` names a component: read it with `schema`.",
+    'typed from) or, with api "developer", the developer API (what the tassyir CLI calls:',
+    'apps, versions, client secrets, dev stores, the webhook console, the CLI sign-in): one',
+    'operation, one component schema, or, with no operation or schema, every operation of',
+    'that API. `operation` takes an operationId (createBulkExport, listDeveloperApps) or a',
+    'method and path (POST /bulk/exports, GET /orders/{id} with or without the /apps/2026-10',
+    'prefix; GET /developer/apps). It answers the scope and permission (or the credential),',
+    'parameters, request body, success answers and every error `code` per status (`shapes`:',
+    "the bodies a status may have, some without a code). `sdkPath` is the path @tassyir/app's",
+    "AdminClient takes (admin.post('/bulk/exports', …)). A `$ref` names a component: read it",
+    'with `schema` and the `api` the answer names.',
   ].join(' '),
   annotations: {
     readOnlyHint: true,
@@ -194,14 +210,25 @@ export const getApiOperation = defineTool({
       .max(100)
       .optional()
       .describe(
-        'A component schema name, as a $ref names it: Order, BulkExport, Problem, …',
+        'A component schema name, as a $ref names it: Order, BulkExport, Problem, DeveloperApp, …',
+      ),
+    api: z
+      .enum(API_NAMES)
+      .optional()
+      .describe(
+        'admin (an installed app calls it) or developer (the tassyir CLI calls it). Default: the operation or schema is looked up in admin, then developer; with neither, the list is admin.',
       ),
   }),
   output: z.object({
+    api: z
+      .enum(API_NAMES)
+      .describe(
+        'The API this answer is from: pass it with `schema` to read a schema it names.',
+      ),
     operations: z
       .array(operationSummary)
       .optional()
-      .describe('With no argument: every operation.'),
+      .describe('With no operation or schema: every operation of the API.'),
     operation: z.record(z.string(), z.unknown()).optional(),
     schema: z.object({ name: z.string(), definition: z.unknown() }).optional(),
     schemas: z
@@ -213,33 +240,39 @@ export const getApiOperation = defineTool({
         'True when descriptions or nesting were cut to fit: ask for a named schema to see more.',
       ),
   }),
-  async run({ operation, schema }, context) {
-    const { api } = await context.content();
+  async run({ operation, schema, api: asked }, context) {
+    const content = await context.content();
+    const apis = apisOf(content, asked);
     if (operation !== undefined && schema !== undefined) {
       throw invalidArgument('Pass operation or schema, not both.');
     }
     if (operation !== undefined) {
+      const found = findOperationIn(apis, operation);
       const rendered = renderOperation(
-        api,
-        findOperation(api, operation),
+        found.index,
+        found.operation,
         RENDER_BUDGET,
       );
       return {
+        api: found.index.name,
         operation: rendered.value,
         schemas: rendered.refs,
         shortened: rendered.shortened,
       };
     }
     if (schema !== undefined) {
-      const name = findSchema(api, schema);
-      const rendered = renderSchema(api, name, RENDER_BUDGET);
+      const { index, name } = findSchemaIn(apis, schema);
+      const rendered = renderSchema(index, name, RENDER_BUDGET);
       return {
+        api: index.name,
         schema: { name, definition: rendered.value },
         schemas: rendered.refs,
         shortened: rendered.shortened,
       };
     }
+    const api = asked === 'developer' ? content.developerApi : content.api;
     return {
+      api: api.name,
       operations: api.operations.map((candidate) => ({
         id: candidate.id,
         method: candidate.method,
