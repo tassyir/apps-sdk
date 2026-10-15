@@ -55,6 +55,7 @@ Node 22 (`.nvmrc`; the build tool needs 22.18 or later). Install with `npm ci`.
 | `npm run check:guides`   | Every TypeScript sample of `docs/guides`, typechecked against the tarballs       |
 | `npm run guides:errors`  | Rewrites the generated part of `docs/guides/errors.md` from the OpenAPI document |
 | `npm run pack:dry-run`   | `npm pack --dry-run` of every package                                            |
+| `npm run plugin:sync`    | Brings the Claude Code plugin in step: its dev MCP version and its skill         |
 | `npx changeset`          | Record a change for the next release                                             |
 
 ## Layout
@@ -69,6 +70,11 @@ packages/<folder>/          one package; <folder> = the name without its scope
 scripts/                    repo checks and the GitHub Packages mirror
   lib/                      their pure parts, with tests
 .changeset/                 pending changesets and the Changesets config
+.claude-plugin/             the Claude Code marketplace (marketplace.json)
+plugins/tassyir/            its one plugin: .mcp.json runs the released
+                            @tassyir/dev-mcp, skills/ holds the starter's
+                            tassyir-app skill (scripts/plugin.test.mjs keeps
+                            both equal to the packages; npm run plugin:sync)
 .github/workflows/          ci.yml (every PR), release.yml (main)
 docs/RELEASING.md           how a release runs; the owner's one-time setup
 docs/APP_MANIFEST.md        how @tassyir/app-manifest stays equal to the API

@@ -1,0 +1,15 @@
+{
+  "name": "tassyir",
+  "description": "Claude Code plugins for building apps on Tassyir.",
+  "owner": {
+    "name": "Tassyir"
+  },
+  "plugins": [
+    {
+      "name": "tassyir",
+      "source": "./plugins/tassyir",
+      "description": "Build a Tassyir app with Claude Code: the Tassyir developer MCP server (@tassyir/dev-mcp) and the tassyir-app skill, the app contract.",
+      "category": "development"
+    }
+  ]
+}

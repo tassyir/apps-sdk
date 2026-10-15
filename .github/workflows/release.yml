@@ -77,8 +77,12 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
+      # `changeset version`, then `npm run plugin:sync`: the Claude Code
+      # plugin's .mcp.json moves with @tassyir/dev-mcp's version.
       - name: Version packages and open or update the PR
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          script: npm run release:version
 
   pack:
     needs: select-mode
