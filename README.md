@@ -101,7 +101,7 @@ API's OpenAPI document. Published to npm only.
 [`packages/create-tassyir-app`](packages/create-tassyir-app) (AP-K1.7). The
 starter: `npm create tassyir-app@latest my-app`. Its one template today,
 `external`, is an app on your own server: Node 22 and Hono, the embedded page
-on `@tassyir/app-bridge`, token exchange and the Admin API through
+on `@tassyir/app-bridge` and `@tassyir/ui`, token exchange and the Admin API through
 `@tassyir/app` with an encrypted file token store, a webhook endpoint that
 verifies the raw body, and a `tassyir.app.toml` that `@tassyir/app-manifest`
 validates. It comes with an `AGENTS.md`, a `CLAUDE.md` and a `tassyir-app`

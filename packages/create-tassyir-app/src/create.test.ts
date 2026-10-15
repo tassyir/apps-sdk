@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import appPackage from '../../app/package.json' with { type: 'json' };
 import appBridgePackage from '../../app-bridge/package.json' with { type: 'json' };
 import appManifestPackage from '../../app-manifest/package.json' with { type: 'json' };
+import uiPackage from '../../ui/package.json' with { type: 'json' };
 import { createProject, handleFromFolder, nameFromHandle } from './create.js';
 import { CreateError } from './errors.js';
 import { TEMPLATE_DEPENDENCIES } from './templates.js';
@@ -95,6 +96,7 @@ describe('createProject', () => {
       '@tassyir/app': `^${appPackage.version}`,
       '@tassyir/app-bridge': `^${appBridgePackage.version}`,
       '@tassyir/app-manifest': `^${appManifestPackage.version}`,
+      '@tassyir/ui': `^${uiPackage.version}`,
     });
     expect(manifest.name).toBe('my-app');
     expect(manifest.dependencies['@tassyir/app']).toBe(
@@ -105,6 +107,10 @@ describe('createProject', () => {
     );
     expect(manifest.devDependencies['@tassyir/app-manifest']).toBe(
       TEMPLATE_DEPENDENCIES['@tassyir/app-manifest'],
+    );
+    // The page is bundled: @tassyir/ui and App Bridge are build-time only.
+    expect(manifest.devDependencies['@tassyir/ui']).toBe(
+      TEMPLATE_DEPENDENCIES['@tassyir/ui'],
     );
     for (const [name, spec] of Object.entries({
       ...manifest.dependencies,

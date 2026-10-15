@@ -26,3 +26,37 @@ export function normalizeAmount(amount: string): string | null {
   const cents = toCents(amount);
   return cents === null ? null : fromCents(cents);
 }
+
+const DZD = {
+  // The dashboard's own money voice: "DZD 9,000" in English, "9.000 دج" in
+  // Arabic; whole amounts without decimals, others with up to two.
+  en: new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'DZD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }),
+  ar: new Intl.NumberFormat('ar-DZ', {
+    numberingSystem: 'latn',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }),
+};
+
+/**
+ * An amount for people, as the dashboard writes it: "DZD 7,500" (en),
+ * "7.500 دج" (ar). The decimal string goes to Intl as it is (exact, no
+ * float). Another currency, or text that is not an amount, reads
+ * "<amount> <currency>".
+ */
+export function formatAmount(
+  amount: string,
+  currency: string,
+  locale: string,
+): string {
+  if (currency !== 'DZD' || toCents(amount) === null) {
+    return `${amount} ${currency}`;
+  }
+  const value = amount.trim() as `${number}`;
+  return locale === 'ar' ? `${DZD.ar.format(value)} دج` : DZD.en.format(value);
+}

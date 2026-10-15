@@ -116,7 +116,7 @@ update in the dev store: Apps, Installed apps, Update.
 | `src/app.ts`       | Routes: `/health`, `/webhooks`, `/api/*`, the page      |
 | `src/webhooks.ts`  | Verifies and handles webhook deliveries                 |
 | `src/store.ts`     | Tokens (encrypted), installations, handled deliveries   |
-| `src/page/`        | The page in the dashboard (App Bridge)                  |
+| `src/page/`        | The page in the dashboard (App Bridge, `@tassyir/ui`)   |
 | `test/`            | Specs, with a fake Tassyir API (no network)             |
 
 | Script              | What it does                                |

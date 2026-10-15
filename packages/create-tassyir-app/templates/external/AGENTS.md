@@ -12,8 +12,8 @@ A [Tassyir](https://tassyir.io) app on its own server ("external" hosting),
 made with `create-tassyir-app`. A merchant installs it on a business; it then:
 
 - shows a page inside the Tassyir dashboard (`src/page`, framed at
-  `admin.page`), which lists the business's pending orders and keeps one
-  setting;
+  `admin.page`, drawn with `@tassyir/ui`), which lists the business's
+  pending orders and keeps one setting;
 - calls the Tassyir Admin API through `@tassyir/app` (`src/app.ts`);
 - receives signed webhooks (`src/webhooks.ts`);
 - keeps each installation's tokens in a small encrypted file store
@@ -48,7 +48,7 @@ src/app.ts              the HTTP routes (Hono, Web-standard): /health, /webhooks
 src/webhooks.ts         verifies a delivery on the raw body, dedupes, handles each topic
 src/store.ts            the file store: tokens (encrypted), installations, handled webhook-ids
 src/config.ts           environment variables, every problem reported with a fix
-src/page/               the embedded page (browser): app.ts, app.css, index.html, own tsconfig
+src/page/               the embedded page (browser): app.ts, index.html, own tsconfig
 src/shared/money.ts     decimal-string money, used by the server and the page
 scripts/                dev, build, setup, validate (run by Node, TypeScript)
 test/                   Vitest specs; test/helpers.ts fakes the Tassyir API and signs like Tassyir
@@ -85,7 +85,16 @@ those three files only.
 - **Verify webhooks on the raw body.** Never put a JSON body parser in front
   of `/webhooks`, never re-serialise the body.
 - **Money is a decimal string** (`"2500.00"`). Use `src/shared/money.ts`;
-  never `parseFloat` or `Number()` an amount to compute with it.
+  never `parseFloat` or `Number()` an amount to compute with it. Show it
+  with `formatAmount` (`DZD 7,500`, `7.500 دج`), as the dashboard does.
+- **The page looks like the dashboard.** Build it from `@tassyir/ui`'s
+  elements (`<tsy-table>`, `<tsy-card>`, `<tsy-text-field>`,
+  `<tsy-status-pill>`, …) and its tokens (`var(--tsy-color-…)`, never a
+  hex code); one primary button per view, a status is a pill; logical CSS
+  only (`margin-inline-start`), so Arabic reads right to left. Toasts, the
+  save bar, modals and pickers are App Bridge calls. The page's own CSS is
+  the `layout` sheet in `src/page/app.ts` (constructable, so the
+  Content-Security-Policy stays `style-src 'self'`: no inline style).
 - **Act on error `code`s, show `fix` to the developer**, never parse
   `message` or `detail`.
 - **Webhooks are at least once, in any order:** keep handlers idempotent;
@@ -122,6 +131,13 @@ type: 'product' })`, `bridge.saveBar.*`: see the skill and
 `@tassyir/app-bridge`'s README. Call the server through `api()` in
 `src/page/app.ts`, which adds a fresh ID token.
 
+**Add to the page.** Use an element of `@tassyir/ui` (its README lists
+each one's attributes): `el('tsy-card', { heading }, …)`,
+`el('tsy-button', { variant: 'primary' }, label)`. `followDashboardContext`
+already puts the dashboard's language, direction and theme on `<html>`;
+the elements follow them, and `MESSAGES` holds the page's own words in
+Arabic and English.
+
 **Run several processes or use a database.** Replace `FileStore` with a
 class implementing `AppStore` on your database (keep the `TokenStore`
 contract: `set` durable when it resolves, `get` returns the latest `set`),
@@ -141,7 +157,7 @@ a real token, secret or business id into a test.
 
 ## References
 
-- `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`: their
-  READMEs in `node_modules/@tassyir/*/README.md`, or
+- `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`,
+  `@tassyir/ui`: their READMEs in `node_modules/@tassyir/*/README.md`, or
   https://github.com/tassyir/apps-sdk.
 - The developer console: https://app.tassyir.io/en/developers.
