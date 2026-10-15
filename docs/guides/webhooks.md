@@ -41,11 +41,12 @@ accepts the version that adds it.
 | `customers/updated`                                                                                | a customer reads differently                                  | `customer`                                    | `read_customers` |
 | `app/installed`, `app/uninstalled`, `app/scopes_updated`                                           | your installation is created, removed, or its scopes change   | `installation`                                | none             |
 | `customers/data_request`, `customers/redact`, `business/redact`                                    | buyer data requests and the deletion after uninstall          | see [Compliance](compliance-and-uninstall.md) | none             |
+| `bulk/finished`                                                                                    | a bulk export your installation asked for is done, or failed  | `bulkExport`                                  | none             |
 
-- **`app/*` and `business/redact` reach only the installation they are
-  about**, never another app. Every other topic reaches each active
-  installation of the business that subscribes to it and was granted its
-  scope.
+- **`app/*`, `business/redact` and `bulk/finished` reach only the
+  installation they are about**, never another app. Every other topic
+  reaches each active installation of the business that subscribes to it and
+  was granted its scope.
 - **An installation limited to selected stores** receives order, checkout,
   product and stock events of its stores only. Customer events carry that
   installation's stores' counters.

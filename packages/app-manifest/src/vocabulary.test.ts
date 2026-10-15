@@ -149,6 +149,7 @@ describe('rules that depend on the shipped vocabulary', () => {
       'customers/data_request',
       'customers/redact',
       'business/redact',
+      'bulk/finished',
     ]);
   });
 

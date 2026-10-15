@@ -395,6 +395,68 @@ describe('AdminClient retries', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('retries 429 BULK_EXPORT_RATE_LIMITED after Retry-After, and gives up past maxDelayMs (AP-B1.8)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const EXPORT = { id: '7', resource: 'orders', status: 'queued' };
+    const { admin, calls } = client(
+      (_url, _init, index) =>
+        index === 0
+          ? problem(
+              429,
+              'BULK_EXPORT_RATE_LIMITED',
+              { limit: 5, retryAfter: 2 },
+              { 'retry-after': '2' },
+            )
+          : jsonResponse(201, { data: EXPORT }),
+      { retries: 3 },
+    );
+    const result = admin.post('/bulk/exports', {
+      body: { resource: 'orders' },
+    });
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toMatchObject({ data: { id: '7' } });
+    expect(calls).toHaveLength(2);
+    // The same Idempotency-Key on the retry: the API answers one export.
+    expect(headerOf(calls[1], 'idempotency-key')).toBe(
+      headerOf(calls[0], 'idempotency-key'),
+    );
+
+    const hourly = client(
+      () =>
+        problem(
+          429,
+          'BULK_EXPORT_RATE_LIMITED',
+          { limit: 5, retryAfter: 1_800 },
+          { 'retry-after': '1800' },
+        ),
+      { retries: 3 },
+    );
+    await expect(
+      hourly.admin.post('/bulk/exports', { body: { resource: 'products' } }),
+    ).rejects.toMatchObject({
+      code: 'BULK_EXPORT_RATE_LIMITED',
+      retryAfterSeconds: 1_800,
+    });
+    expect(hourly.calls).toHaveLength(1);
+  });
+
+  it('never retries 503 BULK_EXPORTS_NOT_CONFIGURED or 409 BULK_EXPORT_IN_PROGRESS', async () => {
+    for (const [status, code] of [
+      [503, 'BULK_EXPORTS_NOT_CONFIGURED'],
+      [409, 'BULK_EXPORT_IN_PROGRESS'],
+    ] as const) {
+      const { admin, calls } = client(() => problem(status, code), {
+        retries: 3,
+      });
+      await expect(
+        admin.post('/bulk/exports', { body: { resource: 'customers' } }),
+      ).rejects.toMatchObject({ status, code });
+      expect(calls).toHaveLength(1);
+    }
+  });
+
   it('gives up when Retry-After is longer than maxDelayMs', async () => {
     const { admin, calls } = client(
       () => problem(503, 'SERVICE_UNAVAILABLE', {}, { 'retry-after': '120' }),
@@ -528,6 +590,12 @@ describe('AdminClient types (checked by tsc)', () => {
     expectTypeOf<'IMAGE_QUOTA_REACHED' | 'IMAGE_FETCH_FAILED'>().toExtend<
       AdminApiErrorCode<'post', '/images'>
     >();
+    // AP-B1.8: bulk exports and their limits.
+    expectTypeOf<
+      | 'BULK_EXPORT_IN_PROGRESS'
+      | 'BULK_EXPORT_RATE_LIMITED'
+      | 'BULK_EXPORTS_NOT_CONFIGURED'
+    >().toExtend<AdminApiErrorCode<'post', '/bulk/exports'>>();
 
     // Compiled, never run.
     const misuses = (admin: AdminClient) => {

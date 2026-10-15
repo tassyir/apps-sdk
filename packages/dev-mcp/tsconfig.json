@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    // Typecheck and lint against the workspace packages' source: their dist/
+    // only exists after `npm run build`, which runs after this check. The
+    // build and the published package use the real dependencies.
+    "paths": {
+      "@tassyir/app-manifest": ["../app-manifest/src/index.ts"],
+      "create-tassyir-app": ["../create-tassyir-app/src/index.ts"],
+      "tassyir": ["../cli/src/index.ts"]
+    }
+  },
+  "include": ["src", "scripts", "tsdown.config.ts"]
+}

@@ -62,6 +62,10 @@
       "description": "Images re-hosted on the Tassyir CDN, for the product and collection writes."
     },
     {
+      "name": "Bulk exports",
+      "description": "A whole list (orders, products, customers) as one JSON Lines file, instead of paging through it."
+    },
+    {
       "name": "Webhooks",
       "description": "What Tassyir POSTs to the app."
     }
@@ -9958,6 +9962,761 @@
         "x-tassyir-scope": "write_products"
       }
     },
+    "/apps/2026-10/bulk/exports": {
+      "post": {
+        "operationId": "createBulkExport",
+        "tags": [
+          "Bulk exports"
+        ],
+        "summary": "Export a whole list",
+        "description": "Starts an export of every row the list route of `resource` returns (with these `filters`, the list's own), as one JSON Lines file: one resource per line, exactly as the list returns it, newest first. It runs in the background: read `GET /bulk/exports/{id}` or subscribe to `bulk/finished`; once `completed`, download the file from `url` (7 days). 1 export queued or running per installation, 5 asked for per business (every app together) in any hour. Send an `Idempotency-Key`: a retry then answers the same export.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBulkExportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Queued.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `BULK_EXPORT_IN_PROGRESS`, `IDEMPOTENCY_KEY_IN_USE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "BULK_EXPORT_IN_PROGRESS",
+                            "IDEMPOTENCY_KEY_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited: `BULK_EXPORT_RATE_LIMITED`, `BUSINESS_RATE_LIMITED`, `RATE_LIMITED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 429
+                        },
+                        "code": {
+                          "enum": [
+                            "BULK_EXPORT_RATE_LIMITED",
+                            "BUSINESS_RATE_LIMITED",
+                            "RATE_LIMITED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "460": {
+            "description": "Store outside the installation: `STORE_SCOPE_FORBIDDEN`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 460
+                        },
+                        "code": {
+                          "enum": [
+                            "STORE_SCOPE_FORBIDDEN"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Unavailable: `API_BUSY`, `BULK_EXPORTS_NOT_CONFIGURED`, `IDEMPOTENCY_UNAVAILABLE`, `SERVICE_UNAVAILABLE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 503
+                        },
+                        "code": {
+                          "enum": [
+                            "API_BUSY",
+                            "BULK_EXPORTS_NOT_CONFIGURED",
+                            "IDEMPOTENCY_UNAVAILABLE",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-tassyir-permission": null,
+        "x-tassyir-scope": null,
+        "x-tassyir-permission-by-resource": {
+          "orders": "orders:read",
+          "products": "products:read",
+          "customers": "customers:read"
+        }
+      },
+      "get": {
+        "operationId": "listBulkExports",
+        "tags": [
+          "Bulk exports"
+        ],
+        "summary": "List the installation's exports",
+        "description": "Newest first, kept 30 days. Only the lists whose read permission the caller holds; an online token sees only the exports its own user asked for.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "orders",
+                "products",
+                "customers"
+              ]
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `resource`, `format`, `status`, `filters`, `rowCount`, `byteCount`, `contactFields`, `url`, `urlExpiresAt`, `errorCode`, `createdAt`, `startedAt`, `finishedAt`."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100 (default 50). A value outside that range is 400, never clamped."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters. Opaque; bound to this list and its filters (400 `INVALID_CURSOR` otherwise)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of exports.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkExportPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_CURSOR`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_CURSOR",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": null,
+        "x-tassyir-scope": null,
+        "x-tassyir-permission-by-resource": {
+          "orders": "orders:read",
+          "products": "products:read",
+          "customers": "customers:read"
+        }
+      }
+    },
+    "/apps/2026-10/bulk/exports/{id}": {
+      "get": {
+        "operationId": "getBulkExport",
+        "tags": [
+          "Bulk exports"
+        ],
+        "summary": "Get an export",
+        "description": "Where it stands, and its download `url` once `completed`. Poll it at most every few seconds, or subscribe to `bulk/finished`.\n\nThe scope depends on the list exported: `orders` needs the `read_orders` scope (permission `orders:read`); `products` needs the `read_products` scope (permission `products:read`); `customers` needs the `read_customers` scope (permission `customers:read`).\n\nReference: docs/api/apps/bulk-exports.md.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `resource`, `format`, `status`, `filters`, `rowCount`, `byteCount`, `contactFields`, `url`, `urlExpiresAt`, `errorCode`, `createdAt`, `startedAt`, `finishedAt`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": null,
+        "x-tassyir-scope": null,
+        "x-tassyir-permission-by-resource": {
+          "orders": "orders:read",
+          "products": "products:read",
+          "customers": "customers:read"
+        }
+      }
+    },
     "/apps/oauth/token": {
       "post": {
         "operationId": "requestAccessToken",
@@ -12172,6 +12931,107 @@
         },
         "x-tassyir-scope": null
       }
+    },
+    "bulk/finished": {
+      "post": {
+        "operationId": "onBulkFinished",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "bulk/finished",
+        "description": "A bulk export this installation asked for finished: `completed` (download it from `url`) or `failed` (`errorCode`). Sent only to that installation.\n\nAbout the installation itself: sent to that installation only.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation. Reference: docs/api/apps/events.md, docs/api/apps/webhooks.md.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "webhook-id",
+            "in": "header",
+            "required": true,
+            "description": "`dlv_<delivery id>`: one per event per installation, the same on every retry. Deduplicate on it. A test delivery from the developer console is `dlv_test_<24 hex>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^dlv_(\\d+|test_[0-9a-f]{24})$"
+            }
+          },
+          {
+            "name": "webhook-timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix seconds of this attempt.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "webhook-signature",
+            "in": "header",
+            "required": true,
+            "description": "`v1a,<base64 Ed25519 signature>` of `{webhook-id}.{webhook-timestamp}.{raw body}`, one per active key, space-separated during a key rotation. Keys: `GET /apps/webhook-keys`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-topic",
+            "in": "header",
+            "required": true,
+            "description": "The topic, e.g. `orders/created`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-business-id",
+            "in": "header",
+            "required": true,
+            "description": "The installation's business.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-api-version",
+            "in": "header",
+            "required": true,
+            "description": "The version the body follows (the installation's pinned version's).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-test",
+            "in": "header",
+            "required": false,
+            "description": "`true` on a test delivery sent from the developer console (a sample body, envelope id `evt_0`); absent on every real delivery.",
+            "schema": {
+              "type": "string",
+              "const": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookBulkFinished"
+              }
+            }
+          }
+        },
+        "responses": {
+          "410": {
+            "description": "Gone: the installation's webhooks are disabled at once, every topic."
+          },
+          "2XX": {
+            "description": "Delivered. Answer within 10 s (the body is never read); do slow work after answering."
+          },
+          "default": {
+            "description": "Anything else (3xx, 4xx, 5xx, a timeout) is retried after 5 s, 5 min, 30 min, 2 h, 5 h, 10 h, 14 h, 20 h, 24 h: at most 10 attempts. A longer `Retry-After` is honoured (at most 24 h). 3 days of continuous failure disable the installation's webhooks."
+          }
+        },
+        "x-tassyir-scope": null
+      }
     }
   },
   "components": {
@@ -12719,6 +13579,297 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AppData"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "BulkExport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "resource": {
+            "type": "string",
+            "enum": [
+              "orders",
+              "products",
+              "customers"
+            ],
+            "description": "The list exported: every row its list route would return."
+          },
+          "format": {
+            "type": "string",
+            "const": "jsonl",
+            "description": "One resource per line (JSON Lines), exactly as the list returns it, in the list order (newest first)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "expired"
+            ],
+            "description": "`queued`, then `running`, then `completed` or `failed`; a completed export is `expired` 7 days after it finished (the file is gone)."
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "description": "Orders: the statuses, comma-separated, as on the list.",
+                "type": "string"
+              },
+              "createdSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              "updatedSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              "storeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              "collectionId": {
+                "description": "Products: the members of one collection.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "active": {
+                "description": "Products: active or not.",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "description": "The list filters the export applies, as the resource's list route names them."
+          },
+          "rowCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Rows written so far (final once completed)."
+          },
+          "byteCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Bytes written so far: the file size once completed."
+          },
+          "contactFields": {
+            "type": "boolean",
+            "description": "The file holds buyer contact fields (the installation had `read_customer_contact` when it ran)."
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Download the file here (a GET, no Authorization header). Null unless `completed`, and when the file holds contact fields this installation can no longer read."
+          },
+          "urlExpiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When `url` stops working: 7 days after `finishedAt`."
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a `failed` export failed: `ACCESS_REVOKED`, `PERMISSION_DENIED`, `STORE_SCOPE_FORBIDDEN`, `EXPORT_TOO_LARGE`, `STORAGE_NOT_CONFIGURED`, `STORAGE_FAILED`, `TIMED_OUT` or `INTERNAL_ERROR`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "resource",
+          "format",
+          "status",
+          "filters",
+          "rowCount",
+          "byteCount",
+          "contactFields",
+          "url",
+          "urlExpiresAt",
+          "errorCode",
+          "createdAt",
+          "startedAt",
+          "finishedAt"
+        ],
+        "additionalProperties": false,
+        "description": "A bulk export of one Admin API list (API 2026-10)."
+      },
+      "BulkExportFiltersInput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "An ISO 8601 date or date and time, e.g. 2026-10-13T09:00:00Z."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "An ISO 8601 date or date and time, e.g. 2026-10-13T09:00:00Z."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,24}$",
+                "description": "An id (a string of digits)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "collectionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,24}$",
+                "description": "An id (a string of digits)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BulkExportPage": {
+        "type": "object",
+        "description": "One page, newest first. Pass `nextCursor` back as `cursor` for the next one.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkExport"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on the last page."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "BulkExportResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkExport"
           }
         },
         "required": [
@@ -13607,6 +14758,33 @@
           "data"
         ],
         "additionalProperties": false
+      },
+      "CreateBulkExportInput": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "enum": [
+              "orders",
+              "products",
+              "customers"
+            ]
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BulkExportFiltersInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "resource"
+        ]
       },
       "CreateCollectionInput": {
         "type": "object",
@@ -17627,6 +18805,97 @@
         "additionalProperties": false,
         "title": "app/uninstalled (2026-10)",
         "description": "The app was uninstalled; its tokens are already revoked."
+      },
+      "WebhookBulkFinished": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_\\d{1,25}$",
+            "description": "Event id. Deduplicate on the `webhook-id` header."
+          },
+          "type": {
+            "type": "string",
+            "const": "bulk/finished"
+          },
+          "apiVersion": {
+            "type": "string",
+            "const": "2026-10"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the event happened."
+          },
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "storeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "changed": {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Top-level fields of the resource that changed; may be empty."
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "bulkExport": {
+                "$ref": "#/components/schemas/BulkExport"
+              }
+            },
+            "required": [
+              "bulkExport"
+            ],
+            "additionalProperties": false,
+            "description": "The resource as it was when the body was built, masked for this installation. Re-read it when unsure."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "apiVersion",
+          "createdAt",
+          "businessId",
+          "storeId",
+          "appId",
+          "installationId",
+          "changed",
+          "data"
+        ],
+        "additionalProperties": false,
+        "title": "bulk/finished (2026-10)",
+        "description": "A bulk export this installation asked for finished: `completed` (download it from `url`) or `failed` (`errorCode`). Sent only to that installation."
       },
       "WebhookBusinessRedact": {
         "type": "object",
