@@ -3,8 +3,8 @@ import type { AdminClientOptions } from './admin-client.js';
 import { TassyirError, TassyirVerificationError } from './errors.js';
 import type { FetchLike } from './http.js';
 import { isRecord } from './http.js';
-import type { WebhookKeys } from './keys.js';
-import { verifyDelivery } from './webhooks.js';
+import { WebhookKeys } from './keys.js';
+import { verifyWebhookRequest } from './webhooks.js';
 import type { VerifiedWebhook, VerifyWebhookOptions } from './webhooks.js';
 
 // Tassyir Hosting (plan §3.4 "Hosted apps hold no token", AP-B1.15/B1.16):
@@ -299,52 +299,66 @@ export function hostedAdmin(
   });
 }
 
-export interface VerifyHostedWebhookOptions extends Pick<
-  VerifyWebhookOptions,
-  'testDeliveries' | 'toleranceSeconds' | 'now'
-> {
-  /**
-   * Tassyir's webhook public keys, when you hold them
-   * (`WebhookKeys.fromPublicKeys([...])`): the signature is then verified as
-   * `verifyWebhook` does. Without them the dispatcher's word stands for it
-   * (see `verifyHostedWebhook`): a hosted Worker cannot fetch
-   * `/apps/webhook-keys` itself (its egress refuses every Tassyir host).
-   */
-  keys?: WebhookKeys;
+/**
+ * Tassyir's webhook public keys as a hosted app reads them: through
+ * `ctx.props.TASSYIR` (`GET /apps/webhook-keys`, which the binding passes
+ * to the API untouched; a hosted Worker's own `fetch()` never reaches a
+ * Tassyir host). Make one PER REQUEST, from that request's `ctx.props`: the
+ * binding belongs to its request, and a key source kept in a module
+ * variable would fetch through a dead one. Cheap: Tassyir Hosting answers
+ * the document from memory. `verifyHostedWebhook` does this by default.
+ */
+export function hostedWebhookKeys(
+  props: Pick<HostedProps, 'TASSYIR'> | TassyirBinding,
+): WebhookKeys {
+  const binding = 'TASSYIR' in props ? props.TASSYIR : props;
+  if (typeof binding.fetch !== 'function') {
+    throw propsMissing('TASSYIR is missing');
+  }
+  return WebhookKeys.remote({ fetch: bindingFetch(binding) });
 }
 
-export interface HostedVerifiedWebhook extends VerifiedWebhook {
-  /** True when `keys` verified the signature; false when the dispatcher's word stood for it. */
-  signatureVerified: boolean;
-}
+export type VerifyHostedWebhookOptions = Pick<
+  VerifyWebhookOptions,
+  'testDeliveries' | 'toleranceSeconds' | 'now'
+> & {
+  /**
+   * The keys that verify the signature. Default: Tassyir's published keys,
+   * read through this request's `ctx.props.TASSYIR` (`hostedWebhookKeys`).
+   * Pass `WebhookKeys.fromPublicKeys([...])` in tests.
+   */
+  keys?: WebhookKeys;
+};
 
 /**
  * A webhook delivery to a hosted app (`POST <the manifest's webhook path>`),
- * checked by every rule of `verifyWebhook` with `appId` and the installation
- * taken from `ctx.props`. Throws `TassyirVerificationError`: answer 400 and
- * do not process it.
+ * checked by every rule of `verifyWebhook` (unchanged), with `appId` and the
+ * installation taken from `ctx.props`. Throws `TassyirVerificationError`:
+ * answer 400 and do not process it. `KEYS_UNAVAILABLE` and
+ * `KEYS_NOT_CONFIGURED` (the keys could not be read): answer 503, and
+ * Tassyir delivers it again later.
  *
  * How a hosted app receives webhooks: the API sends the delivery (the same
  * headers, `v1a` signature and body as to an external app) to Tassyir
- * Hosting's dispatcher, signed with a key only the API and the dispatcher
- * hold, each delivery once; the dispatcher runs the installation's version
- * with `viewer: null` and POSTs it to the app. A page request always has a
- * viewer, and nothing else on the internet reaches the Worker. So:
+ * Hosting, which runs the installation's version with `viewer: null` and
+ * POSTs it to the app. So:
  *
- * - a request with a viewer is refused `WEBHOOK_NOT_A_DELIVERY`;
+ * - a request with a viewer (a page of the app) is refused
+ *   `WEBHOOK_NOT_A_DELIVERY`;
+ * - the signature is verified with Tassyir's published keys, read through
+ *   `ctx.props.TASSYIR` (or `keys`); never skipped;
  * - the envelope must name this installation, its business and its app;
  * - the timestamp (5 minutes), the test-delivery rule and the `tassyir-*`
- *   headers are checked as for any delivery, and a `v1a` signature must be
- *   there; it is verified when `keys` are given.
+ *   headers are checked as for any delivery.
  *
- * Deduplicate on `delivery.id` (`webhook-id`), as everywhere: delivery is at
- * least once. Reads the body: do not read it before.
+ * Deduplicate on `delivery.id` (`webhook-id`), or keep handlers idempotent:
+ * delivery is at least once. Reads the body: do not read it before.
  */
 export async function verifyHostedWebhook(
   request: Request,
-  props: Pick<HostedProps, 'installation' | 'viewer'>,
+  props: Pick<HostedProps, 'installation' | 'viewer' | 'TASSYIR'>,
   options: VerifyHostedWebhookOptions = {},
-): Promise<HostedVerifiedWebhook> {
+): Promise<VerifiedWebhook> {
   if (props.viewer !== null) {
     throw new TassyirVerificationError(
       'WEBHOOK_NOT_A_DELIVERY',
@@ -355,18 +369,14 @@ export async function verifyHostedWebhook(
     );
   }
   const { installation } = props;
-  const delivery = await verifyDelivery(
-    { headers: request.headers, body: await request.arrayBuffer() },
-    {
-      appId: installation.appId,
-      installationId: (installationId, event) =>
-        installationId === installation.id &&
-        event.businessId === installation.businessId,
-      testDeliveries: options.testDeliveries,
-      toleranceSeconds: options.toleranceSeconds,
-      now: options.now,
-    },
-    options.keys ?? null,
-  );
-  return { ...delivery, signatureVerified: options.keys !== undefined };
+  return verifyWebhookRequest(request, {
+    keys: options.keys ?? hostedWebhookKeys(props),
+    appId: installation.appId,
+    installationId: (installationId, event) =>
+      installationId === installation.id &&
+      event.businessId === installation.businessId,
+    testDeliveries: options.testDeliveries,
+    toleranceSeconds: options.toleranceSeconds,
+    now: options.now,
+  });
 }

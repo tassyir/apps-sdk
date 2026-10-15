@@ -40,11 +40,14 @@ export interface AdminCall {
 
 /**
  * A fake Admin API in place of ctx.props.TASSYIR: records each call and
- * answers with `answer` (an order list by default).
+ * answers with `answer` (an order list by default). `GET /apps/webhook-keys`
+ * answers Tassyir's webhook keys, as Tassyir Hosting does: `webhookKeys`
+ * (`whpk_…`), or a refusal when there are none.
  */
 export function fakeTassyir(
   answer: (call: AdminCall) => Response = () =>
     Response.json({ data: [], nextCursor: null }),
+  webhookKeys: readonly string[] = [],
 ): TassyirBinding & { calls: AdminCall[] } {
   const calls: AdminCall[] = [];
   return {
@@ -58,6 +61,20 @@ export function fakeTassyir(
         body: await request.text(),
       };
       calls.push(call);
+      if (call.url === 'https://api.tassyir.io/apps/webhook-keys') {
+        return webhookKeys.length === 0
+          ? Response.json(
+              { code: 'APPS_KEYS_NOT_CONFIGURED', keySet: 'webhook' },
+              { status: 503 },
+            )
+          : Response.json({
+              keys: webhookKeys.map((publicKey, index) => ({
+                kid: `whk-test-${String(index)}`,
+                scheme: 'v1a',
+                publicKey,
+              })),
+            });
+      }
       return answer(call);
     },
   };

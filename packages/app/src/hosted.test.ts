@@ -4,6 +4,7 @@ import { TassyirApiError, TassyirError } from './errors.js';
 import {
   HOSTED_BINDING_ERRORS,
   hostedAdmin,
+  hostedWebhookKeys,
   readHostedProps,
   verifyHostedWebhook,
 } from './hosted.js';
@@ -305,37 +306,87 @@ function delivery(
 }
 
 const now = () => NOW;
-const noViewer = () => props({ viewer: null });
+
+/** A binding that serves Tassyir's webhook keys, as Tassyir Hosting does. */
+function keysBinding(
+  document: unknown = vectors.webhookKeys,
+): TassyirBinding & { calls: BindingCall[] } {
+  return binding(({ url, init }) =>
+    url === 'https://api.tassyir.io/apps/webhook-keys' &&
+    (init?.method ?? 'GET') === 'GET'
+      ? Response.json(document, {
+          headers: { 'cache-control': 'public, max-age=3600' },
+        })
+      : bindingProblem(400, 'HOSTED_PATH_NOT_ALLOWED'),
+  );
+}
+const delivered = (tassyir: TassyirBinding = keysBinding()) =>
+  props({ viewer: null, TASSYIR: tassyir });
 
 describe('verifyHostedWebhook', () => {
-  it("takes the dispatcher's delivery for this installation, and verifies the signature when given keys", async () => {
-    const plain = await verifyHostedWebhook(delivery(), noViewer(), { now });
-    expect(plain).toMatchObject({
+  it("verifies the signature with Tassyir's keys, read through ctx.props.TASSYIR", async () => {
+    const tassyir = keysBinding();
+    const verified = await verifyHostedWebhook(delivery(), delivered(tassyir), {
+      now,
+    });
+    expect(verified).toMatchObject({
       id: 'dlv_42',
       topic: 'orders/created',
       installationId: INSTALLATION.id,
       test: false,
-      signatureVerified: false,
     });
-
-    const keys = WebhookKeys.fromPublicKeys(vectors.webhookKeys);
-    const checked = await verifyHostedWebhook(delivery(), noViewer(), {
-      now,
-      keys,
-    });
-    expect(checked.signatureVerified).toBe(true);
+    expect(tassyir.calls.map((call) => call.url)).toEqual([
+      'https://api.tassyir.io/apps/webhook-keys',
+    ]);
+    // The signal stays on this side of the service binding.
+    expect(tassyir.calls[0]?.init && 'signal' in tassyir.calls[0].init).toBe(
+      false,
+    );
 
     const forged = new Request(delivery(), {
       body: JSON.stringify({ ...ENVELOPE, data: { order: { id: '2' } } }),
     });
     await expect(
-      verifyHostedWebhook(forged, noViewer(), { now, keys }),
+      verifyHostedWebhook(forged, delivered(), { now }),
     ).rejects.toMatchObject({ code: 'WEBHOOK_SIGNATURE_INVALID' });
+  });
+
+  it('fails closed when the keys cannot be read: KEYS_UNAVAILABLE, never unverified', async () => {
+    // The binding before it served the key documents (AP-B1.26a), or down.
+    const refusing = binding(() =>
+      bindingProblem(400, 'HOSTED_PATH_NOT_ALLOWED'),
+    );
+    await expect(
+      verifyHostedWebhook(delivery(), delivered(refusing), { now }),
+    ).rejects.toMatchObject({ code: 'KEYS_UNAVAILABLE' });
+    const unconfigured = binding(() =>
+      Response.json(
+        { code: 'APPS_KEYS_NOT_CONFIGURED', keySet: 'webhook' },
+        { status: 503 },
+      ),
+    );
+    await expect(
+      verifyHostedWebhook(delivery(), delivered(unconfigured), { now }),
+    ).rejects.toMatchObject({ code: 'KEYS_NOT_CONFIGURED' });
+  });
+
+  it('takes the keys it is given instead', async () => {
+    const tassyir = keysBinding();
+    const keys = WebhookKeys.fromPublicKeys(vectors.webhookKeys);
+    await expect(
+      verifyHostedWebhook(delivery(), delivered(tassyir), { now, keys }),
+    ).resolves.toMatchObject({ id: 'dlv_42' });
+    expect(tassyir.calls).toEqual([]);
+    expect(() => hostedWebhookKeys({} as TassyirBinding)).toThrow(
+      expect.objectContaining({ code: 'HOSTED_PROPS_MISSING' }),
+    );
   });
 
   it('refuses a request a member made from a page', async () => {
     await expect(
-      verifyHostedWebhook(delivery(), props(), { now }),
+      verifyHostedWebhook(delivery(), props({ TASSYIR: keysBinding() }), {
+        now,
+      }),
     ).rejects.toMatchObject({
       code: 'WEBHOOK_NOT_A_DELIVERY',
       fix: expect.stringContaining('viewer null') as unknown,
@@ -352,7 +403,7 @@ describe('verifyHostedWebhook', () => {
       const request = delivery(envelope);
       request.headers.delete('tassyir-business-id');
       await expect(
-        verifyHostedWebhook(request, noViewer(), { now }),
+        verifyHostedWebhook(request, delivered(), { now }),
         code,
       ).rejects.toMatchObject({ code });
     }
@@ -360,27 +411,27 @@ describe('verifyHostedWebhook', () => {
 
   it('keeps every other rule of a delivery: signature present, timestamp, test deliveries', async () => {
     await expect(
-      verifyHostedWebhook(delivery(ENVELOPE, { signed: false }), noViewer(), {
+      verifyHostedWebhook(delivery(ENVELOPE, { signed: false }), delivered(), {
         now,
       }),
     ).rejects.toMatchObject({ code: 'WEBHOOK_SIGNATURE_MISSING' });
     await expect(
       verifyHostedWebhook(
         delivery(ENVELOPE, { timestamp: TS - 301 }),
-        noViewer(),
+        delivered(),
         { now },
       ),
     ).rejects.toMatchObject({ code: 'WEBHOOK_TIMESTAMP_OUT_OF_RANGE' });
-    const test = delivery({ ...ENVELOPE, id: 'evt_0' }, { id: 'dlv_test_1' });
+    const test = () =>
+      delivery({ ...ENVELOPE, id: 'evt_0' }, { id: 'dlv_test_1' });
     await expect(
-      verifyHostedWebhook(test, noViewer(), { now }),
+      verifyHostedWebhook(test(), delivered(), { now }),
     ).rejects.toMatchObject({ code: 'WEBHOOK_TEST_DELIVERY' });
     await expect(
-      verifyHostedWebhook(
-        delivery({ ...ENVELOPE, id: 'evt_0' }, { id: 'dlv_test_1' }),
-        noViewer(),
-        { now, testDeliveries: 'accept' },
-      ),
+      verifyHostedWebhook(test(), delivered(), {
+        now,
+        testDeliveries: 'accept',
+      }),
     ).resolves.toMatchObject({ test: true });
   });
 });

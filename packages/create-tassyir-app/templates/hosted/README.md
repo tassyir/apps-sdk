@@ -125,13 +125,14 @@ store: Apps, Installed apps, Update.
 
 ## When something fails
 
-| You see                                                   | Do                                                                                                  |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `APP_HOSTING_NOT_AVAILABLE` on deploy                     | Tassyir Hosting is not open on that API yet; deploy later, or run the app on your own server.       |
-| `BUNDLE_INVALID` (exit 4) on deploy:check/deploy          | Each problem names its line in `src/` and a fix: a `node:` import, a host not in `allowed_hosts`, … |
-| `VERSION_SCAN_FAILED` on deploy                           | Tassyir's scan refused the version: fix each finding it lists, then deploy again.                   |
-| The page says "Open this page from the Tassyir dashboard" | It runs outside the dashboard's frame: open it from Apps in the dashboard.                          |
-| `HOSTED_PROPS_MISSING`                                    | The Worker ran outside Tassyir Hosting (no `ctx.props`); the specs use stand-ins.                   |
-| `PERMISSION_DENIED`                                       | Add the scope its fix names to `[access]`, deploy, and accept the update.                           |
-| A `fetch()` answers 403 `tassyir-egress-refused`          | Add the host to `hosting.allowed_hosts`, deploy, and accept the update.                             |
-| `STORAGE_FULL`                                            | The app's storage holds 50 MB at most: delete rows it no longer needs.                              |
+| You see                                                        | Do                                                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `APP_HOSTING_NOT_AVAILABLE` on deploy                          | Tassyir Hosting is not open on that API yet; deploy later, or run the app on your own server.                                        |
+| `BUNDLE_INVALID` (exit 4) on deploy:check/deploy               | Each problem names its line in `src/` and a fix: a `node:` import, a host not in `allowed_hosts`, …                                  |
+| `VERSION_SCAN_FAILED` on deploy                                | Tassyir's scan refused the version: fix each finding it lists, then deploy again.                                                    |
+| The page says "Open this page from the Tassyir dashboard"      | It runs outside the dashboard's frame: open it from Apps in the dashboard.                                                           |
+| `HOSTED_PROPS_MISSING`                                         | The Worker ran outside Tassyir Hosting (no `ctx.props`); the specs use stand-ins.                                                    |
+| `PERMISSION_DENIED`                                            | Add the scope its fix names to `[access]`, deploy, and accept the update.                                                            |
+| A `fetch()` answers 403 `tassyir-egress-refused`               | Add the host to `hosting.allowed_hosts`, deploy, and accept the update.                                                              |
+| `STORAGE_FULL`                                                 | The app's storage holds 50 MB at most: delete rows it no longer needs.                                                               |
+| Webhooks answered 503 (`webhook: KEYS_UNAVAILABLE` in the log) | Tassyir's keys could not be read through `TASSYIR`: the delivery is never processed unverified, and Tassyir delivers it again later. |

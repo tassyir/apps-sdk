@@ -98,10 +98,12 @@ test/node/              the manifest and money specs, on Node
   `hostedAdmin(props)` and the count from STORAGE; `/api/settings` reads and
   writes STORAGE.
 - **Tassyir → `/webhooks`.** The dispatcher delivers it with `viewer: null`.
-  `verifyHostedWebhook(request, props)` checks it (not a page request, this
-  installation, this business, this app, a fresh timestamp), then
-  `handleEvent` switches on `event.type`. Every handler is idempotent:
-  deliveries are at least once.
+  `verifyHostedWebhook(request, props)` verifies Tassyir's signature with the
+  keys it reads through `ctx.props.TASSYIR`, then checks it is not a page
+  request and names this installation, business and app, with a fresh
+  timestamp; `handleEvent` then switches on `event.type`. Keys that cannot be
+  read answer 503 (`KEYS_UNAVAILABLE`): Tassyir delivers again. Every handler
+  is idempotent: deliveries are at least once.
 
 ## Rules
 

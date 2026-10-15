@@ -59,7 +59,8 @@ provides:
 - for apps on Tassyir Hosting: `readHostedProps(ctx)` (the typed `ctx.props`:
   installation, viewer, `STORAGE`, `TASSYIR`), `hostedAdmin(props)` (the same
   client, sent through `ctx.props.TASSYIR` with no token) and
-  `verifyHostedWebhook` (deliveries the dispatcher runs with no viewer).
+  `verifyHostedWebhook` (a delivery's signature verified with Tassyir's keys
+  read through `ctx.props.TASSYIR`).
 
 ### `@tassyir/app-bridge`
 

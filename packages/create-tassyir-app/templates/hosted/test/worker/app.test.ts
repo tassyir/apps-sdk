@@ -1,4 +1,3 @@
-import { verifyHostedWebhook, WebhookKeys } from '@tassyir/app';
 import { describe, expect, it } from 'vitest';
 import { createApp, DASHBOARD_ORIGIN } from '../../src/app.ts';
 import {
@@ -159,67 +158,88 @@ describe('/api/settings (ctx.props.STORAGE)', () => {
 describe('POST /webhooks', () => {
   const order = { id: '2001', total: '7500.00', currency: 'DZD' };
 
+  /** A delivery's props: no viewer, and Tassyir's key served through TASSYIR. */
+  async function delivering() {
+    const key = await webhookKey();
+    const props = hostedProps({
+      viewer: null,
+      TASSYIR: fakeTassyir(undefined, [key.publicKey]),
+    });
+    return { key, props };
+  }
+  const asPage = (props: ReturnType<typeof hostedProps>) => ({
+    ...props,
+    viewer: { userId: '1', sessionId: 's' },
+  });
+
   it('records orders/created once, however often Tassyir delivers it', async () => {
-    const { privateKey } = await webhookKey();
-    const props = hostedProps({ viewer: null });
+    const { key, props } = await delivering();
     const created = envelope('orders/created', { order });
     for (const id of ['dlv_1', 'dlv_1', 'dlv_2']) {
       const response = await call(
         app,
         props,
         '/webhooks',
-        await delivery(privateKey, created, { id }),
+        await delivery(key.privateKey, created, { id }),
       );
       expect(response.status).toBe(200);
     }
-    const page = await call(
-      app,
-      { ...props, viewer: { userId: '1', sessionId: 's' } },
-      '/api/orders',
-    );
+    // Each delivery read Tassyir's keys through ctx.props.TASSYIR.
+    expect(
+      props.TASSYIR.calls.filter(
+        (request) => request.url === 'https://api.tassyir.io/apps/webhook-keys',
+      ),
+    ).toHaveLength(3);
+    const page = await call(app, asPage(props), '/api/orders');
     expect(await page.json()).toMatchObject({ received: 1 });
   });
 
-  it('verifies the signature too with pinned keys', async () => {
-    const key = await webhookKey();
-    const other = await webhookKey();
-    const keys = WebhookKeys.fromPublicKeys([key.publicKey]);
-    // What src/webhooks.ts would do with { keys }: the forged one fails.
-    const props = hostedProps({ viewer: null });
-    const created = envelope('orders/created', { order });
-    const genuine = new Request(
-      'https://my-tassyir-app.tassyir-apps.com/webhooks',
-      await delivery(key.privateKey, created),
+  it('refuses a delivery Tassyir did not sign, and one it cannot verify yet', async () => {
+    const { props } = await delivering();
+    const stranger = await webhookKey();
+    const forged = await call(
+      app,
+      props,
+      '/webhooks',
+      await delivery(
+        stranger.privateKey,
+        envelope('orders/created', { order }),
+      ),
     );
-    await expect(
-      verifyHostedWebhook(genuine, props, { keys }),
-    ).resolves.toMatchObject({ signatureVerified: true });
-    const forged = new Request(
-      'https://my-tassyir-app.tassyir-apps.com/webhooks',
-      await delivery(other.privateKey, created),
+    expect(forged.status).toBe(400);
+
+    // The keys cannot be read: never processed unverified, Tassyir retries.
+    const unverifiable = await call(
+      app,
+      hostedProps({ viewer: null }),
+      '/webhooks',
+      await delivery(
+        stranger.privateKey,
+        envelope('orders/created', { order }),
+      ),
     );
-    await expect(
-      verifyHostedWebhook(forged, props, { keys }),
-    ).rejects.toMatchObject({ code: 'WEBHOOK_SIGNATURE_INVALID' });
+    expect(unverifiable.status).toBe(503);
+    const page = await call(app, asPage(props), '/api/orders');
+    expect(await page.json()).toMatchObject({ received: 0 });
   });
 
   it('refuses a request from a page, and an envelope of another installation', async () => {
-    const { privateKey } = await webhookKey();
+    const { key, props } = await delivering();
     const created = envelope('orders/created', { order });
     const fromPage = await call(
       app,
-      hostedProps(),
+      asPage(props),
       '/webhooks',
-      await delivery(privateKey, created),
+      await delivery(key.privateKey, created),
     );
     expect(fromPage.status).toBe(400);
 
     const elsewhere = await call(
       app,
-      hostedProps({ viewer: null }),
+      props,
       '/webhooks',
       await delivery(
-        privateKey,
+        key.privateKey,
         envelope('orders/created', { order }, { installationId: '1' }),
       ),
     );
@@ -227,14 +247,13 @@ describe('POST /webhooks', () => {
   });
 
   it('never writes to STORAGE for business/redact (Tassyir erased it)', async () => {
-    const { privateKey } = await webhookKey();
-    const props = hostedProps({ viewer: null });
+    const { key, props } = await delivering();
     const response = await call(
       app,
       props,
       '/webhooks',
       await delivery(
-        privateKey,
+        key.privateKey,
         envelope('business/redact', {
           installation: { id: INSTALLATION.id },
         }),
@@ -248,24 +267,19 @@ describe('POST /webhooks', () => {
   });
 
   it('acknowledges a test delivery without processing it', async () => {
-    const { privateKey } = await webhookKey();
-    const props = hostedProps({ viewer: null });
+    const { key, props } = await delivering();
     const response = await call(
       app,
       props,
       '/webhooks',
       await delivery(
-        privateKey,
+        key.privateKey,
         envelope('orders/created', { order }, { id: 'evt_0' }),
         { id: 'dlv_test_1' },
       ),
     );
     expect(response.status).toBe(200);
-    const page = await call(
-      app,
-      { ...props, viewer: { userId: '1', sessionId: 's' } },
-      '/api/orders',
-    );
+    const page = await call(app, asPage(props), '/api/orders');
     expect(await page.json()).toMatchObject({ received: 0 });
   });
 });

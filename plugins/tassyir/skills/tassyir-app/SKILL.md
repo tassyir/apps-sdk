@@ -254,15 +254,17 @@ topic:
   also checks the timestamp (5 minutes), the envelope's `appId` (the numeric
   app id, `TASSYIR_APP_ID`, not the client id) and that the installation is
   yours. A failure is a 400; `KEYS_UNAVAILABLE` is a 503 (Tassyir retries).
-- **On Tassyir Hosting** a delivery reaches the Worker only through
-  Tassyir's dispatcher, which takes it from Tassyir's API alone and runs the
-  version with `ctx.props.viewer` null (a page request always has a viewer).
-  `verifyHostedWebhook(request, ctx.props)` checks that, the envelope's
-  installation, business and app against `ctx.props.installation`, and every
-  other rule above; the signature itself only with `keys` you pass (a hosted
-  Worker cannot fetch `/apps/webhook-keys`: its egress never reaches a
-  Tassyir host). `app/uninstalled` and `business/redact` still arrive after
-  an uninstall, with `TASSYIR` refused.
+- **On Tassyir Hosting** a delivery reaches the Worker through Tassyir's
+  dispatcher, which runs the version with `ctx.props.viewer` null (a page
+  request always has a viewer). `verifyHostedWebhook(request, ctx.props)`
+  runs every rule above, the signature verified with Tassyir's keys read
+  through `ctx.props.TASSYIR` (`GET /apps/webhook-keys`; a hosted Worker's
+  own `fetch()` never reaches a Tassyir host), the envelope's installation,
+  business and app checked against `ctx.props.installation`, and refuses a
+  request with a viewer. Keys it cannot read are `KEYS_UNAVAILABLE`: answer
+  503, never process an unverified delivery. `app/uninstalled` and
+  `business/redact` still arrive after an uninstall, with `TASSYIR` refused
+  (but for the key documents).
 - **At least once, in any order.** Deduplicate on `webhook-id`. `data` is
   read when the delivery is built, seconds after the event, so it can be
   newer than the event: reconcile by `updatedAt`, re-read through the Admin

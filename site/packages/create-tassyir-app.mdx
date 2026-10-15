@@ -79,7 +79,7 @@ tassyir.app.toml        hosting.mode = "tassyir", allowed_hosts, the page, webho
 src/worker.ts           what Tassyir runs: the routes with the built page inside, one ES module
 src/app.ts              routes (Hono): ctx.props, /webhooks, /api/* (ctx.props.TASSYIR → Admin API), the page
 src/storage.ts          ctx.props.STORAGE: the installation's own SQLite database
-src/webhooks.ts         verifyHostedWebhook: deliveries the dispatcher ran with viewer null
+src/webhooks.ts         verifyHostedWebhook: the signature (keys through TASSYIR), this installation
 src/page/               a React page on @tassyir/app-bridge/react and @tassyir/ui (ar/en, rtl, dark)
 test/worker/            specs in workerd (Cloudflare's Vitest integration) with stand-in ctx.props
 scripts/deploy-check.ts what `tassyir deploy` checks before it uploads, nothing uploaded

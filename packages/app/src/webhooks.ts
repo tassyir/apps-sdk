@@ -225,20 +225,6 @@ export async function verifyWebhook(
   delivery: WebhookDelivery,
   options: VerifyWebhookOptions,
 ): Promise<VerifiedWebhook> {
-  return verifyDelivery(delivery, options, options.keys);
-}
-
-/**
- * The checks of a delivery, in order. `keys` verifies the signature; `null`
- * leaves the signature to Tassyir Hosting's dispatcher, which takes a
- * delivery only from Tassyir's API (`verifyHostedWebhook`): a `v1a`
- * signature must still be there.
- */
-export async function verifyDelivery(
-  delivery: WebhookDelivery,
-  options: Omit<VerifyWebhookOptions, 'keys'>,
-  keys: WebhookKeys | null,
-): Promise<VerifiedWebhook> {
   const tolerance = options.toleranceSeconds ?? WEBHOOK_TOLERANCE_SECONDS;
   if (!Number.isInteger(tolerance) || tolerance < 1 || tolerance > 3600) {
     throw new TassyirError(
@@ -299,20 +285,22 @@ export async function verifyDelivery(
       FIX.forged,
     );
   }
-  if (keys !== null) {
-    const content = concatBytes(utf8Encode(`${id}.${timestampHeader}.`), body);
-    let verified = await anyVerifies(await keys.all(), signatures, content);
-    // A key published for a rotation after our last fetch: fetch once more.
-    if (!verified && (await keys.refresh())) {
-      verified = await anyVerifies(await keys.all(), signatures, content);
-    }
-    if (!verified) {
-      fail(
-        'WEBHOOK_SIGNATURE_INVALID',
-        "No signature of the delivery verifies with Tassyir's published keys",
-        FIX.forged,
-      );
-    }
+  const content = concatBytes(utf8Encode(`${id}.${timestampHeader}.`), body);
+  let verified = await anyVerifies(
+    await options.keys.all(),
+    signatures,
+    content,
+  );
+  // A key published for a rotation after our last fetch: fetch once more.
+  if (!verified && (await options.keys.refresh())) {
+    verified = await anyVerifies(await options.keys.all(), signatures, content);
+  }
+  if (!verified) {
+    fail(
+      'WEBHOOK_SIGNATURE_INVALID',
+      "No signature of the delivery verifies with Tassyir's published keys",
+      FIX.forged,
+    );
   }
 
   const event = parseEnvelope(body);

@@ -74,6 +74,7 @@ export type {
 export {
   HOSTED_BINDING_ERRORS,
   hostedAdmin,
+  hostedWebhookKeys,
   readHostedProps,
   verifyHostedWebhook,
 } from './hosted.js';
@@ -87,7 +88,6 @@ export type {
   HostedSqlStatement,
   HostedSqlValue,
   HostedStorage,
-  HostedVerifiedWebhook,
   HostedViewer,
   TassyirBinding,
   VerifyHostedWebhookOptions,

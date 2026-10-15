@@ -1,19 +1,23 @@
-import { TassyirVerificationError, verifyHostedWebhook } from '@tassyir/app';
-import type { HostedProps, HostedVerifiedWebhook } from '@tassyir/app';
+import {
+  isTassyirError,
+  TassyirVerificationError,
+  verifyHostedWebhook,
+} from '@tassyir/app';
+import type { HostedProps, VerifiedWebhook } from '@tassyir/app';
 import { recordOrderReceived } from './storage.ts';
 
 /** Where Tassyir sends deliveries: `uri` of `[[webhooks]]` in tassyir.app.toml. */
 export const WEBHOOK_PATH = '/webhooks';
 
 /**
- * POST /webhooks. On Tassyir Hosting a delivery reaches the Worker only
- * through Tassyir's dispatcher, which takes it from Tassyir's API alone
- * (signed with a key only the two of them hold, each delivery once) and runs
- * the installation's version with `ctx.props.viewer` null. A page request
- * always has a viewer, and nothing else on the internet reaches the Worker.
- * `verifyHostedWebhook` checks all of that, then every rule of a delivery:
- * the envelope names this installation, its business and this app, the
- * timestamp is fresh, a `v1a` signature is there.
+ * POST /webhooks. On Tassyir Hosting a delivery reaches the Worker through
+ * Tassyir's dispatcher, which runs the installation's version with
+ * `ctx.props.viewer` null (a page request always has a viewer). Tassyir
+ * signs every delivery (Standard Webhooks headers, an Ed25519 `v1a`
+ * signature over the raw body); `verifyHostedWebhook` verifies it with
+ * Tassyir's published keys, read through ctx.props.TASSYIR, then checks that
+ * the envelope names this installation, its business and this app, and that
+ * the timestamp is fresh.
  *
  * Deliveries are at least once and in no particular order: every handler
  * below is idempotent (keyed on the resource's id). Answer within 10
@@ -24,13 +28,22 @@ export async function receiveWebhook(
   request: Request,
   props: HostedProps,
 ): Promise<Response> {
-  let delivery: HostedVerifiedWebhook;
+  let delivery: VerifiedWebhook;
   try {
     delivery = await verifyHostedWebhook(request, props, {
       // "Send test" in the developer console: verified, then acknowledged.
       testDeliveries: 'accept',
     });
   } catch (error) {
+    if (
+      isTassyirError(error, 'KEYS_UNAVAILABLE') ||
+      isTassyirError(error, 'KEYS_NOT_CONFIGURED')
+    ) {
+      // Tassyir's keys could not be read: never process an unverified
+      // delivery. A 503 makes Tassyir deliver it again later.
+      console.warn(`webhook: ${error.code}, answered 503`);
+      return new Response(null, { status: 503 });
+    }
     if (error instanceof TassyirVerificationError) {
       console.warn(`webhook refused: ${error.code}. ${error.fix ?? ''}`);
       return new Response(null, { status: 400 });
@@ -47,7 +60,7 @@ export async function receiveWebhook(
 
 /** `event.type` narrows `event.data` to the topic's 2026-10 body. */
 async function handleEvent(
-  { event }: HostedVerifiedWebhook,
+  { event }: VerifiedWebhook,
   props: HostedProps,
 ): Promise<void> {
   switch (event.type) {

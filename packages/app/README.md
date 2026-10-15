@@ -366,8 +366,13 @@ export default {
       try {
         const delivery = await verifyHostedWebhook(request, props);
         // Deduplicate on delivery.id, then handle delivery.event.
+        console.info(delivery.topic);
         return new Response(null, { status: 200 });
       } catch (error) {
+        // The keys could not be read: Tassyir delivers it again later.
+        if (isTassyirError(error, 'KEYS_UNAVAILABLE')) {
+          return new Response(null, { status: 503 });
+        }
         if (isTassyirError(error)) return new Response(null, { status: 400 });
         throw error;
       }
@@ -417,20 +422,25 @@ export default {
 - **`verifyHostedWebhook(request, props, { keys?, testDeliveries? })`**
   checks a delivery to the manifest's webhook path. The API sends a hosted
   app's deliveries (the same headers, `v1a` signature and body as an external
-  app's) to Tassyir Hosting's dispatcher, signed with a key only the two of
-  them hold, each delivery once. The dispatcher runs the installation's
-  version with `viewer: null` and POSTs the delivery to the app; a page
-  request always has a viewer, and nothing else reaches the Worker. So the
-  check refuses a request with a viewer (`WEBHOOK_NOT_A_DELIVERY`), requires
-  the envelope to name this installation, its business and its app, and keeps
-  every other rule of `verifyWebhook` (timestamp, test deliveries, `tassyir-*`
-  headers, a `v1a` signature present). The signature itself is verified when
-  you pass `keys` (`WebhookKeys.fromPublicKeys([...])`); a hosted Worker
-  cannot fetch `/apps/webhook-keys` (its outbound requests never reach a
-  Tassyir host), so without them the dispatcher's word stands for it, and
-  `delivery.signatureVerified` is `false`. `app/uninstalled` and
-  `business/redact` still arrive after an uninstall; during those two
-  `TASSYIR` answers `HOSTED_CALL_REFUSED`.
+  app's) through Tassyir Hosting, which runs the installation's version with
+  `viewer: null` and POSTs the delivery to the app. The check is
+  `verifyWebhook`'s, every rule of it: the signature, verified with Tassyir's
+  published keys (`hostedWebhookKeys(props)`, below), the timestamp, test
+  deliveries, the `tassyir-*` headers, the envelope naming this
+  installation, its business and its app (taken from `ctx.props`). It also
+  refuses a request with a viewer (`WEBHOOK_NOT_A_DELIVERY`: a page of the
+  app). It never skips the signature: when the keys cannot be read it throws
+  `KEYS_UNAVAILABLE` (or `KEYS_NOT_CONFIGURED`), which you answer with a 503,
+  and Tassyir delivers again later. `app/uninstalled` and `business/redact`
+  still arrive after an uninstall; during those two `TASSYIR` answers
+  `HOSTED_CALL_REFUSED` (the key documents excepted).
+- **`hostedWebhookKeys(props)`** is Tassyir's webhook keys as a hosted app
+  reads them: `GET /apps/webhook-keys` through `ctx.props.TASSYIR` (a hosted
+  Worker's own `fetch()` never reaches a Tassyir host). Make it per request,
+  from that request's `ctx.props`, never in a module variable: the binding
+  belongs to its request. Where Tassyir Hosting does not serve the key
+  documents through the binding yet, it refuses the path, and deliveries
+  answer `KEYS_UNAVAILABLE` until it does.
 - **Shared isolates.** One isolate may serve several merchants: keep
   per-request state per request, never in a module variable.
 
