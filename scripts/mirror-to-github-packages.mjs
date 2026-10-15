@@ -5,9 +5,14 @@
 // same integrity. Safe to rerun: a version GitHub Packages already has is
 // skipped, so the next run of the release workflow repairs a failed mirror.
 //
+// It runs seconds after the npm publish, when npm's CDN may still serve the
+// old packument. So a version the workspace names that npm does not serve yet
+// is checked again, with backoff, for up to NPM_WAIT_MS (10 minutes); then the
+// run fails with NOT_ON_NPM. It never passes over a version in silence.
+//
 // Usage (the release workflow's last job):
 //   NODE_AUTH_TOKEN=<token with packages:write> node scripts/mirror-to-github-packages.mjs
-// Dry runs, which publish nothing:
+// Dry runs, which publish nothing (and check npm once, without waiting):
 //   node scripts/mirror-to-github-packages.mjs --dry-run
 //   node scripts/mirror-to-github-packages.mjs --dry-run --from-workspace --include-private
 //     --from-workspace   pack the workspace instead of downloading from npm
@@ -15,16 +20,21 @@
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { mirrorsToGitHubPackages } from './lib/policy.mjs';
 import {
   GITHUB_REGISTRY,
   NPM_REGISTRY,
+  NPM_WAIT_MS,
+  formatProblem,
   mirrorDistTag,
+  notOnNpmProblem,
+  packNotServed,
+  pollUntil,
   readViewResult,
 } from './lib/registry.mjs';
-import { packedTarball, run, workspaces } from './lib/workspace.mjs';
+import { ROOT, packedTarball, run, workspaces } from './lib/workspace.mjs';
 
 const FLAGS = ['--dry-run', '--from-workspace', '--include-private'];
 const flags = process.argv.slice(2);
@@ -60,6 +70,10 @@ if (candidates.length === 0) {
   process.exit(0);
 }
 
+// One budget for the whole run: packages published together appear together.
+const started = Date.now();
+const npmDeadline = started + (dryRun ? 0 : NPM_WAIT_MS);
+
 const scratch = mkdtempSync(join(tmpdir(), 'tassyir-sdk-mirror-'));
 // npm reads the token from the environment when it runs; it is never written.
 const userconfig = join(scratch, 'npmrc');
@@ -69,7 +83,8 @@ writeFileSync(
 );
 
 /**
- * npm against one registry, whatever ~/.npmrc or setup-node configured.
+ * npm against one registry, whatever ~/.npmrc or setup-node configured, and
+ * never from npm's local cache, which may hold a packument for 5 minutes.
  * @param {string[]} args
  * @param {string} registry
  */
@@ -81,6 +96,7 @@ function npm(args, registry) {
       `--registry=${registry}`,
       `--@tassyir:registry=${registry}`,
       `--userconfig=${userconfig}`,
+      '--prefer-online',
     ],
     { cwd: scratch, allowFailure: true },
   );
@@ -95,6 +111,36 @@ function ok(result, what) {
     throw new Error(`${what} failed:\n${result.stdout}${result.stderr}`);
   }
   return result;
+}
+
+/**
+ * The tarball npm serves for `spec`, checked against the integrity npm
+ * reports, and npm's dist-tags; undefined while npm does not serve `spec`.
+ * @param {string} spec
+ * @returns {{ packed: import('./lib/workspace.mjs').Packed, distTags: Record<string, string> | undefined } | undefined}
+ */
+function fromNpm(spec) {
+  const onNpm = readViewResult(
+    npm(['view', spec, 'dist.integrity', 'dist-tags', '--json'], NPM_REGISTRY),
+  );
+  if ('error' in onNpm) throw new Error(`npm view on npm: ${onNpm.error}`);
+  if (!onNpm.found) return undefined;
+  const view =
+    /** @type {{ 'dist.integrity'?: string, 'dist-tags'?: Record<string, string> }} */ (
+      onNpm.value
+    );
+  const pack = npm(
+    ['pack', spec, '--pack-destination', scratch, '--json'],
+    NPM_REGISTRY,
+  );
+  if (packNotServed(pack)) return undefined;
+  const packed = packedTarball(ok(pack, 'npm pack').stdout);
+  if (packed.integrity !== view['dist.integrity']) {
+    throw new Error(
+      `the tarball downloaded from npm has integrity ${packed.integrity}, npm reports ${String(view['dist.integrity'])}`,
+    );
+  }
+  return { packed, distTags: view['dist-tags'] };
 }
 
 /** @type {string[]} */
@@ -115,37 +161,31 @@ try {
           ).stdout,
         );
       } else {
-        const onNpm = readViewResult(
-          npm(
-            ['view', spec, 'dist.integrity', 'dist-tags', '--json'],
-            NPM_REGISTRY,
-          ),
-        );
-        if ('error' in onNpm)
-          throw new Error(`npm view on npm: ${onNpm.error}`);
-        if (!onNpm.found) {
-          console.log(`- ${spec}: not on npm yet; nothing to mirror`);
+        const served = await pollUntil(() => fromNpm(spec), {
+          deadline: npmDeadline,
+          now: Date.now,
+          sleep,
+          onWait: (_, ms) => {
+            console.log(
+              `… ${spec}: npm does not serve it yet; checking again in ${Math.round(ms / 1000)} s`,
+            );
+          },
+        });
+        if (served.value === undefined) {
+          failures.push(
+            `✗ ${spec}: ${formatProblem(
+              notOnNpmProblem({
+                spec,
+                path: join(relative(ROOT, dir), 'package.json'),
+                attempts: served.attempts,
+                waitedMs: Date.now() - started,
+                dryRun,
+              }),
+            )}`,
+          );
           continue;
         }
-        const view =
-          /** @type {{ 'dist.integrity'?: string, 'dist-tags'?: Record<string, string> }} */ (
-            onNpm.value
-          );
-        npmDistTags = view['dist-tags'];
-        packed = packedTarball(
-          ok(
-            npm(
-              ['pack', spec, '--pack-destination', scratch, '--json'],
-              NPM_REGISTRY,
-            ),
-            'npm pack',
-          ).stdout,
-        );
-        if (packed.integrity !== view['dist.integrity']) {
-          throw new Error(
-            `the tarball downloaded from npm has integrity ${packed.integrity}, npm reports ${String(view['dist.integrity'])}`,
-          );
-        }
+        ({ packed, distTags: npmDistTags } = served.value);
       }
 
       const onGitHub = readViewResult(

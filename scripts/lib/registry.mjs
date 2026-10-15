@@ -22,13 +22,119 @@ export function readViewResult(result) {
       ? { found: false }
       : { found: true, value: JSON.parse(stdout) };
   }
-  const text = `${result.stdout}\n${result.stderr}`;
-  const code =
-    /"code":\s*"(E\w+)"/.exec(text)?.[1] ?? /\bcode (E\w+)/.exec(text)?.[1];
+  const code = npmErrorCode(result);
   if (code === 'E404') return { found: false };
   return {
-    error: code ?? (text.trim().split('\n').slice(-3).join(' ') || 'unknown'),
+    error:
+      code ??
+      (`${result.stdout}\n${result.stderr}`
+        .trim()
+        .split('\n')
+        .slice(-3)
+        .join(' ') ||
+        'unknown'),
   };
+}
+
+/**
+ * Whether a failed `npm pack <name>@<version>` means npm does not serve that
+ * version yet: E404, or ETARGET when the package's metadata lacks the
+ * version. npm pack reads the install metadata, which npm's CDN caches apart
+ * from the full packument npm view reads, so it can lag behind npm view.
+ * @param {{ status: number, stdout: string, stderr: string }} result
+ */
+export function packNotServed(result) {
+  if (result.status === 0) return false;
+  const code = npmErrorCode(result);
+  return code === 'E404' || code === 'ETARGET';
+}
+
+/**
+ * The code (`E404`, `ETARGET`, …) of a failed npm command: in the JSON
+ * `--json` prints on stdout, or in the log on stderr.
+ * @param {{ stdout: string, stderr: string }} result
+ */
+function npmErrorCode(result) {
+  const text = `${result.stdout}\n${result.stderr}`;
+  return (
+    /"code":\s*"(E\w+)"/.exec(text)?.[1] ?? /\bcode (E\w+)/.exec(text)?.[1]
+  );
+}
+
+/**
+ * How long a release run waits for npm to serve a version the workspace
+ * names. Right after a publish, npm's CDN can serve the old packument for as
+ * long as it caches one (`max-age=300`); this is twice that.
+ */
+export const NPM_WAIT_MS = 10 * 60 * 1000;
+
+/**
+ * The pause after the `attempt`-th check: 5 s, doubling, at most 30 s.
+ * @param {number} attempt 1 after the first check
+ */
+export function retryDelay(attempt) {
+  return Math.min(5000 * 2 ** (attempt - 1), 30_000);
+}
+
+/**
+ * Runs `check` until it returns a value, pausing `retryDelay(attempt)`
+ * between checks, and gives up once `deadline` (ms since the epoch) has
+ * passed. It checks at least once and never sleeps past the deadline.
+ * @template T
+ * @param {() => T | undefined} check
+ * @param {{
+ *   deadline: number,
+ *   now: () => number,
+ *   sleep: (ms: number) => Promise<unknown>,
+ *   onWait?: (attempt: number, ms: number) => void,
+ * }} options
+ * @returns {Promise<{ value: T | undefined, attempts: number }>}
+ */
+export async function pollUntil(check, { deadline, now, sleep, onWait }) {
+  for (let attempt = 1; ; attempt += 1) {
+    const value = check();
+    if (value !== undefined) return { value, attempts: attempt };
+    const left = deadline - now();
+    if (left <= 0) return { value: undefined, attempts: attempt };
+    const ms = Math.min(retryDelay(attempt), left);
+    onWait?.(attempt, ms);
+    await sleep(ms);
+  }
+}
+
+/** @typedef {{ code: string, path: string, message: string, fix: string }} Problem */
+
+/**
+ * The failure for a version the workspace names (in `path`) that npm does not
+ * serve: after `waitedMs` of a release run, or at once in a dry run, which
+ * checks once without waiting.
+ * @param {{ spec: string, path: string, attempts: number, waitedMs: number, dryRun: boolean }} options
+ * @returns {Problem}
+ */
+export function notOnNpmProblem({ spec, path, attempts, waitedMs, dryRun }) {
+  if (dryRun) {
+    return {
+      code: 'NOT_ON_NPM',
+      path,
+      message: `npm does not serve ${spec}, the version ${path} names (a dry run checks once, without waiting).`,
+      fix: `Release ${spec} first, or add --from-workspace to rehearse the mirror with the workspace's own tarballs.`,
+    };
+  }
+  const minutes = Math.round(waitedMs / 6000) / 10;
+  return {
+    code: 'NOT_ON_NPM',
+    path,
+    message: `npm still does not serve ${spec}, the version ${path} names, after ${minutes} min and ${attempts} checks, so GitHub Packages did not get it.`,
+    fix: 'Run release.yml again (Actions → Release → Run workflow, or gh workflow run release.yml --repo tassyir/apps-sdk --ref main): it publishes to npm what npm lacks, then mirrors only what GitHub Packages lacks.',
+  };
+}
+
+/**
+ * A problem as the mirror prints it.
+ * @param {Problem} problem
+ */
+export function formatProblem({ code, path, message, fix }) {
+  return `${code} (${path}): ${message}\n  fix: ${fix}`;
 }
 
 /**
