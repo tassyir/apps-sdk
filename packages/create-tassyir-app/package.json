@@ -45,7 +45,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "browser-check": "node scripts/browser-check.mjs"
   },
   "dependencies": {
     "@tassyir/app-manifest": "^0.1.0",

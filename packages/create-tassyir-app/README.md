@@ -119,6 +119,32 @@ answers `TEMPLATE_NOT_AVAILABLE`. Apps made from the external template move
 to it with the same manifest, API and webhooks: their routes are
 Web-standard.
 
+## Contributing
+
+In a clone of [tassyir/apps-sdk](https://github.com/tassyir/apps-sdk), CI
+generates a project with the packed CLI and checks it whole
+(`npm run check:template`). The page is also checked in a real browser,
+locally:
+
+```bash
+npm run build && npm run check:template -- --keep
+```
+
+```bash
+npm run browser-check -w create-tassyir-app -- <the folder it kept> --out shots
+```
+
+It starts the project's own server (its real Content-Security-Policy),
+frames the page in a fake dashboard at `https://app.tassyir.io` that answers
+App Bridge, answers the page's `/api` calls with sample orders, and drives a
+headless Chrome over the DevTools protocol. It checks the page in Arabic and
+English, light and dark, at 390 and 1440 px (`lang`, `dir` and theme, the
+frame's width, no error and no CSP violation, the title bar), then the save
+bar, a field error, a save with a fresh ID token, Open, a live change of
+language and theme, and the empty state, with a screenshot of each in
+`--out`. It needs `openssl`; `CHROME_PATH` names a Chrome other than macOS
+Google Chrome.
+
 ## License
 
 MIT
