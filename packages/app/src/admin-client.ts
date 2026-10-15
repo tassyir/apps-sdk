@@ -63,13 +63,15 @@ export interface AdminClientOptions {
   fetch?: FetchLike;
   /**
    * Retries, off by default. `true` or a number of retries turns them on.
-   * After `Retry-After`, writes included: 429 `RATE_LIMITED` and
-   * `BUSINESS_RATE_LIMITED`, 503 `API_BUSY` and `IDEMPOTENCY_UNAVAILABLE`
-   * (nothing was done). For requests safe to repeat (reads, and writes with
-   * an `Idempotency-Key`): any other 503, network errors, 502 and 504. Also
-   * 409 `IDEMPOTENCY_KEY_IN_USE`, and 500 for reads only. Never 429
-   * `IMAGE_QUOTA_REACHED` (`POST /images`): it throws at once, with its
-   * `per`, `window` and `retryAfter` in `problem`, for the app to decide.
+   * After `Retry-After`, writes included: 429 `RATE_LIMITED`,
+   * `BUSINESS_RATE_LIMITED` and `BULK_EXPORT_RATE_LIMITED`, 503 `API_BUSY`
+   * and `IDEMPOTENCY_UNAVAILABLE` (nothing was done). For requests safe to
+   * repeat (reads, and writes with an `Idempotency-Key`): any other 503,
+   * network errors, 502 and 504. Also 409 `IDEMPOTENCY_KEY_IN_USE`, and 500
+   * for reads only. Never 429 `IMAGE_QUOTA_REACHED` (`POST /images`): it
+   * throws at once, with its `per`, `window` and `retryAfter` in `problem`,
+   * for the app to decide. Never 503 `BULK_EXPORTS_NOT_CONFIGURED`: exports
+   * stay off until Tassyir turns them on.
    */
   retries?: boolean | number | RetryOptions;
   /** Per attempt. Default 30 seconds. */
@@ -490,13 +492,17 @@ export class AdminClient {
     const { status, code } = error;
     const retryable =
       // RATE_LIMITED (the installation's bucket) and BUSINESS_RATE_LIMITED
-      // (the ceiling the business's apps share) refuse before the route runs.
+      // (the ceiling the business's apps share) refuse before the route runs,
+      // BULK_EXPORT_RATE_LIMITED (5 exports per business an hour) before an
+      // export is recorded; a wait past maxDelayMs throws instead.
       // IMAGE_QUOTA_REACHED (POST /images) is left to the app: a daily quota
       // is not worth retrying, and `problem.window` says which one is full.
       (status === 429 && code !== 'IMAGE_QUOTA_REACHED') ||
       // API_BUSY (the process's in-flight cap) and IDEMPOTENCY_UNAVAILABLE
       // refuse before the write is attempted: safe to repeat even without a key.
+      // BULK_EXPORTS_NOT_CONFIGURED is a setting, not a moment: never retried.
       (status === 503 &&
+        code !== 'BULK_EXPORTS_NOT_CONFIGURED' &&
         (safeToRepeat ||
           code === 'IDEMPOTENCY_UNAVAILABLE' ||
           code === 'API_BUSY')) ||

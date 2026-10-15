@@ -81,6 +81,7 @@ export const MANIFEST_VOCABULARY: ManifestVocabulary =
       { name: 'customers/data_request', scope: null },
       { name: 'customers/redact', scope: null },
       { name: 'business/redact', scope: null },
+      { name: 'bulk/finished', scope: null },
     ],
     storefrontBlocksScope: 'write_storefront',
   });
