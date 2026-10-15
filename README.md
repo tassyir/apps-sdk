@@ -6,11 +6,11 @@ shows pages inside the Tassyir dashboard. It runs on the developer's own server
 or on Tassyir Hosting. Either way it uses the same manifest, API and events.
 
 **Status: in development. Nothing is published yet.** This repo has its
-workspace, CI and release pipeline (AP-K1.1) and five packages whose first
+workspace, CI and release pipeline (AP-K1.1) and six packages whose first
 release (0.1.0) is pending: `@tassyir/app-manifest` (AP-K1.2), `@tassyir/app`
-(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), the `tassyir` CLI (AP-K1.6) and
-`create-tassyir-app` (AP-K1.7). The other packages arrive one ticket at a
-time.
+(AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), `@tassyir/ui` (AP-K1.5), the
+`tassyir` CLI (AP-K1.6) and `create-tassyir-app` (AP-K1.7). The other
+packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -65,9 +65,18 @@ no runtime dependency.
 
 ### `@tassyir/ui`
 
-_Planned: AP-K1.5._ Web components that look like the Tassyir dashboard, built
-from its design tokens, with right-to-left layouts and dark mode. They work in
-any framework, or none.
+[`packages/ui`](packages/ui) (AP-K1.5). Web components that make an app's
+page look like the Tassyir dashboard it runs in: the dashboard's design
+tokens (colours, type, spacing, radii, light and dark) and fifteen custom
+elements built from them: button, link, text field, select, checkbox, radio
+group, card, page header, table, status pill, banner, empty state, skeleton
+and spinner. Every element works right to left and left to right, light and
+dark, on a phone and on a computer; one helper follows App Bridge's
+language, direction and theme. The form controls submit with a native
+`<form>`. Modals, toasts, pickers and the save bar are App Bridge calls, not
+elements. Custom elements with no runtime dependency, so they work in any
+framework or none. Browser only, ESM only, about 13 kB gzipped; no
+analytics, no storage, no network.
 
 ### `tassyir`
 

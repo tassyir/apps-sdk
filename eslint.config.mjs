@@ -13,6 +13,9 @@ export default defineConfig(
       // A generated project's files, with its own dependencies and
       // tsconfig: npm run check:template installs and checks them.
       'packages/create-tassyir-app/templates/**',
+      // @tassyir/ui's demo page: browser JavaScript served as it is, checked
+      // in a real browser (npm run browser-check -w @tassyir/ui).
+      'packages/ui/demo/**',
     ],
   },
   eslint.configs.recommended,
@@ -116,6 +119,58 @@ export default defineConfig(
         'sessionStorage',
         'indexedDB',
         'document',
+      ],
+    },
+  },
+  {
+    // @tassyir/ui runs in the browser, in the app's page: its library code
+    // uses the DOM only. No network, no browser storage, no analytics
+    // (AP-K1.5). Specs and their harnesses may use Node (the frontend parity
+    // check reads a git checkout).
+    files: ['packages/ui/src/**/*.ts'],
+    ignores: [
+      'packages/ui/src/**/*.test.ts',
+      'packages/ui/src/**/*.test-harness.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(node:|(assert|buffer|child_process|crypto|fs|http|https|net|os|path|stream|url|util|zlib)(/|$))',
+              message:
+                'Library code runs in the browser: use the DOM, nothing else.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'Buffer',
+        'process',
+        'require',
+        '__dirname',
+        '__filename',
+        'global',
+        'fetch',
+        'XMLHttpRequest',
+        'WebSocket',
+        'EventSource',
+        'navigator',
+        'localStorage',
+        'sessionStorage',
+        'indexedDB',
+        'caches',
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'document', property: 'cookie' },
+        { object: 'window', property: 'fetch' },
+        { object: 'window', property: 'localStorage' },
+        { object: 'window', property: 'sessionStorage' },
+        { object: 'window', property: 'navigator' },
       ],
     },
   },
