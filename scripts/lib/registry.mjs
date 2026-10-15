@@ -24,15 +24,9 @@ export function readViewResult(result) {
   }
   const code = npmErrorCode(result);
   if (code === 'E404') return { found: false };
+  const text = `${result.stdout}\n${result.stderr}`;
   return {
-    error:
-      code ??
-      (`${result.stdout}\n${result.stderr}`
-        .trim()
-        .split('\n')
-        .slice(-3)
-        .join(' ') ||
-        'unknown'),
+    error: code ?? (text.trim().split('\n').slice(-3).join(' ') || 'unknown'),
   };
 }
 

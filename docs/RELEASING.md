@@ -28,7 +28,11 @@ workflow's own `GITHUB_TOKEN`.
      pushes the `name@version` tags and creates the GitHub releases;
    - mirrors each public `@tassyir/*` package's current version to GitHub
      Packages. It downloads the tarball npm serves, publishes it, and checks that
-     both registries report the same integrity.
+     both registries report the same integrity. npm's CDN can serve the old
+     package metadata for a few minutes after a publish, so the mirror checks
+     again, with backoff, for up to 10 minutes. If npm still does not serve a
+     version the workspace names, the job fails with `NOT_ON_NPM`; it never
+     skips a version in silence.
 4. To use a new version in the backend, bump its exact pin in
    `tassyir/backend/package.json` (as for `@tassyir/builder-core`) and run
    `npm install`.
@@ -139,7 +143,9 @@ npx changeset publish-plan         # what npm would receive now
 node scripts/mirror-to-github-packages.mjs --dry-run --from-workspace --include-private
 ```
 
-CI runs the last two on every pull request. To rehearse a whole release, work
+CI runs the last two on every pull request. Without `--from-workspace`, a dry
+run downloads from npm and checks it once, without waiting: a version npm does
+not serve fails it with `NOT_ON_NPM`. To rehearse a whole release, work
 in a scratch copy of the repo (never in your checkout) with a pending
 changeset, then run
 `npx changeset version`, `npx changeset publish-plan --output plan.json`,
