@@ -551,7 +551,7 @@ function errorCodes(schema: unknown, index: ApiIndex): string[] {
 /**
  * The components a body may be when it may be one of several (`anyOf`): the
  * developer API answers a status with a coded `DeveloperError` or a body
- * without a code (`ValidationError`, `HttpError`, `ThrottlerError`).
+ * without a code (`ValidationError`, `HttpError`, `RateLimitError`).
  */
 function alternatives(schema: unknown): string[] {
   if (!isObject(schema) || !Array.isArray(schema['anyOf'])) return [];

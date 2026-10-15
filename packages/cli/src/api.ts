@@ -661,7 +661,7 @@ export function retryAfterOf(
  * The generic code of a refusal that carries none. The document names three:
  * the ValidationPipe's 400 (`ValidationError`: `message` is a list) reads as
  * BAD_REQUEST, the session guard's 401 (`HttpError`) as UNAUTHORIZED, the
- * rate limiter's 429 (`ThrottlerError`: a bare JSON string) as RATE_LIMITED;
+ * rate limiter's 429 (`RateLimitError`: a bare JSON string) as RATE_LIMITED;
  * a 5xx without a code (`ServerError`) is SERVER_ERROR.
  */
 function fallbackCode(status: number): string {

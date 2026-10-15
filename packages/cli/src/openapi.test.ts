@@ -99,7 +99,7 @@ describe('the refusals without a code, read by status', () => {
       exitCode: EXIT_CODES.AUTH,
     },
     {
-      shape: 'ThrottlerError',
+      shape: 'RateLimitError',
       status: 429,
       body: 'ThrottlerException: Too Many Requests',
       code: 'RATE_LIMITED',

@@ -398,13 +398,13 @@ describe('get_api_operation, developer API', () => {
     expect(operation['errors']).toContainEqual({
       status: '429',
       codes: ['DEVELOPER_TOKEN_RATE_LIMITED'],
-      shapes: ['DeveloperError', 'ThrottlerError'],
+      shapes: ['DeveloperError', 'RateLimitError'],
     });
     expect(answer['schemas']).toEqual(
       expect.arrayContaining([
         'DeveloperApp',
         'DeveloperError',
-        'ThrottlerError',
+        'RateLimitError',
         'ValidationError',
       ]) as unknown,
     );
@@ -423,7 +423,7 @@ describe('get_api_operation, developer API', () => {
     expect((poll['operation'] as { errors: unknown[] }).errors).toContainEqual({
       status: '429',
       codes: ['slow_down'],
-      shapes: ['OAuthError', 'ThrottlerError'],
+      shapes: ['OAuthError', 'RateLimitError'],
     });
   });
 

@@ -4,7 +4,7 @@
     "title": "Tassyir developer API",
     "version": "1",
     "summary": "The API a developer calls to build Tassyir apps: their account, apps, client secrets, versions, the webhook console, dev stores and the CLI sign-in.",
-    "description": "The routes under `/developer/` that a DEVELOPER calls: the developer console, the `tassyir` CLI and the dev MCP. Not an app's API: installed apps call the Admin API (docs/api/apps/openapi.2026-10.json). Generated from the code by `npm run apps:openapi`; the reference is docs/api/apps/developer.md, developer-webhooks.md, dev-stores.md and developer-cli-auth.md.\n\n**Authentication.** `Authorization: Bearer <dashboard JWT>` (the console) or `Authorization: Bearer tsy_dt_…` (a developer token from the CLI sign-in), on every route but the approval routes (the dashboard session only) and the two public RFC 8628 routes. A developer account belongs to a USER, not a business: no route takes a business id, and an id that is not yours answers 404, exactly like one that does not exist.\n\n**Conventions.** JSON fields are camelCase (snake_case on the two OAuth routes, as RFC 8628 has them); ids are strings; times are ISO 8601 UTC. One resource answers `{ data }`, a paged list `{ data, nextCursor }` (pass `nextCursor` back as `cursor`), a short list `{ data }`.\n\n**Errors.** Not problem+json: the dashboard API's shape. A coded refusal is `{ statusCode, code, message, fix?, …subject, requestId }` (`DeveloperError`); act on `code`. Three refusals carry no `code` today: the ValidationPipe's 400 (`message` is a list of sentences), the dashboard session guard's 401, and the global rate limiter's 429 (a JSON string). The two OAuth routes answer `{ error, error_description }`. Each operation lists every code it can answer, by status.\n\n**Limits.** Counted in the database per developer (apps, secrets, versions, dev stores) and in Redis for the console and the CLI sign-in, whatever the global rate limiter says; each operation says which apply."
+    "description": "The routes under `/developer/` that a DEVELOPER calls: the developer console, the `tassyir` CLI and the dev MCP. Not an app's API: installed apps call the Admin API, which has its own document. Guides: https://developers.tassyir.io.\n\n**Authentication.** `Authorization: Bearer <dashboard JWT>` (the console) or `Authorization: Bearer tsy_dt_…` (a developer token from the CLI sign-in), on every route but the approval routes (the dashboard session only) and the two public RFC 8628 routes. A developer account belongs to a USER, not a business: no route takes a business id, and an id that is not yours answers 404, exactly like one that does not exist.\n\n**Conventions.** JSON fields are camelCase (snake_case on the two OAuth routes, as RFC 8628 has them); ids are strings; times are ISO 8601 UTC. One resource answers `{ data }`, a paged list `{ data, nextCursor }` (pass `nextCursor` back as `cursor`), a short list `{ data }`.\n\n**Errors.** Not problem+json: the dashboard API's shape. A coded refusal is `{ statusCode, code, message, fix?, …subject, requestId }` (`DeveloperError`); act on `code`. Three refusals carry no `code` today: a request that fails validation (400, `message` is a list of sentences), a missing or ended dashboard session (401), and the platform-wide rate limit (429, a bare JSON string). The two OAuth routes answer `{ error, error_description }`. Each operation lists every code it can answer, by status.\n\n**Limits.** Each developer has caps (apps, secrets, versions, dev stores), and the console's replays and tests and the CLI sign-in have rate limits of their own, which apply whether or not the platform-wide rate limit is enforced; each operation says which apply."
   },
   "servers": [
     {
@@ -65,7 +65,7 @@
           "Account"
         ],
         "summary": "Get your developer account",
-        "description": "Null when developer mode is off: not an error, the console asks this once to decide what to draw.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Null when developer mode is off: not an error, the console asks this once to decide what to draw.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -111,7 +111,7 @@
           "Account"
         ],
         "summary": "Turn developer mode on",
-        "description": "Every field is optional: `displayName` defaults to your name (else the part of your email before `@`), `supportEmail` to your email. `displayName` follows the manifest's `name` rule (1-50 characters on one line).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Every field is optional: `displayName` defaults to your name (else the part of your email before `@`), `supportEmail` to your email. `displayName` follows the manifest's `name` rule (1-50 characters on one line).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -265,7 +265,7 @@
           "Account"
         ],
         "summary": "Change your developer account",
-        "description": "`websiteUrl: null` clears it; `null` is refused for the other two.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "`websiteUrl: null` clears it; `null` is refused for the other two.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -421,7 +421,7 @@
           "Apps"
         ],
         "summary": "List your apps",
-        "description": "Newest first, at most 50 (an account holds at most 50 apps).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Newest first, at most 50 (an account holds at most 50 apps).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -495,7 +495,7 @@
           "Apps"
         ],
         "summary": "Create an app",
-        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused while Tassyir Hosting is switched off; the mode follows the app's current version.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused while Tassyir Hosting is switched off; the mode follows the app's current version.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -682,7 +682,7 @@
           "Apps"
         ],
         "summary": "Get one of your apps",
-        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -769,7 +769,7 @@
           "Apps"
         ],
         "summary": "Change an app",
-        "description": "Its names and `customBusinessId` (`null` clears it). The handle, client id, hosting mode and distribution never change.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Its names and `customBusinessId` (`null` clears it). The handle, client id, hosting mode and distribution never change.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -967,7 +967,7 @@
           "Secrets"
         ],
         "summary": "List an app's client secrets",
-        "description": "Newest first, at most 50. Never a secret, never its hash.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Newest first, at most 50. Never a secret, never its hash.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1054,7 +1054,7 @@
           "Secrets"
         ],
         "summary": "Mint a client secret (the first, or a rotation)",
-        "description": "The secret is in this answer ONCE. Minting while other secrets are live is the rotation: each live secret with no end date gets `expiresAt = now + 24 h`. At most 3 live secrets per app; 10 minted per developer per hour. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "The secret is in this answer ONCE. Minting while other secrets are live is the rotation: each live secret with no end date gets `expiresAt = now + 24 h`. At most 3 live secrets per app; 10 minted per developer per hour. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1187,7 +1187,7 @@
             }
           },
           "429": {
-            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -1218,7 +1218,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -1242,7 +1242,7 @@
           "Secrets"
         ],
         "summary": "Revoke a client secret now",
-        "description": "The token endpoint refuses it from this moment; access tokens already issued live out their hour. Idempotent. Allowed on a suspended account and a read-only app: a leaked secret must always be killable.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "The token endpoint refuses it from this moment; access tokens already issued live out their hour. Idempotent. Allowed on a suspended account and a read-only app: a leaked secret must always be killable.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1342,7 +1342,7 @@
           "Installations"
         ],
         "summary": "List an app's installations, with their webhooks' health",
-        "description": "Newest first. `limit` 1-100 (default 50).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "Newest first. `limit` 1-100 (default 50).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1500,7 +1500,7 @@
           "Webhooks"
         ],
         "summary": "Re-enable an installation's webhooks",
-        "description": "After a 410 or 3 days of continuous failure disabled them: clears the disable and the failure clock. Deliveries recorded `skipped` meanwhile stay skipped (replay the ones you need). Idempotent. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "After a 410 or 3 days of continuous failure disabled them: clears the disable and the failure clock. Deliveries recorded `skipped` meanwhile stay skipped (replay the ones you need). Idempotent. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1657,7 +1657,7 @@
           "Webhooks"
         ],
         "summary": "Send a test delivery to an installation",
-        "description": "A synthetic, signed delivery of a sample body (`tassyir-test: true`, `webhook-id: dlv_test_…`, envelope id `evt_0`); nothing is recorded and a 410 disables nothing. Needs an active installation whose version subscribes to the topic and was granted its scope. 20 tests per app and 40 per developer every 10 minutes.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "A synthetic, signed delivery of a sample body (`tassyir-test: true`, `webhook-id: dlv_test_…`, envelope id `evt_0`); nothing is recorded and a 410 disables nothing. Needs an active installation whose version subscribes to the topic and was granted its scope. 20 tests per app and 40 per developer every 10 minutes.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -1851,7 +1851,7 @@
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
-            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -1882,7 +1882,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -1943,7 +1943,7 @@
           "Versions"
         ],
         "summary": "List an app's versions",
-        "description": "Newest first, without their manifests. `limit` 1-100 (default 20); `cursor` is the previous `nextCursor` (versions below that number).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Newest first, without their manifests. `limit` 1-100 (default 20); `cursor` is the previous `nextCursor` (versions below that number).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2066,7 +2066,7 @@
           "Versions"
         ],
         "summary": "Upload a version of the app's manifest",
-        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline (docs/api/apps/developer.md \"Hosted versions\"). 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2252,7 +2252,7 @@
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
-            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -2283,7 +2283,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -2344,7 +2344,7 @@
           "Versions"
         ],
         "summary": "Get one version, with its manifest",
-        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer.md.",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2444,7 +2444,7 @@
           "Webhooks"
         ],
         "summary": "The app's delivery log",
-        "description": "Newest first, the last 30 days, metadata only (never a body or a URL). `limit` 1-100 (default 50); `since` is inclusive, `until` exclusive.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "Newest first, the last 30 days, metadata only (never a body or a URL). `limit` 1-100 (default 50); `since` is inclusive, `until` exclusive.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2661,7 +2661,7 @@
           "Webhooks"
         ],
         "summary": "One delivery of the log",
-        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2761,7 +2761,7 @@
           "Webhooks"
         ],
         "summary": "Send a delivery again, now",
-        "description": "One more attempt through the real sender, inline, with the same `webhook-id` (a receiver that deduplicates on it ignores a replay of something it processed). The attempt is final: no retry schedule after a replay. Refused while the delivery is still pending. 60 replays per app and 120 per developer every 10 minutes. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-webhooks.md.",
+        "description": "One more attempt through the real sender, inline, with the same `webhook-id` (a receiver that deduplicates on it ignores a replay of something it processed). The attempt is final: no retry schedule after a replay. Refused while the delivery is still pending. 60 replays per app and 120 per developer every 10 minutes. No body.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2931,7 +2931,7 @@
             }
           },
           "429": {
-            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -2962,7 +2962,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3023,7 +3023,7 @@
           "CLI sign-in"
         ],
         "summary": "Start a CLI sign-in (RFC 8628 §3.1)",
-        "description": "Print `user_code`, open `verification_uri_complete` (it only pre-fills the code: the developer approves on the page, signed in to the dashboard), then poll `POST /developer/cli/token` every `interval` seconds. 10 sign-ins per IP every 10 minutes. Errors are OAuth's `{ error, error_description }`.\n\nPublic: the CLI holds nothing yet.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Print `user_code`, open `verification_uri_complete` (it only pre-fills the code: the developer approves on the page, signed in to the dashboard), then poll `POST /developer/cli/token` every `interval` seconds. 10 sign-ins per IP every 10 minutes. Errors are OAuth's `{ error, error_description }`.\n\nPublic: the CLI holds nothing yet.",
         "security": [],
         "requestBody": {
           "required": true,
@@ -3126,7 +3126,7 @@
             }
           },
           "429": {
-            "description": "Rate limited: OAuth `slow_down`; the rate limiter (a string).",
+            "description": "Rate limited: OAuth `slow_down`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -3159,7 +3159,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3183,7 +3183,7 @@
           "CLI sign-in"
         ],
         "summary": "Approve a CLI sign-in",
-        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Only on the developer's click, never automatically. Idempotent. The CLI's next poll receives the token, and the developer is told (a bell notification and a push).\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Only on the developer's click, never automatically. Idempotent. The CLI's next poll receives the token, and the developer is told (a bell notification and a push).\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.",
         "security": [
           {
             "dashboardSession": []
@@ -3346,7 +3346,7 @@
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
-            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -3376,7 +3376,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3400,7 +3400,7 @@
           "CLI sign-in"
         ],
         "summary": "Deny a CLI sign-in",
-        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Works until the token is issued; a suspended account may still deny.\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Works until the token is issued; a suspended account may still deny.\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.",
         "security": [
           {
             "dashboardSession": []
@@ -3535,7 +3535,7 @@
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
-            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -3565,7 +3565,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3589,7 +3589,7 @@
           "CLI sign-in"
         ],
         "summary": "Look a sign-in up by its user code",
-        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Show what is asking (client, device name, when, the country it started from) before the developer decides.\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "The approval page's route (dashboard JWT ONLY: a developer token can never approve a sign-in). The code travels in the body; dashes, spaces and case are ignored. An unknown, expired or someone else's code is one answer, 404 `CLI_CODE_NOT_FOUND`. 10 approvals per user an hour; 10 wrong codes per user and 30 per IP an hour. Show what is asking (client, device name, when, the country it started from) before the developer decides.\n\nTakes the dashboard session ONLY: a developer token is refused here, so a stolen CLI token can never approve a new sign-in.",
         "security": [
           {
             "dashboardSession": []
@@ -3724,7 +3724,7 @@
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
-            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the rate limiter (a string).",
+            "description": "Rate limited: `CLI_SIGN_IN_RATE_LIMITED`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -3754,7 +3754,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3778,7 +3778,7 @@
           "CLI sign-in"
         ],
         "summary": "Poll for the developer token (RFC 8628 §3.4)",
-        "description": "Every `interval` seconds: `authorization_pending` until the developer decides; `slow_down` (HTTP 400) when a poll comes too soon, after which the interval is 5 seconds longer (at most 60); stop on `access_denied`, `expired_token` or `invalid_grant`. A device code yields one token, once. 30 unknown device codes per IP a minute (429 `slow_down`).\n\nPublic: the CLI holds nothing yet.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Every `interval` seconds: `authorization_pending` until the developer decides; `slow_down` (HTTP 400) when a poll comes too soon, after which the interval is 5 seconds longer (at most 60); stop on `access_denied`, `expired_token` or `invalid_grant`. A device code yields one token, once. 30 unknown device codes per IP a minute (429 `slow_down`).\n\nPublic: the CLI holds nothing yet.",
         "security": [],
         "requestBody": {
           "required": true,
@@ -3886,7 +3886,7 @@
             }
           },
           "429": {
-            "description": "Rate limited: OAuth `slow_down`; the rate limiter (a string).",
+            "description": "Rate limited: OAuth `slow_down`; the platform-wide rate limit (a string).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -3919,7 +3919,7 @@
                       ]
                     },
                     {
-                      "$ref": "#/components/schemas/ThrottlerError"
+                      "$ref": "#/components/schemas/RateLimitError"
                     }
                   ]
                 }
@@ -3943,7 +3943,7 @@
           "CLI tokens"
         ],
         "summary": "List your live developer tokens",
-        "description": "Newest first, at most 100; `current` marks the one this request was made with.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Newest first, at most 100; `current` marks the one this request was made with.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -3989,7 +3989,7 @@
           "CLI tokens"
         ],
         "summary": "Sign out of every CLI",
-        "description": "Revokes every token of yours, at once (tokens are never cached).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Revokes every token of yours, at once (tokens are never cached).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4037,7 +4037,7 @@
           "CLI tokens"
         ],
         "summary": "Revoke the token this request is made with (`tassyir logout`)",
-        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4141,7 +4141,7 @@
           "CLI tokens"
         ],
         "summary": "Revoke one of your developer tokens",
-        "description": "Revoking a revoked token answers the same.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/developer-cli-auth.md.",
+        "description": "Revoking a revoked token answers the same.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4229,7 +4229,7 @@
           "Dev stores"
         ],
         "summary": "List your dev stores",
-        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/dev-stores.md.",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4303,7 +4303,7 @@
           "Dev stores"
         ],
         "summary": "Create a dev store",
-        "description": "A business you own, with one store on a `dev-xxxxxxxx` subdomain and, unless `seed: false`, synthetic data (30 products, 64 buyers on fake phones, 200 orders in every state over 58 wilayas). It reaches no outside party and costs nothing. At most 3 per developer, 3 creates a minute.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.\n\nReference: docs/api/apps/dev-stores.md.",
+        "description": "A business you own, with one store on a `dev-xxxxxxxx` subdomain and, unless `seed: false`, synthetic data (30 products, 64 buyers on fake phones, 200 orders in every state over 58 wilayas). It reaches no outside party and costs nothing. At most 3 per developer, 3 creates a minute.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4615,7 +4615,7 @@
         }
       },
       "DeveloperThrottled": {
-        "description": "Rate limited: `DEVELOPER_TOKEN_RATE_LIMITED`; the rate limiter (a string).",
+        "description": "Rate limited: `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -4645,7 +4645,7 @@
                   ]
                 },
                 {
-                  "$ref": "#/components/schemas/ThrottlerError"
+                  "$ref": "#/components/schemas/RateLimitError"
                 }
               ]
             }
@@ -4880,7 +4880,7 @@
           },
           "reviewState": {
             "type": "string",
-            "description": "`approved` for an external upload; a hosted one (AP-B1.14) goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
+            "description": "`approved` for an external upload; a hosted one goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
           },
           "current": {
             "type": "boolean",
@@ -5226,7 +5226,7 @@
           },
           "reviewState": {
             "type": "string",
-            "description": "`approved` for an external upload; a hosted one (AP-B1.14) goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
+            "description": "`approved` for an external upload; a hosted one goes `scanning` → `scan_failed` | `ready` | `in_review` → `approved` | `rejected`; `draft`, `retired` are other states."
           },
           "current": {
             "type": "boolean",
@@ -5686,7 +5686,7 @@
                   "rejectionReason"
                 ],
                 "additionalProperties": false,
-                "description": "A hosted version's scan report: every check's findings and the review (docs/api/apps/developer.md \"Hosted versions\")."
+                "description": "A hosted version's scan report: every check's findings and the review."
               },
               {
                 "type": "null"
@@ -5700,7 +5700,7 @@
               "type": "string"
             },
             "additionalProperties": {},
-            "description": "The normalised manifest (docs/api/apps/manifest.2026-10.schema.json)."
+            "description": "The normalised manifest (its JSON Schema: `@tassyir/app-manifest/schemas/manifest.2026-10.schema.json`)."
           }
         },
         "required": [
@@ -5841,7 +5841,7 @@
                   {
                     "type": "string",
                     "pattern": "^[A-Z]{2}$",
-                    "description": "ISO 3166-1 alpha-2 country code (Cloudflare's `CF-IPCountry`)."
+                    "description": "The country the request came from, by its IP address (ISO 3166-1 alpha-2)."
                   },
                   {
                     "type": "null"
@@ -5923,7 +5923,7 @@
               {
                 "type": "string",
                 "pattern": "^[A-Z]{2}$",
-                "description": "ISO 3166-1 alpha-2 country code (Cloudflare's `CF-IPCountry`)."
+                "description": "The country the request came from, by its IP address (ISO 3166-1 alpha-2)."
               },
               {
                 "type": "null"
@@ -6973,7 +6973,7 @@
       },
       "HttpError": {
         "type": "object",
-        "description": "A refusal without a `code`: the dashboard JWT's guard (no token, a revoked or expired session, a password changed since it was issued).",
+        "description": "A refusal without a `code`: no dashboard session (no token, a revoked or expired session, a password changed since it was issued).",
         "properties": {
           "statusCode": {
             "type": "integer"
@@ -7125,6 +7125,10 @@
           "error_description"
         ]
       },
+      "RateLimitError": {
+        "type": "string",
+        "description": "The platform-wide rate limit's refusal: a bare JSON string, not an object, sent only while that limit is enforced. A developer token's calls are counted by IP."
+      },
       "SendWebhookTestInput": {
         "type": "object",
         "properties": {
@@ -7180,10 +7184,6 @@
           "statusCode",
           "message"
         ]
-      },
-      "ThrottlerError": {
-        "type": "string",
-        "description": "The global rate limiter's refusal, a JSON string (`\"ThrottlerException: Too Many Requests\"`), only while rate limiting is enforced. A developer token's calls are counted by IP."
       },
       "UpdateDeveloperAccountInput": {
         "type": "object",
@@ -7244,13 +7244,13 @@
         "properties": {
           "manifest": {
             "type": "object",
-            "description": "`tassyir.app.toml` exactly as a TOML parser returns it, handed to the manifest validator untouched (rules: docs/api/apps/manifest.md, schema: docs/api/apps/manifest.2026-10.schema.json). Anything else is 400 `APP_MANIFEST_INVALID`."
+            "description": "`tassyir.app.toml` exactly as a TOML parser returns it, handed to the manifest validator untouched (rules: https://developers.tassyir.io/guides/manifest; JSON Schema: `@tassyir/app-manifest/schemas/manifest.2026-10.schema.json`). Anything else is 400 `APP_MANIFEST_INVALID`."
           },
           "bundle": {
             "anyOf": [
               {
                 "type": "object",
-                "description": "A hosted version's code (required for `hosting.mode = \"tassyir\"`, refused otherwise): `{ main, files: [{ path, content }], lockfile? }`, text modules only, at most 100 files and 3 MB; checked by the bundle validator (every error at once, 400 `APP_BUNDLE_INVALID`). Rules: docs/api/apps/developer.md \"Hosted versions\".",
+                "description": "A hosted version's code (required for `hosting.mode = \"tassyir\"`, refused otherwise): `{ main, files: [{ path, content }], lockfile? }`, text modules only, at most 100 files and 3 MB; checked by the bundle validator (every error at once, 400 `APP_BUNDLE_INVALID`).",
                 "properties": {
                   "main": {
                     "type": "string"
@@ -7313,7 +7313,7 @@
       },
       "ValidationError": {
         "type": "object",
-        "description": "The global ValidationPipe's refusal: a field missing, malformed or unknown, in the body or the query string. It carries NO `code`: branch on the status (400) and show `message`.",
+        "description": "A request that fails validation: a field missing, malformed or unknown, in the body or the query string. It carries NO `code`: branch on the status (400) and show `message`.",
         "properties": {
           "statusCode": {
             "type": "integer",

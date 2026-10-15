@@ -160,7 +160,7 @@ document. Every code sample is typechecked against the packed packages.
 
 [site](site/README.md) (AP-K1.9): the developer docs site,
 [developers.tassyir.io](https://developers.tassyir.io), on Mintlify. It
-publishes the guides, the Admin API reference from the OpenAPI document, one
+publishes the guides, the Admin and developer API references from the OpenAPI documents, one
 page per error code at its problem `type` URL, and each package's README,
 all generated from this repo (`npm run docs:sync`, kept in step by a spec),
 with [`llms.txt`](https://developers.tassyir.io/llms.txt),

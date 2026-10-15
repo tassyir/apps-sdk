@@ -83,13 +83,13 @@ export interface Page<T> {
  * Every body a refusal of the developer API can have. Only `DeveloperError`
  * carries a `code`: the ValidationPipe's 400 (`ValidationError`), the
  * dashboard session guard's 401 (`HttpError`) and the rate limiter's 429
- * (`ThrottlerError`, a bare JSON string) do not, so the client names them by
+ * (`RateLimitError`, a bare JSON string) do not, so the client names them by
  * status. The two sign-in routes answer OAuth's `{ error, error_description }`.
  */
 export type DeveloperApiErrorBody =
   | Schemas['DeveloperError']
   | Schemas['ValidationError']
   | Schemas['HttpError']
-  | Schemas['ThrottlerError']
+  | Schemas['RateLimitError']
   | Schemas['ServerError'];
 export type OAuthErrorBody = Schemas['OAuthError'];
