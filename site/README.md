@@ -16,7 +16,7 @@ monorepo path `/site`). This file is for its maintainers; it is not a page
 | `guides/<slug>.mdx`     | One page per guide                                                  | Generated from [`docs/guides/<slug>.md`](../docs/guides)    |
 | `errors/<code>.mdx`     | One page per problem code, at its `type` URL                        | Generated from the OpenAPI file and `docs/guides/errors.md` |
 | `packages/<folder>.mdx` | One page per public package                                         | Generated from `packages/<folder>/README.md`                |
-| `openapi/*.json`        | The Admin and developer API references, rendered by Mintlify        | Copied byte for byte from `packages/{app,cli}/openapi/`     |
+| `openapi/*.json`        | The API reference, rendered by Mintlify                             | Copied byte for byte from `packages/app/openapi/`           |
 
 Never edit a generated file: edit its source, then run `npm run docs:sync`.
 `scripts/docs-site.test.mjs` (in `npm test` and CI) fails while one is stale,
