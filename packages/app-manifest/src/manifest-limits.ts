@@ -107,7 +107,7 @@ export const RESERVED_HANDLES: readonly string[] = [
  * Tassyir's own domains. An external app may not live on them (the API
  * trusts every `*.tassyir.io` origin with credentials, D2, and another app
  * owns each `*.tassyir-apps.com` origin), and a hosted app reaches Tassyir
- * through `env.TASSYIR`, never through its egress allowlist.
+ * through `ctx.props.TASSYIR`, never through its egress allowlist.
  */
 export const RESERVED_DOMAINS: readonly string[] = [
   'tassyir.io',

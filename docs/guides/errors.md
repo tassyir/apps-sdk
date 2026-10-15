@@ -45,7 +45,10 @@ error a `TassyirOAuthError` (its `code` is `OAUTH_` and the OAuth error in
 capitals), and every other refusal a `TassyirError` with a `code` and a
 `fix`. App Bridge's errors are listed in
 [Embedded pages](embedded-pages.md#errors), the manifest's in
-[The manifest](manifest.md#validate-before-you-upload).
+[The manifest](manifest.md#validate-before-you-upload), and those of the
+hosted helpers (`HOSTED_PROPS_MISSING`, and `KEYS_UNAVAILABLE`,
+`KEYS_NOT_CONFIGURED` and `WEBHOOK_NOT_A_DELIVERY` from
+`verifyHostedWebhook`) in [Tassyir Hosting](tassyir-hosting.md#webhooks).
 
 ## Common errors and what to do
 
@@ -187,17 +190,22 @@ same `Idempotency-Key`.
 A hosted app calls the Admin API through `ctx.props.TASSYIR.fetch`
 ([Tassyir Hosting](tassyir-hosting.md#call-the-admin-api)). The binding checks
 each call before it sends it and answers some refusals itself, in the same
-problem shape but without a `requestId`: they never reached the API. Six of
-them are the API's own codes (`METHOD_NOT_ALLOWED`, `BAD_REQUEST`,
-`IDEMPOTENCY_KEY_INVALID`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, and
-`SERVICE_UNAVAILABLE` when the API did not answer within 30 seconds). Three
-exist only there, so the API's reference does not list them:
+problem shape but without a `requestId`: they never reached the API.
+`@tassyir/app` lists all nine in `HOSTED_BINDING_ERRORS`, and `hostedAdmin`
+throws them as `TassyirApiError`s. Six of them are the API's own codes
+(`METHOD_NOT_ALLOWED`, `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`,
+`PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, and `SERVICE_UNAVAILABLE` when
+the API did not answer within 30 seconds). Three exist only there, so the
+API's reference does not list them:
 
 ### `HOSTED_PATH_NOT_ALLOWED`
 
 HTTP 400. The call was not to an Admin API path. Call `/apps/<version>/…`
 with segments of letters, digits, `_` and `-` only: no other path, no `//`,
-no trailing `/`, no percent-encoding and no `;`.
+no trailing `/`, no percent-encoding and no `;`. The binding also reads
+Tassyir's two public key documents, with `GET` at exactly
+`/apps/webhook-keys` and `/apps/.well-known/jwks.json` (another method there
+is `METHOD_NOT_ALLOWED`).
 
 ### `RESPONSE_TOO_LARGE`
 

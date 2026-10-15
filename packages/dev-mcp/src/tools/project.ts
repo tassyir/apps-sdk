@@ -231,7 +231,8 @@ export const scaffoldTool = defineTool({
   description: [
     'Create a new Tassyir app from the official starter (create-tassyir-app): a Node 22 + Hono',
     'server on your own host, an embedded page on App Bridge, signed webhooks, the Admin API',
-    'client, tassyir.app.toml, AGENTS.md, CLAUDE.md and a Claude Code skill. Writes into',
+    'client, tassyir.app.toml, AGENTS.md, CLAUDE.md and a Claude Code skill (with template',
+    '"hosted": an app on Tassyir Hosting, a Worker and a React page, no server). Writes into',
     "`directory` (new or empty; relative to this server's working folder), checks the name,",
     "handle and URL with the manifest's own rules first, never overwrites a file and installs",
     'nothing. Answers the files written and the next steps. Ask your user for the handle',
@@ -303,13 +304,22 @@ export const scaffoldTool = defineTool({
         app: result.app,
         files: result.files,
         dependencies: { ...result.dependencies },
-        next: [
-          `cd ${result.directory}`,
-          'npm install',
-          'npm run setup (writes .env with a new TOKEN_STORE_KEY)',
-          "Read the project's AGENTS.md: it says how this app is built and what to change first.",
-          `Create the app on Tassyir with the handle ${result.app.handle} (\`tassyir app create\`), put its credentials in .env (\`tassyir secrets create --write-env\`), then \`tassyir deploy\`, \`tassyir store create\` and install it on the dev store.`,
-        ],
+        next:
+          result.template === 'hosted'
+            ? [
+                `cd ${result.directory}`,
+                'npm install',
+                'npm run check (validate, typecheck, the specs in workerd, and deploy:check: tassyir deploy --dry-run)',
+                "Read the project's AGENTS.md: it says how this app is built and what to change first.",
+                `Create the app on Tassyir with the handle ${result.app.handle} (\`tassyir app create\`), then \`npm run deploy\` (it builds the page, then \`tassyir deploy\`), \`tassyir store create\` and install it on the dev store. A hosted app needs no client secret and no .env.`,
+              ]
+            : [
+                `cd ${result.directory}`,
+                'npm install',
+                'npm run setup (writes .env with a new TOKEN_STORE_KEY)',
+                "Read the project's AGENTS.md: it says how this app is built and what to change first.",
+                `Create the app on Tassyir with the handle ${result.app.handle} (\`tassyir app create\`), put its credentials in .env (\`tassyir secrets create --write-env\`), then \`tassyir deploy\`, \`tassyir store create\` and install it on the dev store.`,
+              ],
       };
     } catch (error) {
       if (!isCreateError(error)) throw error;

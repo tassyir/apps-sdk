@@ -57,6 +57,51 @@ describe('tassyir app init', () => {
     expect(harness.fake.requests).toEqual([]);
   });
 
+  it('prints the hosted starter’s own next steps: its checks, the app, a deploy, a dev store', async () => {
+    const harness = await createHarness();
+    const result = await harness.run(
+      'app',
+      'init',
+      'my hosted',
+      '--template',
+      'hosted',
+      '--json',
+    );
+    expect(result.code).toBe(0);
+    expect(result.json()).toMatchObject({
+      ok: true,
+      template: 'hosted',
+      app: { handle: 'my-hosted' },
+      next: [
+        "cd 'my hosted'",
+        'npm install',
+        'npm run check',
+        'tassyir app create',
+        'npm run deploy',
+        'tassyir store create',
+      ],
+    });
+    const files = await readdir(join(harness.cwd, 'my hosted'));
+    expect(files).toEqual(
+      expect.arrayContaining(['tassyir.app.toml', 'package.json', 'src']),
+    );
+    // No server, .env or secret in a hosted project: none of their steps.
+    expect(files).not.toContain('.env.example');
+    const text = await harness.run(
+      'app',
+      'init',
+      'other',
+      '--template',
+      'hosted',
+    );
+    expect(text.stdout).toContain(
+      'Next:\n  cd other\n  npm install\n  npm run check\n  tassyir app create\n  npm run deploy\n  tassyir store create\n',
+    );
+    expect(text.stdout).not.toContain('npm run setup');
+    expect(text.stdout).not.toContain('secrets create');
+    expect(harness.fake.requests).toEqual([]);
+  });
+
   it("passes the starter's refusals on with their code, fix and exit code", async () => {
     const harness = await createHarness();
     const reserved = await harness.run(
@@ -146,6 +191,29 @@ describe('tassyir app create / app list', () => {
       nameEn: 'Sheets Sync',
       nameAr: 'مزامنة',
     });
+  });
+
+  it('a hosted app needs no client secret: next is a deploy and a dev store', async () => {
+    const harness = await createHarness();
+    await harness.signIn();
+    harness.fake.hosting = 'on';
+    await withManifest(
+      harness,
+      MANIFEST.replace(
+        'mode = "external"\nurl  = "https://reviews.acme-apps.dz"',
+        'mode = "tassyir"\nallowed_hosts = []',
+      ),
+    );
+    const result = await harness.run('app', 'create', '--json');
+    expect(result.code).toBe(0);
+    expect(result.json()).toMatchObject({
+      ok: true,
+      app: { handle: 'review-requests' },
+      next: ['tassyir deploy', 'tassyir store create'],
+    });
+    expect(
+      JSON.parse(posts(harness, /^\/developer\/apps$/)[0]?.body ?? '{}'),
+    ).toMatchObject({ hostingMode: 'tassyir' });
   });
 
   it('a hosted app is answered by the API: APP_HOSTING_NOT_AVAILABLE', async () => {

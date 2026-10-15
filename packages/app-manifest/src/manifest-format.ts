@@ -364,7 +364,7 @@ export function allowedHostProblem(
       'MANIFEST_HOST_NOT_ALLOWED',
       `\`${path}\` is ${quote(value)}, ${reason}.`,
       tassyir
-        ? `Remove \`${path}\`; a hosted app calls Tassyir through env.TASSYIR (the Admin API), not through the network.`
+        ? `Remove \`${path}\`; a hosted app calls Tassyir through ctx.props.TASSYIR (the Admin API), not through the network.`
         : `Remove \`${path}\`; list only public hostnames the app calls.`,
     );
   }

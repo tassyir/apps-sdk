@@ -66,7 +66,7 @@ stripping).
 | `npm run typecheck`    | `tsc` on the Worker and its specs, the scripts, then the page                        |
 | `npm test`             | Vitest: the Worker in workerd (stand-in `ctx.props`), the manifest and money on Node |
 | `npm run build`        | Bundles the page into `dist/page` (the Worker imports it as text)                    |
-| `npm run deploy:check` | Builds, then runs what `tassyir deploy` checks before it uploads; uploads nothing    |
+| `npm run deploy:check` | Builds, then `tassyir deploy --dry-run`: every check before the upload, no sign-in   |
 | `npm run deploy`       | Builds, then `tassyir deploy`: uploads the version and follows its scan              |
 | `npm run check`        | validate, typecheck, test, deploy:check: run it before you finish a change           |
 
@@ -80,7 +80,7 @@ src/storage.ts          ctx.props.STORAGE: the schema, settings, the orders the 
 src/webhooks.ts         verifies a delivery (verifyHostedWebhook), handles each topic
 src/page/               the page (React, browser): main.tsx, App.tsx, api.ts, messages.ts, own tsconfig
 src/shared/money.ts     decimal-string money, used by the Worker and the page
-scripts/                build, deploy-check, validate (run by Node, TypeScript)
+scripts/                build, validate (run by Node, TypeScript)
 test/worker/            specs in workerd; stand-ins.ts, helpers.ts make ctx.props and deliveries
 test/node/              the manifest and money specs, on Node
 ```

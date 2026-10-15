@@ -11,7 +11,10 @@ Its problem `type`: `https://developers.tassyir.io/errors/hosted-path-not-allowe
 
 HTTP 400. The call was not to an Admin API path. Call `/apps/<version>/…`
 with segments of letters, digits, `_` and `-` only: no other path, no `//`,
-no trailing `/`, no percent-encoding and no `;`.
+no trailing `/`, no percent-encoding and no `;`. The binding also reads
+Tassyir's two public key documents, with `GET` at exactly
+`/apps/webhook-keys` and `/apps/.well-known/jwks.json` (another method there
+is `METHOD_NOT_ALLOWED`).
 
 ## Answered by
 

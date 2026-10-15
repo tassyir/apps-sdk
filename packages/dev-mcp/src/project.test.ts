@@ -268,6 +268,23 @@ describe('scaffold', () => {
     expect(await readdir(harness.cwd)).toEqual([]);
   });
 
+  it('answers the hosted starter’s own next steps: no setup, no .env, no secret', async () => {
+    const harness = await createHarness();
+    const answer = await harness.ok('scaffold', {
+      directory: 'hosted-app',
+      template: 'hosted',
+    });
+    expect(answer['template']).toBe('hosted');
+    const next = answer['next'] as string[];
+    expect(next.slice(0, 2)).toEqual([
+      `cd ${join(harness.cwd, 'hosted-app')}`,
+      'npm install',
+    ]);
+    expect(next[2]).toMatch(/^npm run check /);
+    expect(next.at(-1)).toContain('`npm run deploy`');
+    expect(next.join('\n')).not.toMatch(/npm run setup|secrets create/);
+  });
+
   it('refuses --url with the hosted template (it has no hosting.url)', async () => {
     const harness = await createHarness();
     const error = await harness.refused('scaffold', {
