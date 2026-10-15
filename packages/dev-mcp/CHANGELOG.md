@@ -1,5 +1,19 @@
 # @tassyir/dev-mcp
 
+## 0.1.1
+
+### Patch Changes
+
+- 1eb5105: `get_api_operation` also answers the developer API, what the `tassyir` CLI calls (apps, versions, client secrets, dev stores, the webhook console, the CLI sign-in), from its OpenAPI document shipped in the package. An operation is found by its id or by `METHOD /developer/…` as before; `api: "developer"` lists the developer operations or reads one of its schemas, and every answer names its `api`. A status whose body may be one of several lists them (`shapes`), so an agent knows when a refusal can come without a `code`. Fixed: `seed_dev_store` accepts a dev store whose store has no subdomain yet (`null`), as the API documents.
+- 7ad6134: `get_api_operation` serves the developer API as the backend describes it at `e6f930db`, with descriptions written for app developers, and a refusal that is a bare string is the `RateLimitError` shape (formerly `ThrottlerError`). Also: a version upload takes a hosted app's `bundle` (`main`, `files`, `lockfile`) and can answer `APP_BUNDLE_INVALID`, `APP_BUNDLE_REQUIRED`, `APP_BUNDLE_NOT_ALLOWED`, `APP_VERSION_CONFLICT`, `APP_HOSTING_NOT_CONFIGURED`, `APP_HOSTING_BUSY` and `APP_BUNDLE_STORAGE_FAILED`, and every version carries `hosting` (the scan, its checks and findings, the AI review, the uploads; `null` for an app on its own server).
+- b146c8c: `fetch_doc`'s `source` is now the guide's page on the docs site, `https://developers.tassyir.io/guides/<slug>` (the index guide at `/guides`), with `#<section>` when you read a section, instead of the guide's file on GitHub. Each page's Markdown is the same address plus `.md`.
+- Updated dependencies [2c0bbe7]
+- Updated dependencies [f5a07cb]
+- Updated dependencies [7ad6134]
+- Updated dependencies [b146c8c]
+  - tassyir@0.2.0
+  - create-tassyir-app@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
