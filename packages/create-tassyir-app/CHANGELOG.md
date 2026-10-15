@@ -1,5 +1,18 @@
 # create-tassyir-app
 
+## 0.2.0
+
+### Minor Changes
+
+- acb578f: The `hosted` template is available (`--template hosted`): an app on Tassyir Hosting, a Cloudflare Worker (Hono) that reads its installation, its own SQLite storage and the Admin API from `ctx.props`, a React page on `@tassyir/app-bridge/react` and `@tassyir/ui` (ar/en, right to left, dark), webhooks through `verifyHostedWebhook`, specs in workerd with stand-in `ctx.props`, `npm run deploy:check` (the checks `tassyir deploy` runs before it uploads) and `npm run deploy`. `--url` is refused for it (`OPTION_NOT_FOR_TEMPLATE`), a hosted project names `tassyir` among its dependencies, the `tassyir-app` skill covers both hosting modes, and `createProject`'s `dependencies` name only what the template's `package.json` does.
+
+### Patch Changes
+
+- 86ab80c: New projects name `@tassyir/app-manifest`'s release with the `MANIFEST_PATH_RESERVED` rule (a hosted app's page or webhook under `/.tassyir/`).
+- 0834ea6: The `external` template's `PUT /api/settings` answers 400 `SETTINGS_INVALID` for a `highlightFrom` string that is not an amount (`"5000.001"`, `"abc"`), as the `hosted` template does. It used to read such a string as `null` and clear the saved setting.
+- Updated dependencies [86ab80c]
+  - @tassyir/app-manifest@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
