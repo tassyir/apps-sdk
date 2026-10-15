@@ -157,7 +157,12 @@ a real token, secret or business id into a test.
 
 ## References
 
+- The developer docs, https://developers.tassyir.io: the guides, the Admin
+  API reference, a page per error code (a problem's `type` is its page) and a
+  page per package. Every page's Markdown is at its address plus `.md`;
+  https://developers.tassyir.io/llms.txt lists them all.
 - `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`,
-  `@tassyir/ui`: their READMEs in `node_modules/@tassyir/*/README.md`, or
-  https://github.com/tassyir/apps-sdk.
+  `@tassyir/ui`: https://developers.tassyir.io/packages/app (and
+  `/packages/app-bridge`, `/packages/app-manifest`, `/packages/ui`), or their
+  READMEs in `node_modules/@tassyir/*/README.md` offline.
 - The developer console: https://app.tassyir.io/en/developers.

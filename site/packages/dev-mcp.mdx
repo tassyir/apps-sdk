@@ -116,7 +116,7 @@ MCP SDK refuses them first, with its own validation message naming the field.
 | Tool                   | What it does                                                                                                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `search_docs`          | Searches the guides, the Admin API's operations and the webhook topics; each result names the tool call that reads it.                                                   |
-| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time; without a slug, lists the guides.                                                     |
+| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time, with its address on developers.tassyir.io; without a slug, lists the guides.          |
 | `get_api_operation`    | One Admin API operation (by `operationId` or `METHOD /path`), one component schema, or the list of operations; `"api": "developer"` for the developer API the CLI calls. |
 | `get_event_schema`     | One webhook topic: envelope, resource, headers, the scope to subscribe, the answer to give; without a topic, the list.                                                   |
 | `validate_manifest`    | Validates `tassyir.app.toml` (its text, a path, or `./tassyir.app.toml`) with `@tassyir/app-manifest`, as the API will.                                                  |

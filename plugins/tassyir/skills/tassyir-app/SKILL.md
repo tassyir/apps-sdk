@@ -20,16 +20,17 @@ businesses its developer owns, and on one other business the developer names.
 
 ## Addresses
 
-| What                     | Where                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| Admin API                | `https://api.tassyir.io/apps/2026-10/`                                        |
-| Token endpoint           | `POST https://api.tassyir.io/apps/oauth/token`                                |
-| ID-token keys (JWKS)     | `GET https://api.tassyir.io/apps/.well-known/jwks.json`                       |
-| Webhook public keys      | `GET https://api.tassyir.io/apps/webhook-keys`                                |
-| The app's page           | `https://app.tassyir.io/{locale}/dashboard/{businessId}/apps/{handle}`        |
-| Developer console        | `https://app.tassyir.io/en/developers`                                        |
-| Manifest                 | `tassyir.app.toml`, validated by `@tassyir/app-manifest`                      |
-| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/ui`, `@tassyir/app-manifest` |
+| What                     | Where                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| Admin API                | `https://api.tassyir.io/apps/2026-10/`                                                            |
+| Token endpoint           | `POST https://api.tassyir.io/apps/oauth/token`                                                    |
+| ID-token keys (JWKS)     | `GET https://api.tassyir.io/apps/.well-known/jwks.json`                                           |
+| Webhook public keys      | `GET https://api.tassyir.io/apps/webhook-keys`                                                    |
+| The app's page           | `https://app.tassyir.io/{locale}/dashboard/{businessId}/apps/{handle}`                            |
+| Developer console        | `https://app.tassyir.io/en/developers`                                                            |
+| Manifest                 | `tassyir.app.toml`, validated by `@tassyir/app-manifest`                                          |
+| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/ui`, `@tassyir/app-manifest`                     |
+| Developer docs           | `https://developers.tassyir.io` (a page's Markdown: its address + `.md`; every page: `/llms.txt`) |
 
 ## The manifest (`tassyir.app.toml`)
 
@@ -169,7 +170,9 @@ business accepts it. A version that adds scopes, or a host the data reaches
 - **Errors** are `application/problem+json`:
   `{ type, title, status, detail, code, fix, requestId, … }`. Act on `code`,
   never on `detail`; `fix` is one sentence saying what to do; quote
-  `requestId` to Tassyir support.
+  `requestId` to Tassyir support. `type`
+  (`https://developers.tassyir.io/errors/<code in kebab case>`) is the code's
+  page on the docs site.
 - **Rate limits:** a leaky bucket per installation (40 at once, 4 a second;
   429 `RATE_LIMITED`), a ceiling shared by all the apps of a business (20 a
   second; 429 `BUSINESS_RATE_LIMITED`), and a per-process cap (503 `API_BUSY`,

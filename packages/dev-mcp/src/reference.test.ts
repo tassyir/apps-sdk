@@ -151,7 +151,9 @@ describe('fetch_doc', () => {
         const answer = await harness.ok('fetch_doc', { slug, page });
         pages = answer['pages'] as number;
         expect(answer['source']).toBe(
-          `https://github.com/tassyir/apps-sdk/blob/main/docs/guides/${slug}.md`,
+          slug === 'index'
+            ? 'https://developers.tassyir.io/guides'
+            : `https://developers.tassyir.io/guides/${slug}`,
         );
         if (page === 1) expect(answer['outline']).toBeDefined();
         else expect(answer['outline']).toBeUndefined();
@@ -173,7 +175,9 @@ describe('fetch_doc', () => {
     expect(answer['section']).toEqual({ anchor: 'topics', title: 'Topics' });
     expect(answer['markdown']).toMatch(/^## Topics\n/);
     expect(answer['markdown']).toContain('bulk/finished');
-    expect(answer['source']).toMatch(/webhooks\.md#topics$/);
+    expect(answer['source']).toBe(
+      'https://developers.tassyir.io/guides/webhooks#topics',
+    );
 
     let checked = 0;
     for (const slug of await guideSlugs()) {
