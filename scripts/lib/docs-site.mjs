@@ -79,6 +79,11 @@ export const OPENAPI_SOURCES = [
     group: 'Admin API',
     directory: 'api-reference/admin',
   },
+  {
+    source: 'packages/cli/openapi/openapi.developer.json',
+    group: 'Developer API',
+    directory: 'api-reference/developer',
+  },
 ];
 
 /**
