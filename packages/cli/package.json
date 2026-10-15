@@ -1,6 +1,6 @@
 {
   "name": "tassyir",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The Tassyir developer CLI: sign in, create apps, validate and deploy tassyir.app.toml, manage client secrets, dev stores and test webhooks. --json on every command.",
   "license": "MIT",
   "repository": {
@@ -53,7 +53,7 @@
     "@tassyir/app-manifest": "^0.1.0",
     "acorn": "^8.18.0",
     "acorn-walk": "^8.3.5",
-    "create-tassyir-app": "^0.1.0",
+    "create-tassyir-app": "^0.1.1",
     "esbuild": "0.28.2",
     "smol-toml": "^1.9.0"
   },
