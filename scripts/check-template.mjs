@@ -1,8 +1,8 @@
 // Generates a project with create-tassyir-app the way a developer does, then
 // installs, validates, typechecks, tests, builds and starts it:
 //   1. packs every workspace package (this repo's tarballs);
-//   2. installs the create-tassyir-app tarball (with its @tassyir dependency
-//      from the tarballs too) in a scratch folder and runs its CLI with
+//   2. installs the create-tassyir-app tarball (with every other workspace
+//      package from the tarballs too) in a scratch folder and runs its CLI with
 //      --json, so the files npm ships are the files tested;
 //   3. checks the generated package.json names this repo's versions, then
 //      installs the project with every @tassyir/* package from the tarballs
@@ -104,13 +104,16 @@ try {
   writeFileSync(join(cli, 'package.json'), '{ "private": true }\n');
   const cliTarball = tarballs['create-tassyir-app'];
   if (!cliTarball) throw new Error('create-tassyir-app is not a workspace');
+  // Every other workspace tarball too, the unscoped `tassyir` CLI included:
+  // a scoped package may depend on it (@tassyir/dev-mcp does), and on a
+  // Version Packages PR its new version is not on npm yet.
   run(
     'npm',
     [
       ...INSTALL_FLAGS,
       cliTarball,
       ...Object.entries(tarballs)
-        .filter(([name]) => name.startsWith('@tassyir/'))
+        .filter(([name]) => name !== 'create-tassyir-app')
         .map(([, path]) => path),
     ],
     { cwd: cli },
