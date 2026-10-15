@@ -12,6 +12,9 @@ export default defineConfig({
       'create-tassyir-app': fileURLToPath(
         new URL('./packages/create-tassyir-app/src/index.ts', import.meta.url),
       ),
+      tassyir: fileURLToPath(
+        new URL('./packages/cli/src/index.ts', import.meta.url),
+      ),
     },
   },
   test: {

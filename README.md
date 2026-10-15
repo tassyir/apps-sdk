@@ -102,11 +102,19 @@ starts it (`npm run check:template`). Published to npm only.
 
 ### `@tassyir/dev-mcp`
 
-_Planned: AP-K1.8._ An MCP server for AI coding agents that build Tassyir apps.
-It can search and fetch the developer docs, look up an API operation or an
-event schema, validate a manifest or a storefront block, scaffold an app,
-trigger a test webhook, tail logs, seed a dev store and run the review checks.
-It comes with a Claude Code plugin.
+[`packages/dev-mcp`](packages/dev-mcp) (AP-K1.8). An MCP server, over stdio,
+for the AI coding agent that builds a Tassyir app:
+`claude mcp add tassyir -- npx -y @tassyir/dev-mcp`. Offline, from the guides
+and the OpenAPI document it ships with: `search_docs`, `fetch_doc`,
+`get_api_operation`, `get_event_schema`, and `validate_manifest` (the API's
+own validator). `scaffold` writes a new app from `create-tassyir-app`.
+`trigger_test_webhook`, `seed_dev_store` and `list_dev_stores` call the
+developer API with the sign-in of `tassyir login`, whose token never appears
+in an answer. `validate_block`, `tail_logs` and `run_review_checks` are listed
+and answer that they are not available yet (the marketplace, Tassyir
+Hosting). Every tool has a JSON Schema input and output, every answer is at
+most 8 KB, and every refusal has a `code` and a `fix`. A Claude Code plugin
+comes later.
 
 ## Developer guides
 

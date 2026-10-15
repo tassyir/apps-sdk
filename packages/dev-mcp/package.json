@@ -1,0 +1,60 @@
+{
+  "name": "@tassyir/dev-mcp",
+  "version": "0.0.0",
+  "description": "An MCP server for the AI agent that builds your Tassyir app: the guides, the Admin API and webhook schemas, manifest validation, the starter, and test webhooks and dev stores through your tassyir login.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git",
+    "directory": "packages/dev-mcp"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/dev-mcp#readme",
+  "keywords": [
+    "tassyir",
+    "tassyir-app",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "claude-code"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "tassyir-dev-mcp": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.2.0",
+    "@tassyir/app-manifest": "^0.1.0",
+    "create-tassyir-app": "^0.1.0",
+    "smol-toml": "^1.9.0",
+    "tassyir": "^0.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.2.0"
+  }
+}
