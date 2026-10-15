@@ -68,7 +68,7 @@ const outFlag = args.indexOf('--out');
 const templateFlag = args.indexOf('--template');
 const TEMPLATE = templateFlag === -1 ? 'external' : args[templateFlag + 1];
 if (TEMPLATE !== 'external' && TEMPLATE !== 'hosted') {
-  stop(`--template ${String(TEMPLATE)}: not a template.`, `${USAGE}`);
+  stop(`--template ${String(TEMPLATE)}: not a template.`, USAGE);
 }
 const HOSTED = TEMPLATE === 'hosted';
 const OUT = resolve(
