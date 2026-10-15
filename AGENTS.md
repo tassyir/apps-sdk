@@ -93,7 +93,12 @@ generated project gets them. They are not linted or typechecked with the
 repo: `npm run check:template` (in `verify` and CI, needs the network)
 generates a project with the packed CLI, installs it with this repo's
 tarballs, and runs its own validate, typecheck, test and build, then starts
-it. npm leaves `.gitignore` and `.npmrc` out of a tarball, and this repo's
+it. After a change to the page, check it in a real browser too (local only:
+Chrome): `npm run check:template -- --keep`, then
+`npm run browser-check -w create-tassyir-app -- <the folder it kept>` frames
+it in a fake dashboard, in Arabic and English, light and dark, at 390 and
+1440 px, and drives the save bar, Open and the empty state, with
+screenshots. npm leaves `.gitignore` and `.npmrc` out of a tarball, and this repo's
 `.gitignore` ignores `.env.*`, so the template stores them as `gitignore`,
 `npmrc` and `env.example`, and the generator renames them. A template's
 `package-lock.json` locks every dependency but the `@tassyir/*` packages (npm
