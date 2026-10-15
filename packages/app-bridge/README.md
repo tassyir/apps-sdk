@@ -7,8 +7,8 @@ navigate, pick products, collections or customers, and follow the dashboard's
 language, direction and theme.
 
 It runs in the browser only. It is ESM only, has no runtime dependency, and
-works with any framework or none. It collects no analytics and uses no
-browser storage.
+works with any framework or none; `@tassyir/app-bridge/react` adds a provider
+and hooks for React. It collects no analytics and uses no browser storage.
 
 ## Install
 
@@ -279,6 +279,7 @@ Every refusal is an `AppBridgeError` with:
 | `INVALID_REPLY`        | sdk          | The dashboard answered in a shape this version does not read.        |
 | `NOT_IN_BROWSER`       | sdk (thrown) | `createAppBridge()` ran without a browser window (server rendering). |
 | `INVALID_ARGUMENT`     | sdk          | A bad `dashboardOrigin`, `timeoutMs` or event name.                  |
+| `NO_PROVIDER`          | sdk (thrown) | A React hook ran outside `<AppBridgeProvider>`.                      |
 
 ## Options
 
@@ -304,11 +305,93 @@ dashboard has answered.
 About 7 kB gzipped once minified (17.7 kB minified, 32 kB as shipped). Half
 of it is the error messages and fix sentences.
 
-## Not here yet
+## React
 
-React hooks (a provider, `useAppBridge`, `useBridgeContext`) come in a later
-release. `bridge.context.current` and `bridge.on('context.changed', …)` are
-built for `useSyncExternalStore` meanwhile.
+`@tassyir/app-bridge/react` is the same bridge for React 18 or 19 (an
+optional peer dependency: only this entry imports React). One provider at the
+root of the page, then hooks. They add React state and nothing else: every
+call is the bridge's own, with its checks, limits and `AppBridgeError`s.
+
+```tsx
+import {
+  AppBridgeProvider,
+  useBridgeContext,
+  useNavigate,
+  useSaveBar,
+  useTitleBar,
+  useToast,
+} from '@tassyir/app-bridge/react';
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+
+function Settings() {
+  const context = useBridgeContext(); // null until the dashboard sends it
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [saved, setSaved] = useState('5000.00');
+  const [draft, setDraft] = useState(saved);
+  const [saving, setSaving] = useState(false);
+
+  useTitleBar(context?.locale === 'ar' ? 'الإعدادات' : 'Settings');
+  // Shown while the draft differs, busy while saving: the bar is asked to
+  // show or hide only when that changes, and hidden on unmount.
+  useSaveBar({
+    dirty: draft !== saved,
+    saving,
+    onSave: () => {
+      setSaving(true);
+      void fetch('/api/settings', { method: 'PUT', body: draft })
+        .then(async () => {
+          setSaved(draft);
+          await toast({ message: 'Saved', tone: 'success' });
+        })
+        .finally(() => setSaving(false));
+    },
+    onDiscard: () => setDraft(saved),
+  });
+
+  return (
+    <form>
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} />
+      <button
+        type="button"
+        onClick={() => void navigate({ dashboard: 'orders' })}
+      >
+        Orders
+      </button>
+    </form>
+  );
+}
+
+createRoot(document.querySelector('#app')!).render(
+  <AppBridgeProvider>
+    <Settings />
+  </AppBridgeProvider>,
+);
+```
+
+| Export                                             | What it is                                                                                                                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<AppBridgeProvider>`                              | Creates the page's bridge when it mounts (in an effect) and destroys it when it unmounts; `bridge` uses one you made instead, `options` passes `createAppBridge`'s. |
+| `useAppBridge()`                                   | The bridge itself, for any call. `NO_PROVIDER` outside the provider.                                                                                                |
+| `useBridgeContext()`                               | `{ locale, dir, theme, storeId }`, or `null` until the dashboard sends it; re-renders on every real change.                                                         |
+| `useBridgeEvent(event, listener)`                  | Listens while mounted to `context.changed`, `saveBar.save` or `saveBar.discard`; the latest listener is called.                                                     |
+| `useTitleBar(title)`                               | Sets the title whenever `title` changes (`null` clears it). Returns the last refusal, or `null`.                                                                    |
+| `useSaveBar({ dirty, saving, onSave, onDiscard })` | The save bar while `dirty` or `saving`, busy while `saving`, its buttons to `onSave` / `onDiscard`. Returns the last refusal, or `null`.                            |
+| `useModal()`                                       | `{ open, close, isOpen }`: `isOpen` from `open` until its modal closes.                                                                                             |
+| `useResourcePicker()`                              | `{ pick, isPicking }`: `isPicking` from `pick` until the merchant closes the picker.                                                                                |
+| `useToast()`, `useNavigate()`, `useIdToken()`      | `bridge.toast.show`, `bridge.navigate`, `bridge.idToken`, as stable functions.                                                                                      |
+
+- **One provider per page**, at its root: the bridge's first message is what
+  makes the dashboard count the page as loaded. To say hello before React
+  renders, create the bridge yourself as the page loads and pass it:
+  `<AppBridgeProvider bridge={createAppBridge()}>`.
+- **Server rendering:** the provider renders `fallback` (default nothing)
+  until its bridge exists, which is never on a server: the bridge needs the
+  browser window.
+- `useTitleBar` and `useSaveBar` call the dashboard from effects, so they
+  hand back a refusal as state instead of throwing; the other hooks return
+  the bridge's promises.
 
 ## Checking against the dashboard
 
