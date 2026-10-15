@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import appPackage from '../../app/package.json' with { type: 'json' };
 import appBridgePackage from '../../app-bridge/package.json' with { type: 'json' };
 import appManifestPackage from '../../app-manifest/package.json' with { type: 'json' };
+import cliPackage from '../../cli/package.json' with { type: 'json' };
 import uiPackage from '../../ui/package.json' with { type: 'json' };
 import { createProject, handleFromFolder, nameFromHandle } from './create.js';
 import { CreateError } from './errors.js';
@@ -93,6 +94,14 @@ describe('createProject', () => {
     };
 
     expect(TEMPLATE_DEPENDENCIES).toEqual({
+      '@tassyir/app': `^${appPackage.version}`,
+      '@tassyir/app-bridge': `^${appBridgePackage.version}`,
+      '@tassyir/app-manifest': `^${appManifestPackage.version}`,
+      '@tassyir/ui': `^${uiPackage.version}`,
+      tassyir: `^${cliPackage.version}`,
+    });
+    // The result names what this template's package.json names.
+    expect(result.dependencies).toEqual({
       '@tassyir/app': `^${appPackage.version}`,
       '@tassyir/app-bridge': `^${appBridgePackage.version}`,
       '@tassyir/app-manifest': `^${appManifestPackage.version}`,
@@ -249,7 +258,7 @@ describe('createProject', () => {
     expect(await readdir(scratch)).toEqual([]);
   });
 
-  it('refuses an unknown template, and says the hosted one is not open yet', async () => {
+  it('refuses an unknown template', async () => {
     expect(
       await refusal(
         createProject({ directory: join(scratch, 'a'), template: 'react' }),
@@ -259,14 +268,88 @@ describe('createProject', () => {
       path: '--template',
       fix: 'Use one of: external, hosted.',
     });
-    const hosted = await refusal(
-      createProject({ directory: join(scratch, 'a'), template: 'hosted' }),
-    );
-    expect(hosted).toMatchObject({
-      code: 'TEMPLATE_NOT_AVAILABLE',
-      path: '--template',
+  });
+
+  it('writes the hosted template: a Worker for Tassyir Hosting, no URL, no settings', async () => {
+    const result = await createProject({
+      directory: join(scratch, 'review-requests'),
+      template: 'hosted',
+      name: 'Review <Requests>',
     });
-    expect(hosted.fix).toContain('--template external');
+    expect(result).toMatchObject({
+      template: 'hosted',
+      app: {
+        name: 'Review <Requests>',
+        handle: 'review-requests',
+        url: 'https://review-requests.tassyir-apps.com',
+      },
+      dependencies: {
+        '@tassyir/app': `^${appPackage.version}`,
+        '@tassyir/app-bridge': `^${appBridgePackage.version}`,
+        '@tassyir/app-manifest': `^${appManifestPackage.version}`,
+        '@tassyir/ui': `^${uiPackage.version}`,
+        tassyir: `^${cliPackage.version}`,
+      },
+    });
+    expect(result.files).toEqual(
+      expect.arrayContaining([
+        '.gitignore',
+        '.npmrc',
+        'AGENTS.md',
+        'CLAUDE.md',
+        '.claude/skills/tassyir-app/SKILL.md',
+        'src/worker.ts',
+        'src/page/main.tsx',
+        'tassyir.app.toml',
+      ]),
+    );
+    // No credential to keep: a hosted app holds none.
+    expect(result.files).not.toEqual(expect.arrayContaining(['.env.example']));
+
+    const validated = validateManifest(
+      parse(await text(result.directory, 'tassyir.app.toml')),
+    );
+    expect(validated.ok ? [] : validated.errors).toEqual([]);
+    if (!validated.ok) return;
+    expect(validated.manifest).toMatchObject({
+      name: 'Review <Requests>',
+      handle: 'review-requests',
+      hosting: { mode: 'tassyir', allowed_hosts: [] },
+    });
+    const manifest = JSON.parse(
+      await text(result.directory, 'package.json'),
+    ) as {
+      name: string;
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(manifest.name).toBe('review-requests');
+    expect(manifest.devDependencies['tassyir']).toBe(`^${cliPackage.version}`);
+    expect(await text(result.directory, 'src/page/index.html')).toContain(
+      '<title>Review &lt;Requests&gt;</title>',
+    );
+    for (const file of result.files) {
+      const content = await text(result.directory, file);
+      expect(content, file).not.toMatch(/my-tassyir-app|My Tassyir App/);
+    }
+  });
+
+  it('refuses --url for the hosted template', async () => {
+    const refused = await refusal(
+      createProject({
+        directory: join(scratch, 'a'),
+        template: 'hosted',
+        handle: 'my-app',
+        url: 'https://example.org',
+      }),
+    );
+    expect(refused).toMatchObject({
+      code: 'OPTION_NOT_FOR_TEMPLATE',
+      path: '--url',
+    });
+    expect(refused.message).toContain('https://my-app.tassyir-apps.com');
+    expect(refused.fix).toContain('--template external');
+    expect(await readdir(scratch)).toEqual([]);
   });
 
   it('never writes into a folder that holds anything but .git', async () => {

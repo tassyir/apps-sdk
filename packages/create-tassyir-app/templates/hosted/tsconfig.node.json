@@ -1,0 +1,22 @@
+{
+  // The scripts, the Node specs (test/node) and vitest.config.ts. Node 22
+  // runs the scripts' TypeScript as it is (type stripping): only erasable
+  // syntax, relative imports end in .ts, and tsc only checks.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["scripts", "test/node", "vitest.config.ts"]
+}

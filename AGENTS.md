@@ -89,22 +89,27 @@ site/                       the docs site, developers.tassyir.io (Mintlify):
 ```
 
 `packages/create-tassyir-app/templates/<name>/` holds a starter's files as a
-generated project gets them. They are not linted or typechecked with the
-repo: `npm run check:template` (in `verify` and CI, needs the network)
-generates a project with the packed CLI, installs it with this repo's
-tarballs, and runs its own validate, typecheck, test and build, then starts
-it. After a change to the page, check it in a real browser too (local only:
-Chrome): `npm run check:template -- --keep`, then
-`npm run browser-check -w create-tassyir-app -- <the folder it kept>` frames
-it in a fake dashboard, in Arabic and English, light and dark, at 390 and
-1440 px, and drives the save bar, Open and the empty state, with
-screenshots. npm leaves `.gitignore` and `.npmrc` out of a tarball, and this repo's
-`.gitignore` ignores `.env.*`, so the template stores them as `gitignore`,
-`npmrc` and `env.example`, and the generator renames them. A template's
-`package-lock.json` locks every dependency but the `@tassyir/*` packages (npm
-adds those when the project installs): after changing a template's
-`package.json`, run `npm run template:lock`, which resolves the tree no newer
-than 14 days ago.
+generated project gets them: `external` (your own server) and `hosted`
+(Tassyir Hosting: a Worker, a React page, specs in workerd). They are not
+linted or typechecked with the repo: `npm run check:template` (in `verify`
+and CI, needs the network) generates a project of each with the packed CLI,
+installs it with this repo's tarballs (`overrides` for the ones a dependency
+pulls in), and runs its own validate, typecheck, test and build, then starts
+the external one and runs the hosted one's `deploy:check` (the checks
+`tassyir deploy` runs before it uploads). After a change to a page, check it
+in a real browser too (local only: Chrome): `npm run check:template -- --keep`,
+then `npm run browser-check -w create-tassyir-app -- <the folder it kept>`
+(add `--template hosted` for the hosted page) frames it in a fake dashboard,
+in Arabic and English, light and dark, at 390 and 1440 px, and drives the
+save bar, Open and the empty state, with screenshots. npm leaves `.gitignore`
+and `.npmrc` out of a tarball, and this repo's `.gitignore` ignores
+`.env.*`, so the templates store them as `gitignore`, `npmrc` and
+`env.example`, and the generator renames them. A template's
+`package-lock.json` locks every dependency but this repo's packages (npm adds
+those when the project installs): after changing a template's
+`package.json`, run `npm run template:lock -- --template=<name>`, which
+resolves that template's tree no newer than 14 days ago (without
+`--template`, every template moves to the new cutoff).
 
 The docs site's pages are generated: after changing a guide, a public
 package's README or a vendored OpenAPI file, run `npm run docs:sync` (it also
@@ -178,9 +183,10 @@ the API an agent reads.
 
 Every user-visible change to a public package needs a changeset
 (`npx changeset`). Under `0.x`, a breaking change is a `minor`. Private
-packages are ignored. A `minor` or `major` of a package the starter's
-template names (`@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`)
-needs a `create-tassyir-app` changeset too, so new projects name the new
+packages are ignored. A `minor` or `major` of a package a starter's
+template names (`@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`,
+`@tassyir/ui`, and `tassyir` for the hosted one) needs a `create-tassyir-app`
+changeset too, so new projects name the new
 version (`npm run check:repo` enforces it). Merging to `main` opens the Version Packages PR, and
 merging that PR releases ([docs/RELEASING.md](docs/RELEASING.md)).
 

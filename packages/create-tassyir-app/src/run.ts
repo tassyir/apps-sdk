@@ -40,8 +40,8 @@ Options:
   --handle <handle>  The app's handle: permanent and unique on Tassyir.
                      Default: the folder's name.
   --name <name>      The app's display name. Default: the handle in words.
-  --url <https-url>  Your server's public address (hosting.url).
-                     Default: a placeholder to replace before you upload.
+  --url <https-url>  Your server's public address (hosting.url), external
+                     only. Default: a placeholder to replace before you upload.
   --install          Run npm install in the new folder.
   --json             Print the result (or the error) as JSON; never prompt.
   -y, --yes          Never prompt: use the defaults.
@@ -179,6 +179,14 @@ function nextSteps(
   const cd = /^[\w./-]+$/.test(folder)
     ? folder
     : `'${folder.replaceAll("'", `'\\''`)}'`;
+  if (result.template === 'hosted') {
+    return [
+      `cd ${cd}`,
+      ...(installed ? [] : ['npm install']),
+      'npm run check',
+      `Then follow README.md: npx tassyir login, npx tassyir app create (handle ${result.app.handle}, permanent), npm run deploy, npx tassyir store create, and install the app on the dev store.`,
+    ];
+  }
   return [
     `cd ${cd}`,
     ...(installed ? [] : ['npm install']),

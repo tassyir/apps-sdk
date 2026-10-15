@@ -3,8 +3,10 @@
 // (AGENTS.md, "Dependencies"), from the public npm registry. A generated
 // project then installs that exact tree, and npm adds the @tassyir/*
 // packages, which the generator names and which may not be published yet.
-// Run it after changing a template's package.json. Usage:
-//   npm run template:lock [-- --before=YYYY-MM-DD]
+// Run it after changing a template's package.json; `--template=<name>` locks
+// that template only (re-locking another one moves its whole tree to the new
+// cutoff). Usage:
+//   npm run template:lock [-- --template=hosted] [--before=YYYY-MM-DD]
 
 import {
   copyFileSync,
@@ -26,8 +28,13 @@ const before =
   argument?.slice('--before='.length) ??
   new Date(Date.now() - 14 * DAY_MS).toISOString().slice(0, 10);
 
+const only = process.argv
+  .find((arg) => arg.startsWith('--template='))
+  ?.slice('--template='.length);
+
 const templates = join(ROOT, 'packages', 'create-tassyir-app', 'templates');
 for (const template of readdirSync(templates)) {
+  if (only !== undefined && template !== only) continue;
   const dir = join(templates, template);
   const scratch = mkdtempSync(join(tmpdir(), 'tassyir-template-lock-'));
   try {

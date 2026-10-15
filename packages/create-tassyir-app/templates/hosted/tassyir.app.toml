@@ -1,0 +1,45 @@
+#:schema ./node_modules/@tassyir/app-manifest/schemas/manifest.2026-10.schema.json
+#
+# The app's manifest (Tassyir manifest v1, API version 2026-10). Check it with
+# `npm run validate`; `npm run deploy` uploads it with the app's code as a new
+# version, which Tassyir scans before it runs. An installation stays on the
+# version it consented to until a member of the business accepts the update.
+
+name        = "My Tassyir App"
+handle      = "my-tassyir-app"   # permanent and unique on Tassyir: the app runs at https://my-tassyir-app.tassyir-apps.com
+api_version = "2026-10"
+
+[access]
+# What the app may read and change. A scope added later needs the merchant's
+# consent again.
+scopes = ["read_orders"]
+
+[access.scope_reasons]
+# One sentence per requested scope, shown on the install screen.
+read_orders = "Show the store's pending orders on the app's page"
+
+[hosting]
+# Tassyir Hosting: Tassyir runs the code (src/worker.ts) for every
+# installation. No server, no URL, no credentials.
+mode = "tassyir"
+# Every outside host the code calls with fetch(), and only those: any other
+# is refused, and so is every Tassyir host (call Tassyir through
+# ctx.props.TASSYIR). A new host asks the merchant's consent again.
+allowed_hosts = []
+
+[admin]
+# The embedded page, served by the Worker (src/page, built into dist/page).
+page = "/"
+
+[[webhooks]]
+# Deliveries to POST /webhooks (src/webhooks.ts), through Tassyir Hosting.
+# Each topic needs the scope that reads its resource (orders/* need
+# read_orders).
+topics = [
+  "app/uninstalled",
+  "orders/created",
+  "customers/data_request",
+  "customers/redact",
+  "business/redact",
+]
+uri = "/webhooks"

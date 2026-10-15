@@ -1,0 +1,23 @@
+{
+  // The Worker (src, but the page) and its specs (test/worker), typed for
+  // the Workers runtime: no Node, no DOM. The page has its own tsconfig
+  // (src/page), the scripts and Node specs theirs (tsconfig.node.json).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "test/worker"],
+  "exclude": ["src/page"]
+}

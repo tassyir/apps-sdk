@@ -56,7 +56,10 @@ provides:
   from the API's OpenAPI 3.1 document, with typed errors, opt-in retries,
   idempotency keys and pagination.
 
-Helpers for apps on Tassyir Hosting come once that hosting exists.
+- for apps on Tassyir Hosting: `readHostedProps(ctx)` (the typed `ctx.props`:
+  installation, viewer, `STORAGE`, `TASSYIR`), `hostedAdmin(props)` (the same
+  client, sent through `ctx.props.TASSYIR` with no token) and
+  `verifyHostedWebhook` (deliveries the dispatcher runs with no viewer).
 
 ### `@tassyir/app-bridge`
 
@@ -69,7 +72,8 @@ follow locale, direction (RTL or LTR) and theme changes. Every refusal is a
 typed error with a stable code and a fix. The dashboard never sends the page a
 Tassyir credential: the ID token, verified on the app's server with
 `@tassyir/app`, is the only proof of who is looking. Browser only, ESM only,
-no runtime dependency.
+no runtime dependency. `@tassyir/app-bridge/react` adds React bindings (a
+provider and hooks; React an optional peer dependency).
 
 ### `@tassyir/ui`
 
@@ -108,18 +112,22 @@ API's OpenAPI document. Published to npm only.
 ### `create-tassyir-app`
 
 [`packages/create-tassyir-app`](packages/create-tassyir-app) (AP-K1.7). The
-starter: `npm create tassyir-app@latest my-app`. Its one template today,
-`external`, is an app on your own server: Node 22 and Hono, the embedded page
+starter: `npm create tassyir-app@latest my-app`. Two templates. `external`
+(the default) is an app on your own server: Node 22 and Hono, the embedded page
 on `@tassyir/app-bridge` and `@tassyir/ui`, token exchange and the Admin API through
 `@tassyir/app` with an encrypted file token store, a webhook endpoint that
 verifies the raw body, and a `tassyir.app.toml` that `@tassyir/app-manifest`
 validates. It comes with an `AGENTS.md`, a `CLAUDE.md` and a `tassyir-app`
 Claude Code skill that explains the contract, and with specs against a fake
 Tassyir API. The project's README walks the real path: the developer console,
-a dev store, an https tunnel, the install. The `hosted` template (Hono and
-React on Tassyir Hosting) comes once Tassyir Hosting opens. CI generates a
-project with the packed CLI, then installs, typechecks, tests, builds and
-starts it (`npm run check:template`). Published to npm only.
+a dev store, an https tunnel, the install. `hosted` (`--template hosted`) is
+an app on Tassyir Hosting: a Cloudflare Worker (Hono) that reads its
+installation, `STORAGE` and the Admin API from `ctx.props`, a React page on
+`@tassyir/app-bridge/react` and `@tassyir/ui`, specs in workerd, and
+`npm run deploy` (`tassyir deploy`). CI generates a project of each template
+with the packed CLI, then installs, typechecks, tests and builds it, starts
+the external one and runs the hosted one's deploy checks
+(`npm run check:template`). Published to npm only.
 
 ### `@tassyir/dev-mcp`
 

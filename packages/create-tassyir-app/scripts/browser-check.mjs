@@ -1,9 +1,12 @@
-// The real-browser check of the starter's embedded page (the external
-// template's src/page), local only, like @tassyir/ui's
+// The real-browser check of a starter's embedded page (the external
+// template's src/page, or with --template hosted the hosted template's
+// React page), local only, like @tassyir/ui's
 // (packages/ui/scripts/browser-check.mjs). It takes a project that
 // `npm run check:template -- --keep` generated, installed and built:
-//   - the project's own server (node src/server.ts, throwaway settings)
-//     serves the page with its real Content-Security-Policy;
+//   - the project's own server serves the page with its real
+//     Content-Security-Policy: node src/server.ts (throwaway settings), or
+//     for a hosted project its Worker's routes (src/app.ts's createApp, run
+//     by Node with stand-in ctx.props) and the built dist/page;
 //   - a fake dashboard at https://app.tassyir.io (Chrome maps the name to a
 //     local https server with a self-signed certificate) frames the page and
 //     answers App Bridge in the dashboard's shapes (§3.9);
@@ -12,12 +15,12 @@
 //     with sample orders and settings: nothing reaches Tassyir.
 // It checks the page in ar/en × light/dark × 390/1440 px (lang, dir and
 // theme on <html>, the frame the screen's width, no error and no CSP
-// violation, the title bar), then the save bar, a field error, a save with a
-// fresh ID token, Open, a live context change and the empty state, with a
-// screenshot of each.
+// violation, the title bar), then the save bar, a field error, a save (with
+// a fresh ID token; a hosted page sends none), Open, a live context change
+// and the empty state, with a screenshot of each.
 // Usage:
 //   npm run build && npm run check:template -- --keep
-//   npm run browser-check -w create-tassyir-app -- <kept folder> [--out <dir>]
+//   npm run browser-check -w create-tassyir-app -- <kept folder> [--template hosted] [--out <dir>]
 //   CHROME_PATH (default: macOS Google Chrome); needs openssl.
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -49,16 +52,25 @@ const CHROME =
 const DASHBOARD_ORIGIN = 'https://app.tassyir.io';
 /** How long one DevTools call, or one wait for the page, may take. */
 const TIMEOUT_MS = 30_000;
-/** The folder check:template generates the project in. */
-const GENERATED_FOLDER = 'my-tassyir-app';
+/** The folders check:template generates the projects in, by template. */
+const GENERATED_FOLDERS = {
+  external: 'my-tassyir-app',
+  hosted: 'my-hosted-tassyir-app',
+};
 const USAGE =
-  'npm run browser-check -w create-tassyir-app -- <project> [--out <dir>]';
+  'npm run browser-check -w create-tassyir-app -- <project> [--template hosted] [--out <dir>]';
 
 // npm runs a workspace script in the package's folder: paths on the command
 // line are relative to where it was typed.
 const here = process.env['INIT_CWD'] ?? process.cwd();
 const args = process.argv.slice(2);
 const outFlag = args.indexOf('--out');
+const templateFlag = args.indexOf('--template');
+const TEMPLATE = templateFlag === -1 ? 'external' : args[templateFlag + 1];
+if (TEMPLATE !== 'external' && TEMPLATE !== 'hosted') {
+  stop(`--template ${String(TEMPLATE)}: not a template.`, `${USAGE}`);
+}
+const HOSTED = TEMPLATE === 'hosted';
 const OUT = resolve(
   here,
   outFlag === -1
@@ -67,7 +79,9 @@ const OUT = resolve(
 );
 const given = args.find(
   (arg, index) =>
-    !arg.startsWith('--') && (outFlag === -1 || index !== outFlag + 1),
+    !arg.startsWith('--') &&
+    (outFlag === -1 || index !== outFlag + 1) &&
+    (templateFlag === -1 || index !== templateFlag + 1),
 );
 if (given === undefined) {
   stop(
@@ -76,9 +90,12 @@ if (given === undefined) {
   );
 }
 const PROJECT = projectIn(resolve(here, given));
-if (!existsSync(join(PROJECT, 'dist', 'public', 'app.js'))) {
+const BUILT_PAGE = HOSTED
+  ? join('dist', 'page', 'app.js.txt')
+  : join('dist', 'public', 'app.js');
+if (!existsSync(join(PROJECT, BUILT_PAGE))) {
   stop(
-    `${PROJECT} has no built page (dist/public/app.js).`,
+    `${PROJECT} has no built page (${BUILT_PAGE}).`,
     `Run npm run build in ${PROJECT}, or generate it again with npm run check:template -- --keep.`,
   );
 }
@@ -126,7 +143,8 @@ const sample = {
   settings: /** @type {{ highlightFrom: string | null }} */ ({
     highlightFrom: '10000.00',
   }),
-  orders: { orders: ORDERS, more: true },
+  // `received`: a hosted page shows how many orders its webhook recorded.
+  orders: { orders: ORDERS, more: true, received: 3 },
 };
 /** @type {ApiCall[]} */
 const apiCalls = [];
@@ -150,21 +168,28 @@ const sleep = (ms) =>
 
 const work = mkdtempSync(join(tmpdir(), 'tassyir-starter-check-'));
 
-// The project's own server, with throwaway settings in the right shapes.
+// The project's own server, with throwaway settings in the right shapes; for
+// a hosted project, its Worker's routes on Node (serveHosted below).
 const appPort = await freePort();
-const server = spawn(process.execPath, ['src/server.ts'], {
-  cwd: PROJECT,
-  env: {
-    ...process.env,
-    TASSYIR_CLIENT_ID: 'app_check',
-    TASSYIR_CLIENT_SECRET: 'tsy_cs_check',
-    TASSYIR_APP_ID: '1',
-    TOKEN_STORE_KEY: randomBytes(32).toString('base64'),
-    PORT: String(appPort),
-    DATA_DIR: join(work, 'data'),
+if (HOSTED) writeFileSync(join(work, 'serve-hosted.mjs'), serveHosted());
+const server = spawn(
+  process.execPath,
+  [HOSTED ? join(work, 'serve-hosted.mjs') : 'src/server.ts'],
+  {
+    cwd: PROJECT,
+    env: {
+      ...process.env,
+      TASSYIR_CLIENT_ID: 'app_check',
+      TASSYIR_CLIENT_SECRET: 'tsy_cs_check',
+      TASSYIR_APP_ID: '1',
+      TOKEN_STORE_KEY: randomBytes(32).toString('base64'),
+      PORT: String(appPort),
+      DATA_DIR: join(work, 'data'),
+      PROJECT,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
   },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
+);
 let serverOutput = '';
 server.stdout.on('data', (chunk) => (serverOutput += String(chunk)));
 server.stderr.on('data', (chunk) => (serverOutput += String(chunk)));
@@ -507,7 +532,7 @@ try {
       await dashboardTab('Page.captureScreenshot', { format: 'png' })
     );
     writeFileSync(
-      join(OUT, `starter-${name}.png`),
+      join(OUT, `${HOSTED ? 'hosted' : 'starter'}-${name}.png`),
       Buffer.from(data, 'base64'),
     );
   };
@@ -642,6 +667,19 @@ try {
           `${label}: the title bar`,
           String(title),
         );
+        if (HOSTED) {
+          const footer = String(
+            await inPage(
+              "document.querySelector('tsy-table [slot=footer]')?.textContent ?? ''",
+            ),
+          );
+          record(
+            footer.includes('3') &&
+              (locale === 'ar' ? /[\u0600-\u06ff]/ : /webhook/).test(footer),
+            `${label}: the orders its webhook recorded (STORAGE)`,
+            footer,
+          );
+        }
         record(
           problems.length === 0,
           `${label}: no error, no CSP violation`,
@@ -700,11 +738,18 @@ try {
     'a valid amount is saved, as a decimal string',
     put?.body,
   );
-  record(
-    issued.includes(putToken) &&
-      apiCalls.filter((call) => call.token === put?.token).length === 1,
-    'the save carries a fresh ID token, asked for it and used once',
-  );
+  if (HOSTED) {
+    record(
+      put?.token === '' && issued.length === 0,
+      'the save carries no token, and the page asked for none (the session says who is looking)',
+    );
+  } else {
+    record(
+      issued.includes(putToken) &&
+        apiCalls.filter((call) => call.token === put?.token).length === 1,
+      'the save carries a fresh ID token, asked for it and used once',
+    );
+  }
   const calls = await bridgeCalls();
   record(
     calls.some((call) => call.type === 'saveBar.hide') &&
@@ -726,7 +771,7 @@ try {
 
   // 3. Open: the dashboard's own order page.
   say('\nOpen (en, light, 1440 px)');
-  sample.orders = { orders: ORDERS, more: false };
+  sample.orders = { orders: ORDERS, more: false, received: 3 };
   await open('en', 'light', 1440);
   await drawn('the orders');
   await inDashboard('window.__calls.length = 0');
@@ -792,7 +837,7 @@ try {
 
   // 5. No pending order.
   say('\nThe empty state (dark, 390 px)');
-  sample.orders = { orders: [], more: false };
+  sample.orders = { orders: [], more: false, received: 0 };
   for (const locale of /** @type {const} */ (['ar', 'en'])) {
     await open(locale, 'dark', 390);
     await drawn(`${locale}: the empty state`);
@@ -821,13 +866,21 @@ try {
     problems.join(' | '),
   );
 
-  record(
-    apiCalls.length > 0 &&
-      apiCalls.every((call) => /^Bearer id-token-/.test(call.token)) &&
-      new Set(apiCalls.map((call) => call.token)).size === apiCalls.length,
-    'every /api call carried its own ID token from the dashboard',
-    `${String(apiCalls.length)} calls`,
-  );
+  if (HOSTED) {
+    record(
+      apiCalls.length > 0 && apiCalls.every((call) => call.token === ''),
+      'no /api call carried a token: a hosted page holds none',
+      `${String(apiCalls.length)} calls`,
+    );
+  } else {
+    record(
+      apiCalls.length > 0 &&
+        apiCalls.every((call) => /^Bearer id-token-/.test(call.token)) &&
+        new Set(apiCalls.map((call) => call.token)).size === apiCalls.length,
+      'every /api call carried its own ID token from the dashboard',
+      `${String(apiCalls.length)} calls`,
+    );
+  }
   say(`\nScreenshots: ${OUT}`);
   socket.close();
 } finally {
@@ -916,13 +969,77 @@ function dashboardPage(appOrigin) {
  * @returns {string}
  */
 function projectIn(dir) {
-  for (const candidate of [dir, join(dir, GENERATED_FOLDER)]) {
-    if (existsSync(join(candidate, 'src', 'server.ts'))) return candidate;
+  const folder = GENERATED_FOLDERS[HOSTED ? 'hosted' : 'external'];
+  const entry = join('src', HOSTED ? 'worker.ts' : 'server.ts');
+  for (const candidate of [dir, join(dir, folder)]) {
+    if (existsSync(join(candidate, entry))) return candidate;
   }
   return stop(
-    `${dir} is not a generated project (no src/server.ts, nor ${GENERATED_FOLDER}/src/server.ts).`,
+    `${dir} is not a generated ${TEMPLATE} project (no ${entry}, nor ${folder}/${entry}).`,
     `Pass the folder npm run check:template -- --keep printed ("Kept …"): ${USAGE}`,
   );
+}
+
+/**
+ * A hosted project's server for the check: its Worker's routes (src/app.ts,
+ * run by Node's type stripping) with the built page, on PORT. Each request
+ * gets stand-in ctx.props: an installation and a viewer, as Tassyir Hosting
+ * passes them for a page request. The page's /api calls never reach it (the
+ * check answers them), so STORAGE and TASSYIR refuse.
+ * @returns {string}
+ */
+function serveHosted() {
+  return `import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const project = process.env.PROJECT;
+const port = Number(process.env.PORT);
+const { createApp } = await import(
+  pathToFileURL(join(project, 'src', 'app.ts')).href
+);
+const app = createApp({
+  html: readFileSync(join(project, 'dist', 'page', 'index.html'), 'utf8'),
+  script: readFileSync(join(project, 'dist', 'page', 'app.js.txt'), 'utf8'),
+});
+const unused = () => {
+  throw new Error('the browser check answers the page’s /api calls itself');
+};
+const props = {
+  installation: {
+    id: '741000000000000001',
+    businessId: '741000000000000002',
+    appId: '741000000000000003',
+    handle: 'my-hosted-tassyir-app',
+    version: 1,
+    scopes: ['read_orders'],
+    storeAccess: 'all',
+    storeIds: [],
+    devStore: true,
+  },
+  viewer: { userId: '741000000000000004', sessionId: 'tab-1' },
+  STORAGE: { sql: unused, batch: unused, usage: unused },
+  TASSYIR: { fetch: unused },
+};
+const ctx = { props, waitUntil() {}, passThroughOnException() {} };
+createServer(async (incoming, outgoing) => {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(incoming.headers)) {
+    if (typeof value === 'string') headers.set(name, value);
+  }
+  const response = await app.fetch(
+    new Request(\`http://127.0.0.1:\${String(port)}\${incoming.url}\`, {
+      method: incoming.method,
+      headers,
+    }),
+    {},
+    ctx,
+  );
+  outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+  outgoing.end(Buffer.from(await response.arrayBuffer()));
+}).listen(port, '127.0.0.1');
+`;
 }
 
 /**

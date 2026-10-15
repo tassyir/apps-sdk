@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import appPackage from '../../app/package.json' with { type: 'json' };
 import appBridgePackage from '../../app-bridge/package.json' with { type: 'json' };
 import appManifestPackage from '../../app-manifest/package.json' with { type: 'json' };
+import cliPackage from '../../cli/package.json' with { type: 'json' };
 import uiPackage from '../../ui/package.json' with { type: 'json' };
 
 export type TemplateName = 'external' | 'hosted';
@@ -28,28 +29,25 @@ export const TEMPLATES: readonly TemplateInfo[] = Object.freeze([
       'An app on your own server: Node 22 and Hono, an embedded page with App Bridge, signed webhooks and the Admin API.',
   },
   {
-    // The seam for Tassyir Hosting: a Hono + React app deployed to Cloudflare
-    // Workers for Platforms. It needs the deploy pipeline, the dispatcher and
-    // the hosted runtime (AP-B1.14 to AP-B1.16), then its own folder under
-    // templates/ and `available: true`.
     name: 'hosted',
-    available: false,
+    available: true,
     description:
-      'An app on Tassyir Hosting: Hono and React on Cloudflare Workers, no server to run.',
-    unavailable: {
-      reason: 'Tassyir Hosting is not open yet',
-      fix: 'Use --template external (your own server) for now; the same manifest, API and webhooks move to Tassyir Hosting when it opens.',
-    },
+      'An app on Tassyir Hosting: a Cloudflare Worker (Hono) and a React page with App Bridge, its own SQLite storage and the Admin API, no server to run.',
   },
 ]);
 
-/** The @tassyir/* versions a generated project depends on. */
+/**
+ * The versions of this repo's packages a generated project depends on (a
+ * template names the ones it uses: the hosted one adds the `tassyir` CLI,
+ * which `npm run deploy` runs).
+ */
 export const TEMPLATE_DEPENDENCIES: Readonly<Record<string, string>> =
   Object.freeze({
     '@tassyir/app': `^${appPackage.version}`,
     '@tassyir/app-bridge': `^${appBridgePackage.version}`,
     '@tassyir/app-manifest': `^${appManifestPackage.version}`,
     '@tassyir/ui': `^${uiPackage.version}`,
+    tassyir: `^${cliPackage.version}`,
   });
 
 /** Where a template's files are: templates/<name> next to dist/ (and src/). */

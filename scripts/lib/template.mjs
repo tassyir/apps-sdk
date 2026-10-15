@@ -1,6 +1,22 @@
 // The pure parts of scripts/check-template.mjs, proved by template.test.mjs.
 
 /**
+ * A package this repo publishes that a template may name: the @tassyir/*
+ * packages, the `tassyir` CLI (the hosted template's `npm run deploy`) and
+ * create-tassyir-app (which `tassyir` depends on). A generated project names
+ * them at this repo's version; the template's lockfile leaves them to npm.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isWorkspacePackageName(name) {
+  return (
+    name.startsWith('@tassyir/') ||
+    name === 'tassyir' ||
+    name === 'create-tassyir-app'
+  );
+}
+
+/**
  * @typedef {{
  *   name?: string,
  *   dependencies?: Record<string, string>,
@@ -36,13 +52,14 @@ export function generatedDependencyProblems(manifest, workspaceVersions) {
 }
 
 /**
- * The same package.json with each @tassyir/* dependency installed from a
- * packed tarball of this repo instead of the registry (the packages may not
- * be published yet). Only the check's copy changes; the generated file keeps
- * the real versions.
+ * The same package.json with each of this repo's packages installed from a
+ * packed tarball instead of the registry (they may not be published yet):
+ * the direct dependencies, and through `overrides` every one a dependency
+ * pulls in (`tassyir` depends on create-tassyir-app). Only the check's copy
+ * changes; the generated file keeps the real versions.
  * @param {ProjectManifest} manifest
  * @param {Record<string, string>} tarballs name → absolute path of its .tgz
- * @returns {ProjectManifest}
+ * @returns {ProjectManifest & { overrides: Record<string, string> }}
  */
 export function withTarballs(manifest, tarballs) {
   /** @param {Record<string, string> | undefined} group */
@@ -58,12 +75,16 @@ export function withTarballs(manifest, tarballs) {
     ...manifest,
     dependencies: swap(manifest.dependencies),
     devDependencies: swap(manifest.devDependencies),
+    overrides: Object.fromEntries(
+      Object.entries(tarballs).map(([name, path]) => [name, `file:${path}`]),
+    ),
   };
 }
 
 /**
- * The template's package.json without the @tassyir/* packages: what its
- * package-lock.json locks (scripts/template-lock.mjs).
+ * The template's package.json without this repo's packages
+ * (`isWorkspacePackageName`): what its package-lock.json locks
+ * (scripts/template-lock.mjs).
  * @param {ProjectManifest} manifest
  * @returns {ProjectManifest}
  */
@@ -72,7 +93,7 @@ export function withoutWorkspaceDependencies(manifest) {
   const keep = (group) =>
     group &&
     Object.fromEntries(
-      Object.entries(group).filter(([name]) => !name.startsWith('@tassyir/')),
+      Object.entries(group).filter(([name]) => !isWorkspacePackageName(name)),
     );
   return {
     ...manifest,

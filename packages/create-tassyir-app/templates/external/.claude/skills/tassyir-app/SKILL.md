@@ -1,6 +1,6 @@
 ---
 name: tassyir-app
-description: The Tassyir app contract for this project. tassyir.app.toml (manifest v1), scopes and consent, tokens (ID token, offline and online access tokens, refresh rotation), the ID token as the only proof of who is looking, signed webhooks (raw body, at least once, webhook-id), the Admin API (money as decimal strings, problem+json with code and fix, cursors, fields, Idempotency-Key, rate limits), app data, App Bridge and dev stores. Use it whenever you change this app's server, page, manifest or webhooks, or explain a Tassyir error code.
+description: The Tassyir app contract for this project, on its own server or on Tassyir Hosting. tassyir.app.toml (manifest v1), scopes and consent, tokens (ID token, offline and online access tokens, refresh rotation), who is looking (a verified ID token, or ctx.props.viewer on Tassyir Hosting), signed webhooks (raw body, at least once, webhook-id), the Admin API (money as decimal strings, problem+json with code and fix, cursors, fields, Idempotency-Key, rate limits), app data, App Bridge, dev stores, and Tassyir Hosting (ctx.props, STORAGE, TASSYIR, allowed_hosts, the bundle rules, tassyir deploy). Use it whenever you change this app's server or Worker, page, manifest or webhooks, or explain a Tassyir error code.
 ---
 
 # The Tassyir app contract
@@ -8,9 +8,12 @@ description: The Tassyir app contract for this project. tassyir.app.toml (manife
 [Tassyir](https://tassyir.io) is the back office of e-commerce merchants in
 Algeria: orders (mostly cash on delivery), products and stock, delivery
 carriers, customers, several stores per business. Merchants install apps on a
-business. This project is one such app, on its own server ("external"
-hosting). Everything below is the contract of API version `2026-10`; it holds
-whether an app runs on its own server or, later, on Tassyir Hosting.
+business. This project is one such app. It runs either on its own server
+(`hosting.mode = "external"`) or on **Tassyir Hosting**
+(`hosting.mode = "tassyir"`: Tassyir runs the code as a Cloudflare Worker,
+see "Tassyir Hosting" below); `tassyir.app.toml` says which. Everything below
+is the contract of API version `2026-10`, the same in both modes unless a
+section says otherwise.
 
 **An installed app is a team member of the business.** It acts with exactly
 the scopes the merchant granted, only in the stores the merchant gave it, and
@@ -27,16 +30,19 @@ businesses its developer owns, and on one other business the developer names.
 | ID-token keys (JWKS)     | `GET https://api.tassyir.io/apps/.well-known/jwks.json`                                           |
 | Webhook public keys      | `GET https://api.tassyir.io/apps/webhook-keys`                                                    |
 | The app's page           | `https://app.tassyir.io/{locale}/dashboard/{businessId}/apps/{handle}`                            |
+| A hosted app's origin    | `https://{handle}.tassyir-apps.com` (served only inside the dashboard's frame)                    |
 | Developer console        | `https://app.tassyir.io/en/developers`                                                            |
 | Manifest                 | `tassyir.app.toml`, validated by `@tassyir/app-manifest`                                          |
-| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/ui`, `@tassyir/app-manifest`                     |
+| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge` (React: `/react`), `@tassyir/ui`, `@tassyir/app-manifest`   |
+| CLI                      | `tassyir` (`login`, `validate`, `deploy`, `app version`; `--json` everywhere)                     |
 | Developer docs           | `https://developers.tassyir.io` (a page's Markdown: its address + `.md`; every page: `/llms.txt`) |
 
 ## The manifest (`tassyir.app.toml`)
 
-The manifest says what the app is and needs. It is uploaded in the developer
-console as a new **version**; `npm run validate` checks it first with the
-API's own validator. Every error has a stable `code`, the field's `path` and a
+The manifest says what the app is and needs. It is uploaded as a new
+**version** (the developer console, or `tassyir deploy`; a hosted app's code
+goes with it); `npm run validate` checks it first with the API's own
+validator. Every error has a stable `code`, the field's `path` and a
 one-sentence `fix`.
 
 - `name` (1-50 characters, one line) and `handle` (3-40 lowercase letters
@@ -46,25 +52,35 @@ one-sentence `fix`.
 - `[access]`: `scopes` (required) and `optional_scopes` (the merchant may
   tick them), each once, never in both. `[access.scope_reasons]`: one sentence
   (10-200 characters) per requested scope, shown on the install screen.
-- `[hosting]`: `mode = "external"` and `url`: `https://host` or
+- `[hosting]`, external: `mode = "external"` and `url`: `https://host` or
   `https://host/path`, port 443 only (no port in the URL), no query, no
   trailing `/`, a public lowercase hostname (no IP, no `localhost`, nothing
   on `tassyir.io`, `tassyir-apps.com` or `tassyir.shop`).
-- `[admin] page`: the embedded page, a path on `url` (`/`). Omit it for a
-  headless app; `[auth] callback_url` then receives an install code.
-- `[[webhooks]]`: at most 10 entries of `topics` and `uri` (a path on `url`,
-  or an absolute https URL). Each topic once in the whole manifest; each
-  needs the scope that reads its resource.
+- `[hosting]`, Tassyir Hosting: `mode = "tassyir"` and `allowed_hosts`
+  (required, may be empty, at most 20): every outside host the code calls,
+  `api.example.com` or `*.example.com` (its subdomains, never the name
+  itself); no Tassyir domain. No `url`.
+- `[admin] page`: the embedded page, a path on the app's origin (`/`). Omit
+  it for a headless app; an external one's `[auth] callback_url` then
+  receives an install code.
+- `[[webhooks]]`: at most 10 entries of `topics` and `uri` (a path on the
+  app's origin, or for an external app an absolute https URL). Each topic
+  once in the whole manifest; each needs the scope that reads its resource.
+- Nothing under `/.tassyir/`: that prefix of a hosted origin is Tassyir's.
 - `[[data.definitions]]`: the app data keys (`owner`, `key`, `type`,
   `visibility`), below.
 - Every table is strict: an unknown key is an error. At most 64 KB.
 
-**Versions and consent.** An upload becomes the app's current version at once
-(external custom apps are not reviewed). An installation stays pinned to the
-version its merchant consented to: a new version is offered as an update in
-the dashboard (Apps, Installed apps), and applied only when a member of that
-business accepts it. A version that adds scopes, or a host the data reaches
-(a new `url` included), asks for consent again.
+**Versions and consent.** An external upload becomes the app's current
+version at once (custom apps are not reviewed). A hosted version is scanned
+first (its code against the manifest: hosts, scopes, banned APIs; secrets,
+dependencies; an AI review that can only add caution) and is released when
+the scan passes, or held for a person (`in_review`). An installation stays
+pinned to the version its merchant consented to: a new version is offered as
+an update in the dashboard (Apps, Installed apps), and applied only when a
+member of that business accepts it. A version that adds scopes, or a host the
+data reaches (a new `url` or `allowed_hosts` entry, or a change of hosting
+mode), asks for consent again.
 
 ## Scopes
 
@@ -110,8 +126,12 @@ business accepts it. A version that adds scopes, or a host the data reaches
 | Online access token  | `tsy_at_…`        | 1 hour                        | acts for one dashboard user (their permissions ∩ scopes); no refresh |
 | Install code         | `tsy_ic_…`        | 5 minutes, one use            | headless apps: arrives at `auth.callback_url?code=`                  |
 
-- **The flow here:** the page asks App Bridge for an ID token on every call
-  to this server; the server's `tassyir.authenticate(idToken)` verifies it
+- **On Tassyir Hosting, none of this:** a hosted app holds no client
+  secret and no token. It calls the Admin API through `ctx.props.TASSYIR`,
+  which authenticates each call as the installation ("Tassyir Hosting").
+- **The flow on your own server:** the page asks App Bridge for an ID token
+  on every call to the server; the server's `tassyir.authenticate(idToken)`
+  verifies it
   (signature, `aud` = the client id, 60 seconds) and then **reuses the
   installation's stored offline token**, or exchanges the ID token for one and
   stores it. Do not exchange on every page view: each exchange starts a new
@@ -132,16 +152,22 @@ business accepts it. A version that adds scopes, or a host the data reaches
 - **Never** log, commit or send a token or secret anywhere but Tassyir. The
   store here encrypts them (`TOKEN_STORE_KEY`).
 
-## Who is looking: the ID token, and nothing else
+## Who is looking
 
-- The dashboard frames the page at `hosting.url` + `admin.page` + the app
+- The dashboard frames the page at the app's origin + `admin.page` + the app
   path + the dashboard's own query string. **Tassyir vouches for nothing in
   that address.** Never read a business, store, user or installation from it.
 - App Bridge's `context` (locale, direction, theme, store) is for display
   only.
-- The only proof is an ID token verified on the server (`verifyIdToken` or
-  `authenticate`): it names the user (`sub`), business (`bid`), installation
-  (`iid`), tab session (`sid`) and locale. An unverified token proves nothing.
+- **On your own server, the only proof is an ID token** verified on the
+  server (`verifyIdToken` or `authenticate`): it names the user (`sub`),
+  business (`bid`), installation (`iid`), tab session (`sid`) and locale. An
+  unverified token proves nothing.
+- **On Tassyir Hosting, `ctx.props` says it:** `installation` is the one the
+  request runs for and `viewer` (`{ userId, sessionId }`) the member who
+  opened the page, set by Tassyir from a session the dashboard opened for
+  that frame. `viewer` is who is looking, not a permission. The page needs
+  no ID token to call its own Worker.
 - The dashboard never gives the page a Tassyir credential. Do not put one in
   the page, a cookie (the frame's cookies are third-party and often blocked)
   or a URL.
@@ -149,8 +175,9 @@ business accepts it. A version that adds scopes, or a host the data reaches
 ## Admin API
 
 - `Authorization: Bearer tsy_at_…`; paths under `/apps/2026-10/`. Use
-  `tassyir.admin(installationId)`: paths, parameters and bodies are typed
-  from the OpenAPI document, and errors become `TassyirApiError`.
+  `tassyir.admin(installationId)` (own server) or `hostedAdmin(ctx.props)`
+  (Tassyir Hosting, no token): paths, parameters and bodies are typed from
+  the OpenAPI document, and errors become `TassyirApiError`.
 - JSON fields are camelCase, ids are strings, times ISO 8601 UTC.
 - **Money is a decimal string** with two decimals (`"2500.00"`) next to a
   `currency` field (`DZD`). Never `parseFloat` it: compare and add in integer
@@ -178,7 +205,8 @@ business accepts it. A version that adds scopes, or a host the data reaches
   second; 429 `BUSINESS_RATE_LIMITED`), and a per-process cap (503 `API_BUSY`,
   nothing done). Every answer carries `RateLimit-Limit`,
   `RateLimit-Remaining`, `RateLimit-Reset`; refusals carry `Retry-After`. With
-  `retries: 3` (set in `src/server.ts`) the SDK waits and retries for you.
+  `retries: 3` the SDK waits and retries for you (on Tassyir Hosting every
+  retry is one more subrequest of the request).
 - Store-scope: a store outside the installation's is HTTP **460**
   `STORE_SCOPE_FORBIDDEN`; a resource of another store reads as 404.
 
@@ -226,6 +254,15 @@ topic:
   also checks the timestamp (5 minutes), the envelope's `appId` (the numeric
   app id, `TASSYIR_APP_ID`, not the client id) and that the installation is
   yours. A failure is a 400; `KEYS_UNAVAILABLE` is a 503 (Tassyir retries).
+- **On Tassyir Hosting** a delivery reaches the Worker only through
+  Tassyir's dispatcher, which takes it from Tassyir's API alone and runs the
+  version with `ctx.props.viewer` null (a page request always has a viewer).
+  `verifyHostedWebhook(request, ctx.props)` checks that, the envelope's
+  installation, business and app against `ctx.props.installation`, and every
+  other rule above; the signature itself only with `keys` you pass (a hosted
+  Worker cannot fetch `/apps/webhook-keys`: its egress never reaches a
+  Tassyir host). `app/uninstalled` and `business/redact` still arrive after
+  an uninstall, with `TASSYIR` refused.
 - **At least once, in any order.** Deduplicate on `webhook-id`. `data` is
   read when the delivery is built, seconds after the event, so it can be
   newer than the event: reconcile by `updatedAt`, re-read through the Admin
@@ -239,7 +276,8 @@ topic:
 - **Test deliveries** from the console (Installs, Send test) carry sample
   data: `tassyir-test: true`, `webhook-id` `dlv_test_…`, envelope id `evt_0`.
   Acknowledge them, never process them as real.
-- HTTPS on port 443 only, a public address: use a tunnel while developing.
+- HTTPS on port 443 only, a public address: on your own server, use a
+  tunnel while developing.
 
 | Topic                                                                                                                                  | Needs            |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
@@ -257,7 +295,8 @@ topic:
 - Compliance: `customers/data_request` / `customers/redact` name a buyer and
   their orders: export or erase what the app holds about them.
   `business/redact` comes 48 hours after an uninstall, when Tassyir has
-  deleted the app data: delete everything about that installation.
+  deleted the app data (and a hosted app's `STORAGE`): delete everything
+  about that installation that the app keeps elsewhere.
 
 ## App data
 
@@ -282,9 +321,13 @@ Values the app keeps in Tassyir, under keys its manifest declares:
 ## App Bridge (the page)
 
 `createAppBridge()` from `@tassyir/app-bridge`, once, as the page loads. It
-talks to `https://app.tassyir.io` by `postMessage` only.
+talks to `https://app.tassyir.io` by `postMessage` only. In React,
+`@tassyir/app-bridge/react` wraps it: `<AppBridgeProvider bridge={bridge}>`,
+then `useBridgeContext`, `useTitleBar`, `useSaveBar`, `useToast`,
+`useNavigate`, `useModal`, `useResourcePicker`.
 
-- `idToken()` (a new one per server call; never cache it), `toast.show`,
+- `idToken()` (a new one per server call on your own server; never cache
+  it; a hosted page needs none), `toast.show`,
   `titleBar.set`, `saveBar.show` / `hide` with the `saveBar.save` and
   `saveBar.discard` events, `navigate({ path })` inside the app or
   `navigate({ dashboard: 'order', id })` out of it, `modal.open` / `close`,
@@ -299,7 +342,7 @@ talks to `https://app.tassyir.io` by `postMessage` only.
 - The frame is sandboxed (`allow-scripts allow-same-origin allow-forms
 allow-popups allow-downloads`) on the app's own origin. Arabic is
   right-to-left: use logical CSS properties.
-- The server sends `Content-Security-Policy: frame-ancestors
+- The server (or Worker) sends `Content-Security-Policy: frame-ancestors
 https://app.tassyir.io` so no other site can frame the page.
 - **Draw the page with `@tassyir/ui`**, the dashboard's own look as custom
   elements (`<tsy-table>`, `<tsy-card>`, `<tsy-text-field>`, `<tsy-button>`,
@@ -328,12 +371,78 @@ so custom apps install there.
 - Webhooks to the app work: create an order in its dashboard to get
   `orders/created`.
 
+## Tassyir Hosting (`hosting.mode = "tassyir"`)
+
+Tassyir runs the app as a Cloudflare Worker (Workers for Platforms), one
+script per released version, for every installation pinned to it. No server,
+no URL, no credential.
+
+- **The Worker** is ONE ES module whose default export has
+  `fetch(request, env, ctx)` (`export default app` for a Hono app). `env` is
+  empty. Everything per installation arrives with each request in
+  **`ctx.props`**, never in `env`; read it with
+  `readHostedProps(ctx)` from `@tassyir/app`:
+  - `installation`: `{ id, businessId, appId, handle, version, scopes,
+storeAccess, storeIds, devStore }`;
+  - `viewer`: `{ userId, sessionId }` or `null` (a webhook delivery);
+  - `STORAGE`: the installation's own SQLite database:
+    `sql(query, ...bindings)` (`{ rows, rowsRead, rowsWritten }`),
+    `batch([{ query, bindings }])` (ONE transaction), `usage()`. Each call is
+    a transaction (`BEGIN` / `COMMIT` refused); at most 5,000 rows and about
+    4 MiB per answer (page with `LIMIT`), 100 bound values, 50 statements a
+    batch, 50 MB a database (`STORAGE_FULL`; reads and deletes still run).
+    Create tables with `CREATE TABLE IF NOT EXISTS` in the same batch as
+    their first use. Erased 48 hours after an uninstall;
+  - `TASSYIR`: the Admin API as the installation, `fetch()` with the Admin
+    API's own URLs, no token; `hostedAdmin(ctx.props)` is the typed client
+    over it. It sends Admin API paths only (`HOSTED_PATH_NOT_ALLOWED`), JSON
+    bodies (ids as strings: numbers past 2^53 are rounded), answers up to
+    8 MiB (`RESPONSE_TOO_LARGE`); a call the installation can no longer make
+    (uninstalled, suspended) is 401 `HOSTED_CALL_REFUSED`.
+- **One script serves many merchants**, possibly in one isolate: module
+  variables are shared between installations. Keep per-request state per
+  request; never cache anything of an installation in a module variable.
+- **Outside calls** (`fetch()`) go through Tassyir's egress: https on port 443
+  to a host in `allowed_hosts` only, never a Tassyir host, never an IP; a
+  refusal is `403` with the header `tassyir-egress-refused`. Every call is
+  logged (host, status, bytes). Call Tassyir through `TASSYIR`, never
+  `fetch('https://api.tassyir.io/…')`.
+- **Limits per request** (the starting values): 300 ms of CPU and 50
+  subrequests (each `fetch()`, `STORAGE` and `TASSYIR` call is one); past
+  them the request fails (503).
+- **The bundle** (`tassyir deploy` builds it with esbuild from
+  `src/worker.ts`): text only (ES modules; `.html`, `.css` and `.txt`
+  imported as strings, `.json` as data), 3 MB, 100 files. Refused: a `node:` import (no
+  Node.js built-ins: use the Web APIs), `eval` / `new Function` / a string
+  timer, WebAssembly, `import()` of a computed name, `cloudflare:sockets`,
+  a remote import, a request to a host not in `allowed_hosts` or to a
+  Tassyir host, and a module without a `fetch` handler.
+- **Pages are served only inside the dashboard's frame**, with a session the
+  dashboard opened for it: a top-level visit, another site's frame or
+  another app's request is refused. The page calls its own Worker on the
+  same origin (`fetch('/api/…')`), with no token. Never change state on a
+  GET. Do not trust the app's own cookies for anything (every
+  `*.tassyir-apps.com` app is one site).
+- **`/.tassyir/`** on the app's origin is Tassyir's (the launch): never a
+  page, a webhook path or a link of the app.
+- **Deploy:** `tassyir deploy` builds the bundle, runs the API's upload rules
+  and the scan's code checks locally (nothing is sent when they fail),
+  uploads `{ manifest, bundle }` with the lockfile, and follows the scan:
+  released (exit 0), `in_review` (0, `released: false`), `VERSION_SCAN_FAILED`
+  (1, with each finding). `tassyir app version <n> --follow` checks later.
+  Tassyir Hosting must be open on the API you deploy to
+  (`APP_HOSTING_NOT_AVAILABLE` otherwise).
+
 ## Before you ship a change
 
-1. `npm run validate`: the manifest passes; `hosting.url` is the real
-   address.
-2. `npm run check`: validate, typecheck, tests, build.
-3. A new scope, topic, host or app data key: upload the manifest as a new
-   version, then accept the update in the dev store (Apps, Installed apps).
+1. `npm run validate`: the manifest passes (on your own server,
+   `hosting.url` is the real address).
+2. `npm run check`: validate, typecheck, tests, and the build (on Tassyir
+   Hosting, `deploy:check`: the checks `tassyir deploy` runs before it
+   uploads).
+3. A new scope, topic, host or app data key: a new version (upload the
+   manifest, or `npm run deploy`), then accept the update in the dev store
+   (Apps, Installed apps).
 4. No token, secret or buyer data in logs; money stays a decimal string;
-   identity comes from a verified ID token only.
+   identity comes from a verified ID token, or on Tassyir Hosting from
+   `ctx.props`, only.

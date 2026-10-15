@@ -1,0 +1,6 @@
+node_modules/
+# npm run build: the page the Worker serves, built from src/page.
+dist/
+.wrangler/
+*.log
+.DS_Store

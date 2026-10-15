@@ -69,11 +69,35 @@ describe('create-tassyir-app', () => {
 
   it('prints a refusal and its fix on stderr', async () => {
     const { io: cli, out, err } = io();
-    expect(await runCli(['shop', '--template', 'hosted'], cli)).toBe(1);
+    expect(
+      await runCli(
+        ['shop', '--template', 'hosted', '--url', 'https://shop.example.org'],
+        cli,
+      ),
+    ).toBe(1);
     expect(out).toEqual([]);
     expect(err.join('')).toMatch(
-      /^✗ TEMPLATE_NOT_AVAILABLE \(--template\): .+\n {2}Fix: Use --template external/,
+      /^✗ OPTION_NOT_FOR_TEMPLATE \(--url\): .+\n {2}Fix: Leave out --url with --template hosted/,
     );
+  });
+
+  it('makes a hosted app, and says how to deploy it', async () => {
+    const { io: cli, out, err } = io();
+    expect(await runCli(['shop', '--json', '--template', 'hosted'], cli)).toBe(
+      0,
+    );
+    expect(err).toEqual([]);
+    expect(JSON.parse(out.join(''))).toMatchObject({
+      ok: true,
+      template: 'hosted',
+      app: { handle: 'shop', url: 'https://shop.tassyir-apps.com' },
+      next: [
+        'cd shop',
+        'npm install',
+        'npm run check',
+        expect.stringContaining('npm run deploy') as string,
+      ],
+    });
   });
 
   it('refuses unknown options, extra folders and an old Node', async () => {

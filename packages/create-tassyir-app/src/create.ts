@@ -24,8 +24,10 @@ export interface CreateProjectOptions {
   /** The app's display name. Default: the handle in words ("my-app" → "My App"). */
   name?: string;
   /**
-   * The server's public https address (`hosting.url`). Default a placeholder
-   * on example.com, which `npm run validate` flags until it is replaced.
+   * The server's public https address (`hosting.url`) of an `external` app.
+   * Default a placeholder on example.com, which `npm run validate` flags
+   * until it is replaced. A `hosted` app has none: it is refused
+   * (`OPTION_NOT_FOR_TEMPLATE`).
    */
   url?: string;
 }
@@ -34,10 +36,14 @@ export interface CreateProjectResult {
   /** Absolute path of the new project. */
   directory: string;
   template: TemplateName;
+  /**
+   * `url`: `hosting.url` of an external app; for a hosted app, the address
+   * Tassyir Hosting serves it at (`https://<handle>.tassyir-apps.com`).
+   */
   app: { name: string; handle: string; url: string };
   /** Every file written, relative to `directory`, sorted. */
   files: string[];
-  /** The @tassyir/* versions its package.json names. */
+  /** The versions of this repo's packages its package.json names. */
   dependencies: Readonly<Record<string, string>>;
 }
 
@@ -80,7 +86,18 @@ export async function createProject(
   );
   const name = options.name ?? nameFromHandle(handle);
   checkField('name', name, '--name');
-  const url = options.url ?? `https://${handle}.example.com`;
+  if (template === 'hosted' && options.url !== undefined) {
+    throw new CreateError({
+      code: 'OPTION_NOT_FOR_TEMPLATE',
+      path: '--url',
+      message: `A hosted app has no hosting.url: Tassyir Hosting serves it at https://${handle}.tassyir-apps.com`,
+      fix: 'Leave out --url with --template hosted, or use --template external to run the app on your own server.',
+    });
+  }
+  const url =
+    template === 'hosted'
+      ? `https://${handle}.tassyir-apps.com`
+      : (options.url ?? `https://${handle}.example.com`);
 
   const files = await renderTemplate(template, { handle, name, url });
   checkManifest(files.get('tassyir.app.toml') ?? '');
@@ -92,8 +109,22 @@ export async function createProject(
     template,
     app: { name, handle, url },
     files: [...files.keys()].sort(),
-    dependencies: TEMPLATE_DEPENDENCIES,
+    dependencies: dependenciesOf(files.get('package.json') ?? '{}'),
   };
+}
+
+/** The versions of this repo's packages a generated package.json names. */
+function dependenciesOf(text: string): Readonly<Record<string, string>> {
+  const manifest = JSON.parse(text) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const named = { ...manifest.dependencies, ...manifest.devDependencies };
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(TEMPLATE_DEPENDENCIES).filter(([name]) => name in named),
+    ),
+  );
 }
 
 /** "My Shop!" → "my-shop": lowercase letters and digits joined by single hyphens. */
@@ -275,7 +306,7 @@ function escaperFor(path: string): (value: string) => string {
   return (value) => value;
 }
 
-/** Puts the @tassyir/* versions in place of the template's "*". */
+/** Puts this repo's versions in place of the template's "*". */
 function withDependencies(text: string): string {
   const manifest = JSON.parse(text) as {
     dependencies?: Record<string, string>;
