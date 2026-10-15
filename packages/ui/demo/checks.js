@@ -78,14 +78,21 @@ async function run() {
     event.preventDefault();
     submits += 1;
   });
-  inner(name).dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-  );
-  check('Enter in a field submits the form', submits === 1);
-  inner($('#note')).dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-  );
-  check('Enter in a text area does not', submits === 1);
+  const enter = (element) =>
+    inner(element).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+  enter(name);
+  await tick();
+  check('Enter in a field clicks the submit button', submits === 1);
+  $('#submit').loading = true;
+  enter(name);
+  await tick();
+  check('Enter does nothing while the submit button is loading', submits === 1);
+  $('#submit').loading = false;
+  enter($('#note'));
+  await tick();
+  check('Enter in a text area does not submit', submits === 1);
   inner($('#submit')).click();
   await tick();
   check('the submit button submits the form', submits === 2);

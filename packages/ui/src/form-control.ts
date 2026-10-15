@@ -81,11 +81,31 @@ export abstract class TsyFormControl extends TsyElement {
 
   abstract formResetCallback(): void;
 
-  /** Submits the form the way pressing Enter in a native field does. */
+  /** Submits the form around the element (validation first, then `submit`). */
   protected submitForm(): void {
+    this.form?.requestSubmit();
+  }
+
+  /**
+   * What Enter does in a native one-line field (HTML's implicit
+   * submission): it clicks the form's first submit button, which does
+   * nothing while that button is disabled (or a `<tsy-button>` is loading);
+   * with no submit button, it submits only a form with one such field.
+   */
+  protected submitImplicitly(): void {
     const form = this.form;
     if (!form) return;
-    form.requestSubmit();
+    const fields = Array.from(
+      form.querySelectorAll<HTMLElement>(
+        'button, input, tsy-button, tsy-text-field',
+      ),
+    );
+    const button = fields.find(isSubmitButton);
+    if (button) {
+      button.click();
+      return;
+    }
+    if (fields.filter(takesEnter).length <= 1) form.requestSubmit();
   }
 
   /** Fires `change` from the element (the inner control's does not leave the shadow root). */
@@ -97,6 +117,41 @@ export abstract class TsyFormControl extends TsyElement {
   protected emitInput(): void {
     this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
   }
+}
+
+/** A form's submit buttons, native or ours, in the order HTML picks its default one. */
+function isSubmitButton(element: HTMLElement): boolean {
+  if (element instanceof HTMLButtonElement) return element.type === 'submit';
+  if (element instanceof HTMLInputElement) {
+    return element.type === 'submit' || element.type === 'image';
+  }
+  return (
+    element.localName === 'tsy-button' &&
+    element.getAttribute('type') === 'submit'
+  );
+}
+
+/** The input types that take Enter (HTML's fields that block implicit submission). */
+const TAKES_ENTER = new Set([
+  'text',
+  'search',
+  'url',
+  'tel',
+  'email',
+  'password',
+  'date',
+  'month',
+  'week',
+  'time',
+  'datetime-local',
+  'number',
+]);
+
+function takesEnter(element: HTMLElement): boolean {
+  if (element instanceof HTMLInputElement) return TAKES_ENTER.has(element.type);
+  return (
+    element.localName === 'tsy-text-field' && !element.hasAttribute('multiline')
+  );
 }
 
 /** Copies a native control's validity into the element's internals. */

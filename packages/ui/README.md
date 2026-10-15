@@ -516,7 +516,10 @@ In-place loading: a button, a row.
 native `<form>` around them (`FormData`, a normal submit), take part in its
 validation (`required`, the input's own constraints, `setCustomValidity`),
 are reset with it and follow a disabled `<fieldset>`. Enter in a one-line
-field submits the form, as in a native field.
+field does what it does in a native one: it clicks the form's first submit
+button (nothing happens while that button is disabled or `loading`, so a
+save in flight is not sent twice); with no submit button, it submits a form
+that has only that one field.
 
 - Label every field with its `label` attribute. A `<label for>` outside the
   element does not reach the input inside it.

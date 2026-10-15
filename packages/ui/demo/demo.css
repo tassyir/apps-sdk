@@ -2,13 +2,6 @@
    tokens it adopts, and the elements. An app's page is edge to edge in the
    dashboard's content card and draws its own margins. */
 
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/geist.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 /* Until the elements are defined, their light DOM would flash unstyled. */
 :not(:defined) {
   visibility: hidden;

@@ -223,7 +223,7 @@ export class TsyTextField extends TsyFormControl {
         !event.isComposing &&
         !event.defaultPrevented
       ) {
-        this.submitForm();
+        this.submitImplicitly();
       }
     });
     return control;

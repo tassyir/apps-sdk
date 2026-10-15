@@ -52,6 +52,22 @@ export function startDemoServer(port) {
         response.end();
         return;
       }
+      if (path === '/fonts.css') {
+        // The @font-face for Geist only when a font file was given, so a
+        // run without one has no failed request (the browser check counts
+        // console errors).
+        response.writeHead(200, {
+          'Content-Type': 'text/css; charset=utf-8',
+          'Content-Security-Policy': DEMO_CSP,
+          'Cache-Control': 'no-store',
+        });
+        response.end(
+          geist
+            ? "@font-face{font-family:'Geist';src:url('/fonts/geist.woff2') format('woff2');font-weight:100 900;font-display:swap}\n"
+            : '/* No demo font: TASSYIR_UI_DEMO_GEIST is not set. */\n',
+        );
+        return;
+      }
       if (path === '/' || path === '/demo') {
         response.writeHead(302, { Location: '/demo/' });
         response.end();

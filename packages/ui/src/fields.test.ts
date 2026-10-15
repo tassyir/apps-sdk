@@ -148,19 +148,72 @@ describe('<tsy-text-field>', () => {
     expect(area.getAttribute('rows')).toBe('4');
   });
 
-  it('submits its form on Enter, like a native field', () => {
-    const form = mount<HTMLFormElement>(
-      '<form><tsy-text-field label="Name" name="name"></tsy-text-field></form>',
-    );
-    const submit = vi.fn((event: Event) => {
-      event.preventDefault();
+  describe('Enter, as in a native field (implicit submission)', () => {
+    async function enter(html: string): Promise<number> {
+      const form = mount<HTMLFormElement>(`<form>${html}</form>`);
+      let submits = 0;
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        submits += 1;
+      });
+      const field = pick<TsyTextField>(form, 'tsy-text-field');
+      control(field).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return submits;
+    }
+
+    it('submits a form whose only field it is', async () => {
+      expect(
+        await enter('<tsy-text-field label="Name"></tsy-text-field>'),
+      ).toBe(1);
     });
-    form.addEventListener('submit', submit);
-    const field = pick<TsyTextField>(form, 'tsy-text-field');
-    control(field).dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-    );
-    expect(submit).toHaveBeenCalledTimes(1);
+
+    it('does nothing in a form of several fields without a submit button', async () => {
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><input type="email" />',
+        ),
+      ).toBe(0);
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><tsy-text-field label="B" multiline></tsy-text-field><input type="checkbox" />',
+        ),
+      ).toBe(1);
+    });
+
+    it("clicks the form's first submit button", async () => {
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><tsy-text-field label="B"></tsy-text-field><tsy-button type="submit">Save</tsy-button>',
+        ),
+      ).toBe(1);
+    });
+
+    it('does nothing while that button is loading or disabled', async () => {
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><tsy-button type="submit" loading>Save</tsy-button><tsy-button type="submit">Other</tsy-button>',
+        ),
+      ).toBe(0);
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><tsy-button type="submit" disabled>Save</tsy-button>',
+        ),
+      ).toBe(0);
+      expect(
+        await enter(
+          '<tsy-text-field label="A"></tsy-text-field><button type="submit" disabled>Save</button>',
+        ),
+      ).toBe(0);
+    });
+
+    it('never submits from a text area', async () => {
+      expect(
+        await enter('<tsy-text-field label="Note" multiline></tsy-text-field>'),
+      ).toBe(0);
+    });
   });
 
   it('goes back to its default on form reset, and follows a disabled fieldset', () => {

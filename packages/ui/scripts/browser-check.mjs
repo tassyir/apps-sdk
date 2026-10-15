@@ -30,6 +30,8 @@ import { startDemoServer } from './demo-server.mjs';
 const CHROME =
   process.env['CHROME_PATH'] ??
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+/** How long one DevTools call or one page load may take. */
+const TIMEOUT_MS = 30_000;
 const outFlag = process.argv.indexOf('--out');
 const OUT = resolve(
   outFlag === -1
@@ -80,6 +82,7 @@ try {
   for (let i = 0; i < 100 && !existsSync(portFile); i += 1) {
     await new Promise((done) => setTimeout(done, 100));
   }
+  if (!existsSync(portFile)) throw new Error('Chrome did not start in 10 s');
   const [port = '', path = ''] = readFileSync(portFile, 'utf8').split('\n');
   const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`);
   await new Promise((done, fail) => {
@@ -123,7 +126,23 @@ try {
     new Promise((resolveCall, rejectCall) => {
       const id = nextId;
       nextId += 1;
-      pending.set(id, { resolve: resolveCall, reject: rejectCall });
+      // A stalled Chrome fails the check instead of hanging it.
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        rejectCall(
+          new Error(`${method}: no answer in ${String(TIMEOUT_MS)} ms`),
+        );
+      }, TIMEOUT_MS);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolveCall(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          rejectCall(error);
+        },
+      });
       socket.send(JSON.stringify({ id, method, params, sessionId }));
     });
 
@@ -192,13 +211,17 @@ try {
   /** @param {string} url */
   const open = async (url) => {
     problems = [];
-    const loaded = new Promise((done) => {
+    const loaded = new Promise((done, fail) => {
+      const timer = setTimeout(() => {
+        fail(new Error(`${url} did not load in ${String(TIMEOUT_MS)} ms`));
+      }, TIMEOUT_MS);
       /** @param {CdpEvent} event */
       const listener = (event) => {
         if (
           event.sessionId === sessionId &&
           event.method === 'Page.loadEventFired'
         ) {
+          clearTimeout(timer);
           listeners.splice(listeners.indexOf(listener), 1);
           done(undefined);
         }
