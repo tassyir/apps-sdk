@@ -134,6 +134,28 @@ export class TsyTextField extends TsyFormControl {
     this.setAttribute('type', value);
   }
 
+  /**
+   * A unit before the value (`prefix` attribute). An accessor, because every
+   * element inherits a read-only `prefix` (its XML namespace prefix) that
+   * React 19 would otherwise try to assign.
+   */
+  override get prefix(): string {
+    return this.getAttribute('prefix') ?? '';
+  }
+
+  override set prefix(value: string) {
+    setOptional(this, 'prefix', value);
+  }
+
+  /** A unit after the value (`suffix` attribute), such as `DZD`. */
+  get suffix(): string {
+    return this.getAttribute('suffix') ?? '';
+  }
+
+  set suffix(value: string) {
+    setOptional(this, 'suffix', value);
+  }
+
   /** Selects the text, as `HTMLInputElement.select()` does. */
   select(): void {
     this.#control.select();
@@ -217,14 +239,15 @@ export class TsyTextField extends TsyFormControl {
       this.emitChange();
     });
     target.addEventListener('keydown', (event) => {
-      if (
-        event.key === 'Enter' &&
-        tag === 'input' &&
-        !event.isComposing &&
-        !event.defaultPrevented
-      ) {
-        this.submitImplicitly();
+      if (event.key !== 'Enter' || tag !== 'input' || event.isComposing) {
+        return;
       }
+      // In a native field this is the keydown's default action: any
+      // listener (the host, the form, a framework's root) may cancel it, so
+      // decide once the dispatch is over.
+      setTimeout(() => {
+        if (!event.defaultPrevented) this.submitImplicitly();
+      }, 0);
     });
     return control;
   }

@@ -163,6 +163,14 @@ Importing `@tassyir/ui` defines every element (in a browser; on a server it
 only exports, so server rendering can import it). An attribute that takes a
 value ignores one it does not know and uses its default.
 
+Frameworks: React 19, Vue, Svelte and Lit set a prop as a property when the
+element has one and as an attribute otherwise; every property here that
+shares an attribute's name (`value`, `checked`, `form`, `prefix`, `type`, …)
+takes the attribute's value, so the markup above works as written. Events
+are DOM events (`input`, `change`, `tsy-dismiss`): where a framework does
+not bind them, add a listener with `addEventListener` (in React, through a
+ref).
+
 ### `<tsy-button>`
 
 The dashboard's button: 36px, 12px corners, a 14px medium label.
@@ -322,7 +330,10 @@ left); the group is one Tab stop.
 | `hint`     | text    | A muted line under the label.                   |
 | `disabled` | boolean | Cannot be chosen, skipped by the arrow keys.    |
 
-Events (from the group): `input`, `change`.
+Events (from the group): `input`, `change`. Methods: `checkValidity()`,
+`reportValidity()`, `setCustomValidity()`, `focus()` (the chosen radio, or
+the first). A radio added or removed later is taken into account: a removed
+choice clears the value.
 
 ### `<tsy-card>`
 
@@ -565,7 +576,16 @@ The same values are data in `@tassyir/ui/tokens` (no DOM, safe on a server:
 `@tassyir/ui/tokens.css` for a page that wants the tokens without the
 elements. They sit in the `tassyir-ui` cascade layer, with the page's
 defaults (paper background, ink text, the Tassyir type, 14px body) at zero
-specificity, so any rule of yours wins.
+specificity, so any rule of yours that is not in a layer wins.
+
+If your CSS uses cascade layers (Tailwind v4 does), name ours first, at the
+very top of your stylesheet: layers declared first lose to the ones after,
+and the package adds its sheet after yours.
+
+```css
+@layer tassyir-ui;
+@import 'tailwindcss';
+```
 
 ## Fonts
 

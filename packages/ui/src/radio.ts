@@ -73,6 +73,18 @@ export class TsyRadio extends TsyElement {
     return this.getAttribute('aria-checked') === 'true';
   }
 
+  /** Chooses this radio in its group (or unchooses it), without events. */
+  set checked(value: boolean) {
+    const group = this.#group();
+    if (!group) {
+      this.setAttribute('aria-checked', value ? 'true' : 'false');
+    } else if (value) {
+      group.value = this.value;
+    } else if (this.checked) {
+      group.value = '';
+    }
+  }
+
   override connectedCallback(): void {
     super.connectedCallback();
     this.setAttribute('role', 'radio');
@@ -126,22 +138,26 @@ export class TsyRadioGroup extends TsyFormControl {
   });
   readonly #hint = h('p', { part: 'hint', class: 'hint', id: 'hint' });
   readonly #error = h('p', { part: 'error', class: 'error', id: 'error' });
+  readonly #slot = document.createElement('slot');
   #value: string | null = null;
   #dirty = false;
+  /** The message of setCustomValidity, or `''`. */
+  #custom = '';
 
   constructor() {
     super(GROUP_STYLES);
     this.#group.append(
       this.#label,
-      h(
-        'div',
-        { part: 'options', class: 'options' },
-        document.createElement('slot'),
-      ),
+      h('div', { part: 'options', class: 'options' }, this.#slot),
       this.#hint,
       this.#error,
     );
     this.shadow.append(this.#group);
+    // A radio added or removed later (a filtered list) re-arranges the
+    // group: the choice, the Tab stop and the form value follow.
+    this.#slot.addEventListener('slotchange', () => {
+      this.arrange();
+    });
     this.addEventListener('click', (event) => {
       const radio = this.#radioOf(event.target);
       if (radio) this.#choose(radio, true);
@@ -151,9 +167,11 @@ export class TsyRadioGroup extends TsyFormControl {
     });
   }
 
-  /** The chosen value, or `''`. */
+  /** The chosen radio's value, or `''` when none is chosen. */
   get value(): string {
-    return this.#value ?? '';
+    const radios = this.radios;
+    if (radios.length === 0) return this.#value ?? '';
+    return radios.find((radio) => radio.checked)?.value ?? '';
   }
 
   set value(value: string) {
@@ -166,6 +184,12 @@ export class TsyRadioGroup extends TsyFormControl {
     return Array.from(this.children).filter(
       (child): child is TsyRadio => child instanceof TsyRadio,
     );
+  }
+
+  /** Blocks the form with `message` until it is called with `''`. */
+  setCustomValidity(message: string): void {
+    this.#custom = message;
+    this.arrange();
   }
 
   formResetCallback(): void {
@@ -227,11 +251,14 @@ export class TsyRadioGroup extends TsyFormControl {
     }
     const value = chosen ? chosen.value : null;
     this.internals?.setFormValue(value);
-    if (this.required && !chosen) {
+    const anchor = tabStop ?? radios[0];
+    if (this.#custom) {
+      this.internals?.setValidity({ customError: true }, this.#custom, anchor);
+    } else if (this.required && !chosen) {
       this.internals?.setValidity(
         { valueMissing: true },
         stringsFor(this).chooseOption,
-        radios[0],
+        anchor,
       );
     } else {
       this.internals?.setValidity({});

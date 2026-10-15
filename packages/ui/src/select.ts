@@ -51,6 +51,8 @@ export class TsySelect extends TsyFormControl {
       : new MutationObserver(() => {
           this.#mirror();
         });
+  /** The value the app or the merchant chose, kept across option changes. */
+  #chosen: string | null = null;
   #dirty = false;
 
   constructor() {
@@ -67,6 +69,7 @@ export class TsySelect extends TsyFormControl {
       ),
     );
     this.#control.addEventListener('input', () => {
+      this.#chosen = this.#control.value;
       this.#dirty = true;
       this.#sync();
     });
@@ -76,21 +79,30 @@ export class TsySelect extends TsyFormControl {
   }
 
   get value(): string {
+    this.#flush();
     return this.#control.value;
   }
 
+  /**
+   * Chooses an option. Kept when the options change afterwards (set the
+   * value, then replace the options, or the other way round): the choice
+   * applies as soon as an option has that value.
+   */
   set value(value: string) {
-    this.#control.value = value;
+    this.#chosen = value;
     this.#dirty = true;
-    this.#sync();
+    this.#options?.takeRecords();
+    this.#mirror();
   }
 
   /** The mirrored options, as the inner select holds them. */
   get options(): HTMLOptionsCollection {
+    this.#flush();
     return this.#control.options;
   }
 
   get selectedIndex(): number {
+    this.#flush();
     return this.#control.selectedIndex;
   }
 
@@ -117,6 +129,7 @@ export class TsySelect extends TsyFormControl {
 
   formResetCallback(): void {
     this.#dirty = false;
+    this.#chosen = null;
     this.#mirror();
   }
 
@@ -149,10 +162,18 @@ export class TsySelect extends TsyFormControl {
     if (this.isConnected) this.#mirror();
   }
 
+  /**
+   * Option changes not mirrored yet (the observer reports them later, and
+   * only while connected): mirror them now, before a read.
+   */
+  #flush(): void {
+    const pending = this.#options?.takeRecords().length ?? 0;
+    if (pending > 0 || !this.isConnected) this.#mirror();
+  }
+
   /** Copies the light-DOM options into the control, keeping the choice. */
   #mirror(): void {
     const control = this.#control;
-    const kept = this.#dirty ? control.value : null;
     const copies: Node[] = [];
     const placeholder = this.getAttribute('placeholder');
     if (placeholder !== null) {
@@ -169,7 +190,7 @@ export class TsySelect extends TsyFormControl {
       }
     }
     control.replaceChildren(...copies);
-    const wanted = kept ?? this.getAttribute('value');
+    const wanted = this.#dirty ? this.#chosen : this.getAttribute('value');
     const options = Array.from(control.options);
     const match =
       wanted === null ? undefined : options.find((o) => o.value === wanted);

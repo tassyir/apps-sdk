@@ -64,9 +64,15 @@ export class TsyCheckbox extends TsyFormControl {
     this.shadow.append(
       h('div', { part: 'base' }, this.#row, this.#hint, this.#error),
     );
-    this.#control.addEventListener('change', () => {
+    // The form value follows on `input`, which fires before `change`, so a
+    // page's `input` listener already reads the new state.
+    this.#control.addEventListener('input', () => {
       this.#dirty = true;
       this.toggleAttribute('indeterminate', false);
+      this.#sync();
+    });
+    this.#control.addEventListener('change', () => {
+      this.#dirty = true;
       this.#sync();
       this.emitChange();
     });

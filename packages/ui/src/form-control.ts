@@ -1,4 +1,4 @@
-import { TsyElement } from './element.js';
+import { setOptional, TsyElement } from './element.js';
 
 /**
  * A form-associated element (ElementInternals): it submits with the native
@@ -21,8 +21,17 @@ export abstract class TsyFormControl extends TsyElement {
   }
 
   /** The form this element submits with, or null. */
+  // eslint-disable-next-line @typescript-eslint/related-getter-setter-pairs -- as on the platform: the property reads the form, the attribute names it by id
   get form(): HTMLFormElement | null {
     return this.internals?.form ?? null;
+  }
+
+  /**
+   * Sets the `form` attribute (the id of a form elsewhere on the page), as
+   * frameworks that set properties do (React 19 assigns `form="…"` here).
+   */
+  set form(id: string | null) {
+    setOptional(this, 'form', id);
   }
 
   get name(): string {
@@ -95,11 +104,7 @@ export abstract class TsyFormControl extends TsyElement {
   protected submitImplicitly(): void {
     const form = this.form;
     if (!form) return;
-    const fields = Array.from(
-      form.querySelectorAll<HTMLElement>(
-        'button, input, tsy-button, tsy-text-field',
-      ),
-    );
+    const fields = ownedBy(form);
     const button = fields.find(isSubmitButton);
     if (button) {
       button.click();
@@ -117,6 +122,28 @@ export abstract class TsyFormControl extends TsyElement {
   protected emitInput(): void {
     this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
   }
+}
+
+/**
+ * The controls a form owns, in tree order: `form.elements` (which a browser
+ * fills with form-associated custom elements too, and with controls tied by
+ * `form="…"`), plus this package's elements that name the form, for a DOM
+ * that does not list them.
+ */
+function ownedBy(form: HTMLFormElement): HTMLElement[] {
+  const owned = new Set<Element>(Array.from(form.elements));
+  for (const element of form.ownerDocument.querySelectorAll(
+    'tsy-button, tsy-text-field',
+  )) {
+    if (element instanceof TsyFormControl && element.form === form) {
+      owned.add(element);
+    }
+  }
+  return [...owned]
+    .filter((element): element is HTMLElement => element instanceof HTMLElement)
+    .sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
 }
 
 /** A form's submit buttons, native or ours, in the order HTML picks its default one. */
@@ -160,6 +187,12 @@ export function mirrorValidity(
   control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
 ): void {
   if (!internals) return;
+  // A disabled or read-only control is barred from validation: its
+  // validationMessage is empty, and setValidity refuses a flag without one.
+  if (!control.willValidate) {
+    internals.setValidity({});
+    return;
+  }
   const v = control.validity;
   const flags: ValidityStateFlags = {
     valueMissing: v.valueMissing,

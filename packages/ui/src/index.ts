@@ -7,7 +7,7 @@ import { TsyBanner } from './banner.js';
 import { TsyButton } from './button.js';
 import { TsyCard } from './card.js';
 import { TsyCheckbox } from './checkbox.js';
-import { define } from './element.js';
+import { adopt, define, sheet } from './element.js';
 import { TsyEmptyState } from './empty-state.js';
 import { TsyLink } from './link.js';
 import { TsyPageHeader } from './page-header.js';
@@ -18,6 +18,7 @@ import { TsySpinner } from './spinner.js';
 import { TsyStatusPill } from './status-pill.js';
 import { TsyTable } from './table.js';
 import { TsyTextField } from './text-field.js';
+import { tokensCss } from './tokens.js';
 
 /** Every element this package defines, by tag name. */
 export const ELEMENTS = {
@@ -41,6 +42,10 @@ export const ELEMENTS = {
 for (const [name, element] of Object.entries(ELEMENTS)) {
   define(name, element);
 }
+
+// The tokens and the page's defaults apply on import, before any element:
+// a page may use the tokens in its own CSS alone.
+if (typeof document !== 'undefined') adopt(document, sheet(tokensCss()));
 
 declare global {
   interface HTMLElementTagNameMap {

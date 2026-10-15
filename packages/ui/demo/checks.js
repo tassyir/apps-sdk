@@ -97,6 +97,38 @@ async function run() {
   await tick();
   check('the submit button submits the form', submits === 2);
 
+  const off = $('#off');
+  off.required = true;
+  let validOnInput = null;
+  off.addEventListener(
+    'input',
+    () => {
+      validOnInput = off.checkValidity();
+    },
+    { once: true },
+  );
+  inner(off).click();
+  check(
+    "a checkbox's validity is up to date in the page's input listener",
+    validOnInput === true,
+    String(validOnInput),
+  );
+  off.required = false;
+  off.checked = false;
+
+  const select = $('#wilaya');
+  select.replaceChildren(
+    new Option('Constantine', '25'),
+    new Option('Sétif', '19'),
+  );
+  select.value = '19';
+  await tick();
+  check(
+    'a select keeps a value set while its options are replaced',
+    select.value === '19' && new FormData(form).get('wilaya') === '19',
+    select.value,
+  );
+
   const radios = $('#channel').radios;
   radios[0].focus();
   radios[0].dispatchEvent(

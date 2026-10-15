@@ -7,6 +7,11 @@ import { define, isRtl, sheet, stringsFor } from './element.js';
 afterEach(reset);
 
 describe('the elements', () => {
+  it('adopt the tokens into the document on import, before any element', () => {
+    expect(document.querySelector('*:not(html,head,body)')).toBeNull();
+    expect(document.adoptedStyleSheets).toContain(sheet(tokensCss()));
+  });
+
   it('are all defined under their tag names', () => {
     for (const [name, element] of Object.entries(ELEMENTS)) {
       expect(customElements.get(name)).toBe(element);

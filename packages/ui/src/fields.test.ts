@@ -160,7 +160,7 @@ describe('<tsy-text-field>', () => {
       control(field).dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
       );
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await settle();
       return submits;
     }
 
@@ -209,11 +209,91 @@ describe('<tsy-text-field>', () => {
       ).toBe(0);
     });
 
+    it('does nothing when a later listener prevents the keydown', async () => {
+      const form = mount<HTMLFormElement>(
+        '<form><tsy-text-field label="Tag"></tsy-text-field><tsy-button type="submit">Save</tsy-button></form>',
+      );
+      let submits = 0;
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        submits += 1;
+      });
+      const field = pick<TsyTextField>(form, 'tsy-text-field');
+      field.addEventListener('keydown', (event) => {
+        event.preventDefault();
+      });
+      control(field).dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        }),
+      );
+      await settle();
+      expect(submits).toBe(0);
+    });
+
+    it('finds a submit button outside the form that names it with form=', async () => {
+      const outer = mount(
+        '<div><form id="settings"><tsy-text-field label="A"></tsy-text-field></form><button form="settings" type="submit" disabled>Save</button></div>',
+      );
+      const form = pick<HTMLFormElement>(outer, 'form');
+      let submits = 0;
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        submits += 1;
+      });
+      control(pick(form, 'tsy-text-field')).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
+      await settle();
+      expect(submits).toBe(0);
+    });
+
     it('never submits from a text area', async () => {
       expect(
         await enter('<tsy-text-field label="Note" multiline></tsy-text-field>'),
       ).toBe(0);
     });
+  });
+
+  it('reflects prefix and suffix as properties (React 19 sets properties)', () => {
+    const field = mount<TsyTextField>(
+      '<tsy-text-field label="Price"></tsy-text-field>',
+    );
+    expect(() => {
+      field.prefix = '≈';
+      field.suffix = 'DZD';
+    }).not.toThrow();
+    expect(field.getAttribute('prefix')).toBe('≈');
+    expect(pick(shadow(field), '#suffix').textContent).toBe('DZD');
+    expect(field.prefix).toBe('≈');
+  });
+
+  it('takes form= as a property too', () => {
+    const field = mount<TsyTextField>(
+      '<tsy-text-field label="A"></tsy-text-field>',
+    );
+    expect(() => {
+      (field as unknown as { form: string }).form = 'settings';
+    }).not.toThrow();
+    expect(field.getAttribute('form')).toBe('settings');
+  });
+
+  it('never throws on a custom error while disabled or read-only', () => {
+    const field = mount<TsyTextField>(
+      '<tsy-text-field label="Email" disabled></tsy-text-field>',
+    );
+    expect(() => {
+      field.setCustomValidity('Already used');
+    }).not.toThrow();
+    expect(formState(field).flags).toEqual({});
+    field.disabled = false;
+    expect(formState(field).flags.customError).toBe(true);
+    expect(formState(field).message).toBe('Already used');
+    field.setAttribute('readonly', '');
+    expect(formState(field).flags).toEqual({});
   });
 
   it('goes back to its default on form reset, and follows a disabled fieldset', () => {
@@ -277,6 +357,51 @@ describe('<tsy-select>', () => {
     expect(select.value).toBe('yalidine');
     expect(formState(select).flags).toEqual({});
     expect(inner.classList.contains('placeholder')).toBe(false);
+  });
+
+  it('keeps a value set while its options are being replaced', async () => {
+    const select = mount<TsySelect>(
+      '<tsy-select label="Wilaya"><option value="1">A</option></tsy-select>',
+    );
+    select.replaceChildren(
+      ...[
+        ['16', 'Alger'],
+        ['31', 'Oran'],
+      ].map(([value, text]) =>
+        Object.assign(document.createElement('option'), {
+          value,
+          textContent: text,
+        }),
+      ),
+    );
+    select.value = '31';
+    expect(select.value).toBe('31');
+    await settle();
+    expect(select.value).toBe('31');
+    expect(formState(select).value).toBe('31');
+  });
+
+  it('keeps a value set before its options or before it is in the page', async () => {
+    const select = document.createElement('tsy-select');
+    select.value = '31';
+    select.append(
+      Object.assign(document.createElement('option'), {
+        value: '16',
+        textContent: 'Alger',
+      }),
+    );
+    select.append(
+      Object.assign(document.createElement('option'), {
+        value: '31',
+        textContent: 'Oran',
+      }),
+    );
+    expect(select.value).toBe('31');
+    expect(select.options).toHaveLength(2);
+    document.body.append(select);
+    await settle();
+    expect(select.value).toBe('31');
+    expect(formState(select).value).toBe('31');
   });
 
   it('honours a selected option, and resets to it', () => {

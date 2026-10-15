@@ -72,6 +72,24 @@ describe('<tsy-checkbox>', () => {
     expect(checkbox.hasAttribute('indeterminate')).toBe(false);
   });
 
+  it("has its form value ready for the page's input listeners", () => {
+    const checkbox = mount<TsyCheckbox>(
+      '<tsy-checkbox name="agree" required>I agree</tsy-checkbox>',
+    );
+    const seen: unknown[] = [];
+    checkbox.addEventListener('input', () => {
+      seen.push(
+        formState(checkbox).value,
+        formState(checkbox).flags.valueMissing ?? false,
+      );
+    });
+    // What a browser does on a click: toggle, then input (composed), then change.
+    const input = box(checkbox);
+    input.checked = true;
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    expect(seen).toEqual(['on', false]);
+  });
+
   it('is invalid while required and unchecked', () => {
     const checkbox = mount<TsyCheckbox>(
       '<tsy-checkbox required error="Accept the terms.">I accept</tsy-checkbox>',
@@ -200,5 +218,35 @@ describe('<tsy-radio-group>', () => {
     element.formResetCallback();
     expect(element.value).toBe('home');
     expect(radios(element)[0]?.checked).toBe(true);
+  });
+
+  it('re-arranges when the chosen radio is removed, and keeps a Tab stop', async () => {
+    const element = await group('value="home" required');
+    radios(element)[0]?.remove();
+    await settle();
+    expect(element.value).toBe('');
+    expect(formState(element).value).toBeNull();
+    expect(formState(element).flags.valueMissing).toBe(true);
+    expect(radios(element).map((r) => r.tabIndex)).toEqual([-1, 0]);
+  });
+
+  it('takes a custom error until it is cleared', async () => {
+    const element = await group('value="home"');
+    element.setCustomValidity('That carrier is closed.');
+    expect(formState(element).flags.customError).toBe(true);
+    expect(formState(element).message).toBe('That carrier is closed.');
+    expect(element.checkValidity()).toBe(false);
+    element.setCustomValidity('');
+    expect(formState(element).flags).toEqual({});
+  });
+
+  it('lets a radio be chosen through its checked property', async () => {
+    const element = await group();
+    const pickup = radios(element)[2];
+    if (!pickup) throw new Error('radio missing');
+    pickup.checked = true;
+    expect(element.value).toBe('pickup');
+    pickup.checked = false;
+    expect(element.value).toBe('');
   });
 });
