@@ -2,6 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    // scripts/openapi.mjs is JavaScript, typechecked like the source.
+    "allowJs": true,
+    "checkJs": true,
     // Typecheck and lint against the workspace packages' source: their dist/
     // only exists after `npm run build`, which runs after both (and builds
     // create-tassyir-app after this folder). The build and the published
@@ -11,5 +14,5 @@
       "create-tassyir-app": ["../create-tassyir-app/src/index.ts"]
     }
   },
-  "include": ["src", "tsdown.config.ts"]
+  "include": ["src", "scripts", "tsdown.config.ts"]
 }

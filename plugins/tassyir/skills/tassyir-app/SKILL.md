@@ -20,16 +20,16 @@ businesses its developer owns, and on one other business the developer names.
 
 ## Addresses
 
-| What                     | Where                                                                  |
-| ------------------------ | ---------------------------------------------------------------------- |
-| Admin API                | `https://api.tassyir.io/apps/2026-10/`                                 |
-| Token endpoint           | `POST https://api.tassyir.io/apps/oauth/token`                         |
-| ID-token keys (JWKS)     | `GET https://api.tassyir.io/apps/.well-known/jwks.json`                |
-| Webhook public keys      | `GET https://api.tassyir.io/apps/webhook-keys`                         |
-| The app's page           | `https://app.tassyir.io/{locale}/dashboard/{businessId}/apps/{handle}` |
-| Developer console        | `https://app.tassyir.io/en/developers`                                 |
-| Manifest                 | `tassyir.app.toml`, validated by `@tassyir/app-manifest`               |
-| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/app-manifest`         |
+| What                     | Where                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| Admin API                | `https://api.tassyir.io/apps/2026-10/`                                        |
+| Token endpoint           | `POST https://api.tassyir.io/apps/oauth/token`                                |
+| ID-token keys (JWKS)     | `GET https://api.tassyir.io/apps/.well-known/jwks.json`                       |
+| Webhook public keys      | `GET https://api.tassyir.io/apps/webhook-keys`                                |
+| The app's page           | `https://app.tassyir.io/{locale}/dashboard/{businessId}/apps/{handle}`        |
+| Developer console        | `https://app.tassyir.io/en/developers`                                        |
+| Manifest                 | `tassyir.app.toml`, validated by `@tassyir/app-manifest`                      |
+| SDK (server, page, docs) | `@tassyir/app`, `@tassyir/app-bridge`, `@tassyir/ui`, `@tassyir/app-manifest` |
 
 ## The manifest (`tassyir.app.toml`)
 
@@ -298,6 +298,15 @@ allow-popups allow-downloads`) on the app's own origin. Arabic is
   right-to-left: use logical CSS properties.
 - The server sends `Content-Security-Policy: frame-ancestors
 https://app.tassyir.io` so no other site can frame the page.
+- **Draw the page with `@tassyir/ui`**, the dashboard's own look as custom
+  elements (`<tsy-table>`, `<tsy-card>`, `<tsy-text-field>`, `<tsy-button>`,
+  `<tsy-status-pill>`, `<tsy-banner>`, `<tsy-empty-state>`,
+  `<tsy-skeleton>`, …) and tokens (`var(--tsy-color-ink)`, never a hex
+  code). `followDashboardContext(bridge)` puts the dashboard's `lang`,
+  `dir` and `data-theme` on `<html>`; the elements follow. One primary
+  (ink) button per view; a status is a `<tsy-status-pill>`; money reads
+  `DZD 7,500` / `7.500 دج`. Toasts, modals, pickers, the save bar and the
+  title are App Bridge calls, not elements.
 
 ## Dev stores
 

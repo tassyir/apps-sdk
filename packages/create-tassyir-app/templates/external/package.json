@@ -25,6 +25,7 @@
   "devDependencies": {
     "@tassyir/app-bridge": "*",
     "@tassyir/app-manifest": "*",
+    "@tassyir/ui": "*",
     "@types/node": "22.20.4",
     "esbuild": "0.28.2",
     "smol-toml": "1.9.0",

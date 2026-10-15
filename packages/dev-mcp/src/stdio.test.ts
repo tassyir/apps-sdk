@@ -11,6 +11,7 @@ import { CredentialStore } from 'tassyir';
 import type { CliIo } from 'tassyir';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  assertFakesFollowTheDocument,
   FAKE_EMAIL,
   FAKE_USER_ID,
   FakeDeveloperApi,
@@ -111,6 +112,8 @@ afterAll(async () => {
     });
   });
   await rm(root, { recursive: true, force: true });
+  // The fake answered as the developer API's OpenAPI document says.
+  assertFakesFollowTheDocument();
 });
 
 function textOf(result: Awaited<ReturnType<Client['callTool']>>): string {

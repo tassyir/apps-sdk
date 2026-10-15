@@ -287,7 +287,15 @@ const exitCode = await runCli(['validate', '--json'], io);
 
 `io` is a `CliIo`: stdout, stderr, the environment, the working folder,
 `fetch`, a clock, and how to run a program. `DeveloperApi` is the typed
-developer-API client the commands use.
+developer-API client the commands use. Its routes, bodies and answers are
+typed from the developer API's OpenAPI document, vendored in `openapi/` at a
+recorded backend commit (`SOURCE.json`); the package exports the types
+(`DeveloperApp`, `Installation`, `Delivery`, `WebhookTopic`, …, and the raw
+`DeveloperApiPaths`, `DeveloperApiOperations`, `DeveloperApiComponents`). In
+this repo, with a clone of `tassyir/backend` in `TASSYIR_BACKEND_DIR`,
+`npm run openapi:check -w tassyir` compares the copy with the backend's and
+`npm run openapi:update -w tassyir` vendors the new file and regenerates the
+types.
 
 ## License
 

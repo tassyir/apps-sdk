@@ -1,6 +1,6 @@
 import { MANIFEST_VOCABULARY } from '@tassyir/app-manifest';
 import { CredentialStore, DeveloperApi, loadManifest } from 'tassyir';
-import type { DeveloperApp, Installation } from 'tassyir';
+import type { DeveloperApp, Installation, WebhookTopic } from 'tassyir';
 import * as z from 'zod';
 import { ToolError } from '../errors.js';
 import { defineTool, fromCliError } from '../tool.js';
@@ -16,9 +16,11 @@ import type { ToolContext } from '../tool.js';
 
 const DASHBOARD = 'https://app.tassyir.io/en';
 
+// The manifest's topics are the developer API's (a spec of the tassyir CLI
+// holds them equal).
 const TOPICS = MANIFEST_VOCABULARY.topics.map((topic) => topic.name) as [
-  string,
-  ...string[],
+  WebhookTopic,
+  ...WebhookTopic[],
 ];
 
 /** A client of the developer API with the stored developer token. */
@@ -250,7 +252,9 @@ export const seedDevStore = defineTool({
   }),
   output: z.object({
     store: devStore.extend({
-      store: z.object({ id: z.string(), subdomain: z.string() }).nullable(),
+      store: z
+        .object({ id: z.string(), subdomain: z.string().nullable() })
+        .nullable(),
       seed: z.record(z.string(), z.number()).nullable(),
       seedError: z.string().nullable(),
     }),

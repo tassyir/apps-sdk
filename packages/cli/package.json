@@ -44,11 +44,17 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "openapi:check": "node scripts/openapi.mjs check",
+    "openapi:update": "node scripts/openapi.mjs update",
+    "openapi:generate": "node scripts/openapi.mjs generate"
   },
   "dependencies": {
     "@tassyir/app-manifest": "^0.1.0",
     "create-tassyir-app": "^0.1.0",
     "smol-toml": "^1.9.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0"
   }
 }

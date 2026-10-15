@@ -3,7 +3,7 @@ import type {
   AppCredential,
   DeveloperApp,
   MintCredentialResponse,
-} from '../api-types.js';
+} from '../developer-types.js';
 import { cell, lines, resolveApp, stringValue, table } from '../command.js';
 import type {
   Command,

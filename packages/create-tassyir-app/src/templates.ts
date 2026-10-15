@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import appPackage from '../../app/package.json' with { type: 'json' };
 import appBridgePackage from '../../app-bridge/package.json' with { type: 'json' };
 import appManifestPackage from '../../app-manifest/package.json' with { type: 'json' };
+import uiPackage from '../../ui/package.json' with { type: 'json' };
 
 export type TemplateName = 'external' | 'hosted';
 
@@ -48,6 +49,7 @@ export const TEMPLATE_DEPENDENCIES: Readonly<Record<string, string>> =
     '@tassyir/app': `^${appPackage.version}`,
     '@tassyir/app-bridge': `^${appBridgePackage.version}`,
     '@tassyir/app-manifest': `^${appManifestPackage.version}`,
+    '@tassyir/ui': `^${uiPackage.version}`,
   });
 
 /** Where a template's files are: templates/<name> next to dist/ (and src/). */

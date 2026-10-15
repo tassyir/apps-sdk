@@ -3,7 +3,8 @@ import type {
   DeliveryFilters,
   DeliveryStatus,
   Installation,
-} from '../api-types.js';
+  WebhookTopic,
+} from '../developer-types.js';
 import { cell, lines, resolveApp, stringValue, table } from '../command.js';
 import type { Command } from '../command.js';
 import { CliError, EXIT_CODES, usageError } from '../errors.js';
@@ -21,7 +22,14 @@ const APP_OPTION = {
   },
 } as const;
 
-const TOPICS = MANIFEST_VOCABULARY.topics.map((topic) => topic.name);
+const TOPICS: readonly string[] = MANIFEST_VOCABULARY.topics.map(
+  (topic) => topic.name,
+);
+
+/** The manifest's topics are the API's (openapi.test.ts holds them equal). */
+function isTopic(value: string): value is WebhookTopic {
+  return TOPICS.includes(value);
+}
 const STATUSES: readonly DeliveryStatus[] = [
   'pending',
   'delivered',
@@ -71,7 +79,7 @@ export const webhookTriggerCommand: Command = {
   },
   async run(context, { values, positionals }) {
     const topic = positionals[0] ?? '';
-    if (!TOPICS.includes(topic)) {
+    if (!isTopic(topic)) {
       throw usageError(
         `"${topic}" is not a webhook topic (${TOPICS.join(', ')})`,
         'webhook trigger',
@@ -163,7 +171,7 @@ export const webhookDeliveriesCommand: Command = {
     if (installation !== undefined) filters.installationId = installation;
     const topic = stringValue(values['topic']);
     if (topic !== undefined) {
-      if (!TOPICS.includes(topic)) {
+      if (!isTopic(topic)) {
         throw usageError(
           `"${topic}" is not a webhook topic`,
           'webhook deliveries',

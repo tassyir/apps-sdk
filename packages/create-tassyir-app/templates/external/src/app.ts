@@ -20,7 +20,7 @@ import { receiveWebhook, WEBHOOK_PATH } from './webhooks.ts';
 //   GET  /api/orders     the page's data: pending orders (Admin API)
 //   GET  /api/settings   the app's settings for this business (app data)
 //   PUT  /api/settings
-//   GET  /app.js, /app.css, and every other GET: the embedded page
+//   GET  /app.js, and every other GET: the embedded page
 
 /** The only site that may frame the page: the Tassyir dashboard. */
 export const DASHBOARD_ORIGIN = 'https://app.tassyir.io';
@@ -37,7 +37,7 @@ export interface AppDeps {
   tassyir: TassyirApp;
   store: AppStore;
   /**
-   * Reads a file of the built page (index.html, app.js, app.css), or
+   * Reads a file of the built page (index.html, app.js), or
    * undefined when it is missing. On Node: `pageFilesIn('dist/public')`.
    */
   pageFile: (name: string) => Promise<Uint8Array<ArrayBuffer> | undefined>;
@@ -52,7 +52,6 @@ interface ApiVariables {
 
 const PAGE_FILES: Record<string, { file: string; type: string }> = {
   '/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
-  '/app.css': { file: 'app.css', type: 'text/css; charset=utf-8' },
 };
 
 const PAGE_HEADERS = {

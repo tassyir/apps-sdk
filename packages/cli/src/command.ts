@@ -1,5 +1,5 @@
 import { DeveloperApi } from './api.js';
-import type { DeveloperApp } from './api-types.js';
+import type { DeveloperApp } from './developer-types.js';
 import { CredentialStore } from './credentials.js';
 import type { ResolvedToken } from './credentials.js';
 import { CliError, EXIT_CODES, notLoggedIn } from './errors.js';

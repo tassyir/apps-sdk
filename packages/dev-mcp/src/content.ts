@@ -8,11 +8,12 @@ import type { ApiIndex } from './openapi.js';
 
 // What the server knows without a network: the public developer guides
 // (apps-sdk docs/guides, one Markdown file per topic, the file name is the
-// slug) and the Admin API's OpenAPI document that @tassyir/app is typed from.
-// The build copies both into dist/content/ (tsdown.config.ts), so a release
-// answers from the guides and the API version it was released with. From a
-// checkout of tassyir/apps-sdk (specs, running from source) the server reads
-// the sources themselves.
+// slug), the Admin API's OpenAPI document that @tassyir/app is typed from,
+// and the developer API's that the tassyir CLI is typed from. The build
+// copies them into dist/content/ (tsdown.config.ts), so a release answers
+// from the guides and the API versions it was released with. From a checkout
+// of tassyir/apps-sdk (specs, running from source) the server reads the
+// sources themselves.
 //
 // The text is data: nothing here follows a link or acts on what a guide says.
 
@@ -21,21 +22,31 @@ export interface ContentPaths {
   guides: string;
   /** The Admin API's OpenAPI document. */
   openapi: string;
+  /** The developer API's OpenAPI document. Default: the copy shipped with the package. */
+  developerOpenapi?: string;
 }
 
 /** dist/content/ in a release; the repo's own files in a checkout. */
-export function defaultContentPaths(): ContentPaths {
+export function defaultContentPaths(): Required<ContentPaths> {
   const shipped = fileURLToPath(new URL('./content/', import.meta.url));
   if (existsSync(join(shipped, 'guides'))) {
     return {
       guides: join(shipped, 'guides'),
       openapi: join(shipped, 'openapi', 'openapi.2026-10.json'),
+      developerOpenapi: join(shipped, 'openapi', 'openapi.developer.json'),
     };
   }
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   return {
     guides: join(root, 'docs', 'guides'),
     openapi: join(root, 'packages', 'app', 'openapi', 'openapi.2026-10.json'),
+    developerOpenapi: join(
+      root,
+      'packages',
+      'cli',
+      'openapi',
+      'openapi.developer.json',
+    ),
   };
 }
 
@@ -69,10 +80,13 @@ export interface Guide {
 export interface Content {
   /** By `order`, as the docs site lists them. */
   guides: Guide[];
+  /** The Admin API (what an installed app calls). */
   api: ApiIndex;
+  /** The developer API (what the tassyir CLI calls). */
+  developerApi: ApiIndex;
 }
 
-/** Reads and indexes the guides and the OpenAPI document. */
+/** Reads and indexes the guides and the two OpenAPI documents. */
 export async function loadContent(paths: ContentPaths): Promise<Content> {
   let files: string[];
   try {
@@ -92,13 +106,21 @@ export async function loadContent(paths: ContentPaths): Promise<Content> {
     ),
   );
   guides.sort((a, b) => a.order - b.order || a.slug.localeCompare(b.slug));
-  let document: unknown;
+  const developerOpenapi =
+    paths.developerOpenapi ?? defaultContentPaths().developerOpenapi;
+  return {
+    guides,
+    api: indexApi(await readDocument(paths.openapi), 'admin'),
+    developerApi: indexApi(await readDocument(developerOpenapi), 'developer'),
+  };
+}
+
+async function readDocument(path: string): Promise<unknown> {
   try {
-    document = JSON.parse(await readFile(paths.openapi, 'utf8')) as unknown;
+    return JSON.parse(await readFile(path, 'utf8')) as unknown;
   } catch (error) {
-    throw contentUnavailable(paths.openapi, error);
+    throw contentUnavailable(path, error);
   }
-  return { guides, api: indexApi(document) };
 }
 
 function contentUnavailable(path: string, error: unknown): ToolError {

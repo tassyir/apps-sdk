@@ -6,15 +6,17 @@ any MCP client). In one place, your agent can:
 
 - search and read Tassyir's developer guides;
 - look up any Admin API operation (scope, parameters, body, every error code)
-  and any webhook topic's body;
+  and any webhook topic's body, and any operation of the developer API the
+  `tassyir` CLI calls;
 - validate `tassyir.app.toml` with the Tassyir API's own validator;
 - start a new app from the official starter;
 - send a test webhook to your app and create seeded dev stores, with your
   `tassyir login`.
 
-It runs on your machine over stdio. The guides and the API reference ship
-inside the package (API version `2026-10`), so the reference tools work
-offline and answer from the version you installed.
+It runs on your machine over stdio. The guides and the API references ship
+inside the package (the Admin API at version `2026-10`, and the developer
+API), so the reference tools work offline and answer from the version you
+installed.
 
 ## Install
 
@@ -106,20 +108,20 @@ MCP SDK refuses them first, with its own validation message naming the field.
 
 ## Tools
 
-| Tool                   | What it does                                                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `search_docs`          | Searches the guides, the Admin API's operations and the webhook topics; each result names the tool call that reads it.       |
-| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time; without a slug, lists the guides.         |
-| `get_api_operation`    | One Admin API operation (by `operationId` or `METHOD /path`), one component schema, or the list of operations.               |
-| `get_event_schema`     | One webhook topic: envelope, resource, headers, the scope to subscribe, the answer to give; without a topic, the list.       |
-| `validate_manifest`    | Validates `tassyir.app.toml` (its text, a path, or `./tassyir.app.toml`) with `@tassyir/app-manifest`, as the API will.      |
-| `scaffold`             | Writes a new app from `create-tassyir-app` into a new or empty folder; never overwrites, installs nothing.                   |
-| `trigger_test_webhook` | Sends a signed test event of one topic to your app's endpoint through Tassyir and reports the answer. Needs `tassyir login`. |
-| `seed_dev_store`       | Creates a dev store seeded with products, orders and customers (at most 3, permanent). Needs `tassyir login`.                |
-| `list_dev_stores`      | Your dev stores and their dashboard links. Needs `tassyir login`.                                                            |
-| `validate_block`       | Not available yet: storefront blocks arrive with the marketplace. Answers `TOOL_NOT_AVAILABLE` with what to do instead.      |
-| `tail_logs`            | Not available yet: it reads the logs of apps on Tassyir Hosting. Answers `TOOL_NOT_AVAILABLE`.                               |
-| `run_review_checks`    | Not available yet: the checks come with the review of public apps. Answers `TOOL_NOT_AVAILABLE`.                             |
+| Tool                   | What it does                                                                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search_docs`          | Searches the guides, the Admin API's operations and the webhook topics; each result names the tool call that reads it.                                                   |
+| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time; without a slug, lists the guides.                                                     |
+| `get_api_operation`    | One Admin API operation (by `operationId` or `METHOD /path`), one component schema, or the list of operations; `"api": "developer"` for the developer API the CLI calls. |
+| `get_event_schema`     | One webhook topic: envelope, resource, headers, the scope to subscribe, the answer to give; without a topic, the list.                                                   |
+| `validate_manifest`    | Validates `tassyir.app.toml` (its text, a path, or `./tassyir.app.toml`) with `@tassyir/app-manifest`, as the API will.                                                  |
+| `scaffold`             | Writes a new app from `create-tassyir-app` into a new or empty folder; never overwrites, installs nothing.                                                               |
+| `trigger_test_webhook` | Sends a signed test event of one topic to your app's endpoint through Tassyir and reports the answer. Needs `tassyir login`.                                             |
+| `seed_dev_store`       | Creates a dev store seeded with products, orders and customers (at most 3, permanent). Needs `tassyir login`.                                                            |
+| `list_dev_stores`      | Your dev stores and their dashboard links. Needs `tassyir login`.                                                                                                        |
+| `validate_block`       | Not available yet: storefront blocks arrive with the marketplace. Answers `TOOL_NOT_AVAILABLE` with what to do instead.                                                  |
+| `tail_logs`            | Not available yet: it reads the logs of apps on Tassyir Hosting. Answers `TOOL_NOT_AVAILABLE`.                                                                           |
+| `run_review_checks`    | Not available yet: the checks come with the review of public apps. Answers `TOOL_NOT_AVAILABLE`.                                                                         |
 
 Every tool has a JSON Schema input that refuses unknown arguments, and every
 tool that can succeed declares the JSON Schema of its answer. Every answer is
@@ -166,8 +168,8 @@ To try the server from a clone of `tassyir/apps-sdk`, without a build:
 node --import ./packages/dev-mcp/scripts/from-source.mjs packages/dev-mcp/src/cli.ts
 ```
 
-It then reads the repo's own `docs/guides` and the OpenAPI document of
-`@tassyir/app`.
+It then reads the repo's own `docs/guides` and the OpenAPI documents of
+`@tassyir/app` and the `tassyir` CLI.
 
 ## License
 

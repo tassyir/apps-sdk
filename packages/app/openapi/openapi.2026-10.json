@@ -88,7 +88,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `name`, `currency`, `country`, `timezone`, `createdAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `name`, `currency`, `country`, `timezone`, `createdAt`, `devStore`."
           }
         ],
         "responses": {
@@ -13908,6 +13908,10 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 date-time, UTC."
+          },
+          "devStore": {
+            "type": "boolean",
+            "description": "A dev store (AP-B1.13): a test business made from the developer console, with synthetic data. Nothing on it reaches a carrier, a buyer or a payment provider, and its orders are not real."
           }
         },
         "required": [
@@ -13916,7 +13920,8 @@
           "currency",
           "country",
           "timezone",
-          "createdAt"
+          "createdAt",
+          "devStore"
         ],
         "additionalProperties": false,
         "description": "The business an app is installed on (API 2026-10)."

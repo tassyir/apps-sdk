@@ -7,6 +7,7 @@ import { CredentialStore } from 'tassyir';
 import type { CliIo, ExecResult } from 'tassyir';
 import { expect } from 'vitest';
 import {
+  assertFakesFollowTheDocument,
   FAKE_EMAIL,
   FAKE_USER_ID,
   FakeDeveloperApi,
@@ -19,13 +20,20 @@ import { createDevMcpServer, MAX_RESULT_BYTES } from './index.js';
 // through its in-memory transport; the tassyir CLI's fake developer API
 // (AP-K1.6) behind `fetch`; the credential store in a scratch folder (as
 // `tassyir login` leaves it, the file backend); the repo's guides and OpenAPI
-// document as the content.
+// documents as the content.
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 export const CONTENT: ContentPaths = {
   guides: join(REPO, 'docs', 'guides'),
   openapi: join(REPO, 'packages', 'app', 'openapi', 'openapi.2026-10.json'),
+  developerOpenapi: join(
+    REPO,
+    'packages',
+    'cli',
+    'openapi',
+    'openapi.developer.json',
+  ),
 };
 
 export interface Answer {
@@ -36,11 +44,15 @@ export interface Answer {
 
 const scratch: string[] = [];
 
-/** Removes every scratch folder (call from afterEach). */
+/**
+ * Removes every scratch folder, then fails if the fake API received or
+ * answered anything the OpenAPI document does not allow (call from afterEach).
+ */
 export async function cleanupHarnesses(): Promise<void> {
   await Promise.all(
     scratch.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
+  assertFakesFollowTheDocument();
 }
 
 export async function createHarness(
