@@ -307,9 +307,10 @@ const created = await admin.request('post', '/orders', { body }); // created.sta
   429 `IMAGE_QUOTA_REACHED` (`POST /images`): a daily quota is not worth
   retrying, so it throws at once and the error's `problem` says which quota
   is full (`per`, `window`: `day` or `minute`, `limit`, `retryAfter`), for
-  the app to wait or stop. Nor 503 `BULK_EXPORTS_NOT_CONFIGURED` (exports
-  are off on that Tassyir environment) or 409 `BULK_EXPORT_IN_PROGRESS`
-  (wait for `bulk/finished`, or read `GET /bulk/exports/{id}`).
+  the app to wait or stop. It also never retries 503
+  `BULK_EXPORTS_NOT_CONFIGURED` (exports are off on that Tassyir environment)
+  or 409 `BULK_EXPORT_IN_PROGRESS` (wait for `bulk/finished`, or read
+  `GET /bulk/exports/{id}`).
 - **Pagination.** `admin.paginate(path, { query })` walks the keyset cursors
   and yields items.
 - **`fields`** takes a list of field names, typed per resource:
