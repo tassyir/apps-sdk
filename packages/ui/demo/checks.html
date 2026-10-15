@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@tassyir/ui checks</title>
+    <link rel="stylesheet" href="/fonts.css" />
+    <link rel="stylesheet" href="/demo/demo.css" />
+    <script type="module" src="/demo/checks.js"></script>
+  </head>
+  <body>
+    <main>
+      <form id="form">
+        <fieldset id="fieldset" class="form">
+          <tsy-text-field
+            id="name"
+            name="name"
+            label="Name"
+            value="Dar Amina"
+            required
+          ></tsy-text-field>
+          <tsy-text-field
+            id="note"
+            name="note"
+            label="Note"
+            multiline
+          ></tsy-text-field>
+          <tsy-select id="wilaya" name="wilaya" label="Wilaya" value="31">
+            <option value="16">Alger</option>
+            <option value="31">Oran</option>
+          </tsy-select>
+          <tsy-checkbox id="notify" name="notify" checked>Notify</tsy-checkbox>
+          <tsy-checkbox id="off" name="off">Off</tsy-checkbox>
+          <tsy-radio-group
+            id="channel"
+            name="channel"
+            label="Channel"
+            value="sms"
+          >
+            <tsy-radio value="sms">SMS</tsy-radio>
+            <tsy-radio value="whatsapp">WhatsApp</tsy-radio>
+          </tsy-radio-group>
+          <tsy-button id="submit" type="submit" variant="primary"
+            >Save</tsy-button
+          >
+          <tsy-link id="link" href="#x">After</tsy-link>
+        </fieldset>
+      </form>
+      <tsy-page-header
+        id="header"
+        heading="Title"
+        back-href="#back"
+      ></tsy-page-header>
+      <pre id="results"></pre>
+    </main>
+  </body>
+</html>

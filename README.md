@@ -10,8 +10,9 @@ pipeline (AP-K1.1). On npm since 0.1.0: `@tassyir/app-manifest` (AP-K1.2),
 `@tassyir/app` (AP-K1.3), `@tassyir/app-bridge` (AP-K1.4), the `tassyir` CLI
 (AP-K1.6) and `create-tassyir-app` (AP-K1.7). `@tassyir/dev-mcp` (AP-K1.8)
 has its first release, 0.1.0, from the Version Packages PR of 2026-10-15.
-Each package's CHANGELOG says what each version changed. The other packages
-arrive one ticket at a time.
+`@tassyir/ui` (AP-K1.5) awaits its first release, 0.1.0: the owner's npm
+stub and trusted publisher come first. Each package's CHANGELOG says what
+each version changed. The other packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
 Each scoped package is also published, same version and same tarball, to
@@ -66,9 +67,18 @@ no runtime dependency.
 
 ### `@tassyir/ui`
 
-_Planned: AP-K1.5._ Web components that look like the Tassyir dashboard, built
-from its design tokens, with right-to-left layouts and dark mode. They work in
-any framework, or none.
+[`packages/ui`](packages/ui) (AP-K1.5). Web components that make an app's
+page look like the Tassyir dashboard it runs in: the dashboard's design
+tokens (colours, type, spacing, radii, light and dark) and fifteen custom
+elements built from them: button, link, text field, select, checkbox, radio
+group, card, page header, table, status pill, banner, empty state, skeleton
+and spinner. Every element works right to left and left to right, light and
+dark, on a phone and on a computer; one helper follows App Bridge's
+language, direction and theme. The form controls submit with a native
+`<form>`. Modals, toasts, pickers and the save bar are App Bridge calls, not
+elements. Custom elements with no runtime dependency, so they work in any
+framework or none. Browser only, ESM only, about 13.5 kB gzipped; no
+analytics, no storage, no network.
 
 ### `tassyir`
 
