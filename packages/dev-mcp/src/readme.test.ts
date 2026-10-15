@@ -31,8 +31,8 @@ describe('README.md', () => {
     const harness = await createHarness();
     const { tools } = await harness.client.listTools();
     const input = tools.find((tool) => tool.name === 'get_api_operation')
-      ?.inputSchema as { properties: { api: { enum: string[] } } };
-    expect(input.properties.api.enum).toEqual(['admin', 'developer']);
+      ?.inputSchema.properties?.['api'];
+    expect(input).toMatchObject({ enum: ['admin', 'developer'] });
     expect(row).toContain('Admin API');
     expect(row).toContain('`"api": "developer"`');
   });
