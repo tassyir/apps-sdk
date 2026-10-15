@@ -1,0 +1,52 @@
+---
+title: 'Claude Code plugin'
+description: 'Give Claude Code the Tassyir app contract and the developer MCP server with one plugin.'
+---
+
+The `tassyir` plugin gives Claude Code what it needs to build a Tassyir app:
+
+- the **developer MCP server**, [`@tassyir/dev-mcp`](/packages/dev-mcp): it searches and reads these guides, looks up any Admin API operation and webhook body, validates `tassyir.app.toml` with the API's own validator, starts a new app from the starter, and sends test webhooks and creates dev stores with your `tassyir login`;
+- the **`tassyir-app` skill**: the app contract (manifest, scopes, tokens, webhooks, Admin API, App Bridge, dev stores), the same file [`create-tassyir-app`](/packages/create-tassyir-app) writes into every new project.
+
+## Install
+
+In Claude Code, add Tassyir's plugin marketplace, then install the plugin:
+
+```text
+/plugin marketplace add tassyir/apps-sdk
+/plugin install tassyir@tassyir
+```
+
+From a terminal, the same is:
+
+```bash
+claude plugin marketplace add tassyir/apps-sdk
+claude plugin install tassyir@tassyir
+```
+
+The marketplace is the [`tassyir/apps-sdk`](https://github.com/tassyir/apps-sdk) repository. The plugin runs the `@tassyir/dev-mcp` release it names, with `npx`, so you need Node 22.18 or later.
+
+## Update
+
+For a newer release later:
+
+```bash
+claude plugin marketplace update tassyir
+claude plugin update tassyir@tassyir
+```
+
+## Without the plugin
+
+The server alone works in any MCP client. In Claude Code:
+
+```bash
+claude mcp add tassyir -- npx -y @tassyir/dev-mcp
+```
+
+The tools that act on your Tassyir account use the sign-in of the [`tassyir` CLI](/packages/cli). Sign in once, in a terminal:
+
+```bash
+npx tassyir login
+```
+
+Every tool, its input and its answers: [`@tassyir/dev-mcp`](/packages/dev-mcp).

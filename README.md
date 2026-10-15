@@ -144,10 +144,15 @@ kept in step by `npm run plugin:sync` and a spec.
 [docs/guides](docs/guides/index.md) (AP-B1.17): one guide per topic, from
 getting started to webhooks, the Admin API's conventions, every resource, dev
 stores and compliance, plus an error reference generated from the OpenAPI
-document. Every code sample is typechecked against the packed packages. The
-developer docs site, with Markdown mirrors, `llms.txt` and `llms-full.txt`,
-will publish them at [developers.tassyir.io](https://developers.tassyir.io)
-(AP-K1.9).
+document. Every code sample is typechecked against the packed packages.
+
+[site](site/README.md) (AP-K1.9): the developer docs site,
+[developers.tassyir.io](https://developers.tassyir.io), on Mintlify. It
+publishes the guides, the Admin API reference from the OpenAPI document, one
+page per error code at its problem `type` URL, and each package's README,
+all generated from this repo (`npm run docs:sync`, kept in step by a spec),
+with `llms.txt`, `llms-full.txt` and a Markdown mirror of every page once
+hosted.
 
 ## Contributing
 

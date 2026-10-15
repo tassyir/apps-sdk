@@ -38,6 +38,7 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  * @typedef {{
  *   name?: string,
  *   version?: string,
+ *   description?: string,
  *   private?: boolean,
  *   license?: string,
  *   repository?: string | { type?: string, url?: string, directory?: string },

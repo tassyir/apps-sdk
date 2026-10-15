@@ -1,9 +1,9 @@
 # Developer guides
 
-The public guides for building Tassyir apps, in Markdown, ready for the docs
-site at `developers.tassyir.io` to publish. Start reading at
-[index.md](index.md). This file is for people and agents who write the
-guides; it is not a guide itself.
+The public guides for building Tassyir apps, in Markdown. The docs site at
+`developers.tassyir.io` publishes them from here ([site](../../site/README.md)).
+Start reading at [index.md](index.md). This file is for people and agents who
+write the guides; it is not a guide itself.
 
 ## The rules
 
@@ -61,6 +61,7 @@ declares or imports itself.
 | `npm test`              | `scripts/guides.test.mjs`: front matter, links, leaks, TOML and JSON samples, and errors.md up to date                          |
 | `npm run check:guides`  | Packs the packages, installs them in a scratch project and typechecks every `ts` sample (needs `npm run build` and the network) |
 | `npm run guides:errors` | Rewrites the generated part of [errors.md](errors.md) from the OpenAPI document `@tassyir/app` is typed from                    |
+| `npm run docs:sync`     | Rewrites the docs site's page of each guide and its navigation (`order`); a test fails until you do                             |
 
 [errors.md](errors.md) lists every code of that OpenAPI document; it moves
 with the document. After `npm run openapi:update -w @tassyir/app`, run

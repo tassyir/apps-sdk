@@ -1,0 +1,5 @@
+# Mintlify publishes every .md and .mdx file under site/ as a page unless it
+# matches a line here. README.md (for the site's maintainers) is also on
+# Mintlify's own default list. scripts/docs-site.test.mjs fails when a page
+# file is missing from the navigation, so nothing becomes a page by accident.
+README.md

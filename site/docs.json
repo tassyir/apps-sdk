@@ -1,0 +1,203 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Tassyir Developers",
+  "description": "Build apps for Tassyir, the back office of e-commerce merchants in Algeria: guides, the Admin API reference, every error code and the SDK packages.",
+  "colors": { "primary": "#051F25", "light": "#F0F0F0", "dark": "#051F25" },
+  "background": { "color": { "light": "#FFFFFF", "dark": "#151515" } },
+  "fonts": { "family": "Geist" },
+  "icons": { "library": "lucide" },
+  "logo": {
+    "light": "/logo/tassyir-logo-ink.svg",
+    "dark": "/logo/tassyir-logo-white.svg"
+  },
+  "favicon": "/logo/tassyir-app-icon.svg",
+  "appearance": { "default": "system" },
+  "navbar": {
+    "links": [
+      { "label": "npm", "href": "https://www.npmjs.com/org/tassyir" },
+      {
+        "label": "Developer console",
+        "href": "https://app.tassyir.io/developers"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/tassyir/apps-sdk"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tassyir/apps-sdk",
+      "website": "https://tassyir.io"
+    }
+  },
+  "api": {
+    "playground": { "display": "simple", "proxy": false },
+    "examples": { "languages": ["bash", "javascript"] }
+  },
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt", "mcp", "cursor", "vscode"]
+  },
+  "seo": { "metatags": { "canonical": "https://developers.tassyir.io" } },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Page not found",
+      "description": "Nothing lives at this address. Every problem code the Admin API answers has a page: start from [Errors](/guides/errors#every-admin-api-code)."
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/index",
+              "guides/getting-started",
+              "guides/manifest",
+              "guides/scopes-and-consent",
+              "guides/tokens",
+              "guides/embedded-pages",
+              "guides/webhooks",
+              "guides/admin-api",
+              "guides/orders",
+              "guides/products-and-collections",
+              "guides/stock",
+              "guides/customers",
+              "guides/stores-and-delivery",
+              "guides/app-data",
+              "guides/dev-stores",
+              "guides/compliance-and-uninstall",
+              "guides/errors"
+            ]
+          },
+          { "group": "Tools", "pages": ["claude-code"] }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "Admin API",
+            "openapi": {
+              "source": "/openapi/openapi.2026-10.json",
+              "directory": "api-reference/admin"
+            }
+          }
+        ]
+      },
+      {
+        "tab": "Errors",
+        "icon": "triangle-alert",
+        "groups": [
+          {
+            "group": "Error codes",
+            "pages": [
+              "errors/api-busy",
+              "errors/app-data-key-not-declared",
+              "errors/app-data-limit-reached",
+              "errors/app-data-value-invalid",
+              "errors/app-data-value-too-large",
+              "errors/app-token-invalid",
+              "errors/app-token-required",
+              "errors/bad-request",
+              "errors/brand-not-found",
+              "errors/bulk-exports-not-configured",
+              "errors/bulk-export-in-progress",
+              "errors/bulk-export-rate-limited",
+              "errors/business-rate-limited",
+              "errors/cancel-note-required",
+              "errors/cancel-reason-invalid",
+              "errors/collection-conditional-limit",
+              "errors/collection-depth-limit",
+              "errors/collection-not-found",
+              "errors/collection-parent-cycle",
+              "errors/collection-parent-not-found",
+              "errors/collection-product-wrong-store",
+              "errors/collection-rule-invalid",
+              "errors/delivery-speed-unavailable",
+              "errors/delivery-speed-unsupported",
+              "errors/dev-store-order-limit-reached",
+              "errors/forbidden",
+              "errors/html-not-allowed",
+              "errors/idempotency-key-invalid",
+              "errors/idempotency-key-in-use",
+              "errors/idempotency-key-reused",
+              "errors/idempotency-unavailable",
+              "errors/image-fetch-failed",
+              "errors/image-quota-reached",
+              "errors/image-too-large",
+              "errors/image-type-not-allowed",
+              "errors/image-url-not-allowed",
+              "errors/insufficient-at-location",
+              "errors/internal-error",
+              "errors/invalid-cursor",
+              "errors/invalid-fields",
+              "errors/location-not-found",
+              "errors/media-url-not-allowed",
+              "errors/not-found",
+              "errors/order-duplicate",
+              "errors/order-limit-reached",
+              "errors/order-not-editable",
+              "errors/order-pricing-locked",
+              "errors/order-status-conflict",
+              "errors/payload-too-large",
+              "errors/permission-denied",
+              "errors/plan-feature-required",
+              "errors/product-default-variant",
+              "errors/product-options-require-variants",
+              "errors/product-option-duplicate-name",
+              "errors/product-option-duplicate-value",
+              "errors/product-option-not-found",
+              "errors/product-option-no-values",
+              "errors/product-option-value-empty",
+              "errors/product-option-value-not-found",
+              "errors/product-slug-invalid",
+              "errors/product-slug-taken",
+              "errors/product-variant-combination-mismatch",
+              "errors/product-variant-count-mismatch",
+              "errors/product-variant-duplicate-combination",
+              "errors/product-variant-duplicate-option",
+              "errors/product-variant-invalid-value",
+              "errors/product-variant-missing-combinations",
+              "errors/product-variant-missing-option",
+              "errors/product-variant-selected-count",
+              "errors/product-variant-unknown-option",
+              "errors/product-write-timeout",
+              "errors/rate-limited",
+              "errors/service-unavailable",
+              "errors/store-required",
+              "errors/store-scope-forbidden",
+              "errors/subscription-required",
+              "errors/unsupported-media-type",
+              "errors/validation-failed"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Packages",
+        "icon": "package",
+        "groups": [
+          {
+            "group": "Packages",
+            "pages": [
+              "packages/app",
+              "packages/app-bridge",
+              "packages/app-manifest",
+              "packages/dev-mcp",
+              "packages/ui",
+              "packages/create-tassyir-app",
+              "packages/cli"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

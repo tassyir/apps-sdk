@@ -189,7 +189,7 @@ function fences(lines, firstLine = 1) {
  * @param {string[]} lines
  * @returns {Set<number>}
  */
-function fencedLines(lines) {
+export function fencedLines(lines) {
   /** @type {Set<number>} */
   const fenced = new Set();
   for (const { open, close } of fences(lines)) {

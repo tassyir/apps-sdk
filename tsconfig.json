@@ -4,6 +4,9 @@
     "allowJs": true,
     "checkJs": true,
     "types": ["node"],
+    // scripts/docs-site.mjs reads @tassyir/ui's colour tokens from their
+    // source (Node 22.18 strips the types), so the site needs no build.
+    "allowImportingTsExtensions": true,
     // scripts/guides.test.mjs validates the guides' manifests with
     // @tassyir/app-manifest: typecheck it against the package's source, as
     // vitest.config.ts runs it (dist/ only exists after `npm run build`).
