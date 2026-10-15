@@ -22,7 +22,34 @@ import {
 // The Admin API client (plan §3.5, §3.6): typed from the OpenAPI document,
 // one error model (problem+json → TassyirApiError), `Idempotency-Key` on every
 // write, retries only when asked for, keyset pagination. JSON is parsed as is:
-// money stays a decimal string.
+// money stays a decimal string. On Tassyir Hosting the same client sends its
+// requests through `ctx.props.TASSYIR` with no token (`hostedAdmin`,
+// src/hosted.ts).
+
+/**
+ * Marks a client made by `hostedAdmin`: its requests go through this fetch
+ * and carry no `Authorization` (the binding authenticates them).
+ */
+export const HOSTED_TRANSPORT = Symbol('tassyir.hostedTransport');
+
+/** What `hostedAdmin` passes to the constructor. */
+export interface HostedTransportOptions extends Omit<
+  AdminClientOptions,
+  'accessToken' | 'apiOrigin' | 'fetch'
+> {
+  [HOSTED_TRANSPORT]: FetchLike;
+}
+
+/**
+ * The codes Tassyir Hosting's `TASSYIR` binding answers by itself, never the
+ * API: retrying cannot change them.
+ */
+const BINDING_SETTLED = new Set([
+  // The answer is larger than a hosted app may receive: ask for less.
+  'RESPONSE_TOO_LARGE',
+  // The binding is not configured: a setting, not a moment.
+  'TASSYIR_BINDING_NOT_AVAILABLE',
+]);
 
 /** Where the client gets its bearer token. */
 export type AccessTokenProvider =
@@ -216,14 +243,24 @@ function problemOf(
  */
 export class AdminClient {
   readonly apiVersion = ADMIN_API_VERSION;
-  readonly #token: AccessTokenProvider;
+  /** Null on Tassyir Hosting: the binding authenticates the request. */
+  readonly #token: AccessTokenProvider | null;
   readonly #base: string;
   readonly #fetch: FetchLike;
   readonly #retries: ResolvedRetries;
   readonly #timeoutMs: number;
   readonly #onResponse: ((info: ResponseInfo) => void) | undefined;
 
-  constructor(options: AdminClientOptions) {
+  constructor(options: AdminClientOptions | HostedTransportOptions) {
+    if (HOSTED_TRANSPORT in options) {
+      this.#token = null;
+      this.#base = `${TASSYIR_API_ORIGIN}/apps/${ADMIN_API_VERSION}`;
+      this.#fetch = options[HOSTED_TRANSPORT];
+      this.#retries = resolveRetries(options.retries);
+      this.#timeoutMs = options.timeoutMs ?? 30_000;
+      this.#onResponse = options.onResponse;
+      return;
+    }
     if (!(
       typeof options.accessToken === 'function' ||
       (typeof options.accessToken === 'string' && options.accessToken !== '')
@@ -367,7 +404,10 @@ export class AdminClient {
           url,
           {
             method: verb,
-            headers: { ...headers, authorization: `Bearer ${token}` },
+            headers:
+              token === null
+                ? headers
+                : { ...headers, authorization: `Bearer ${token}` },
             body,
           },
           { timeoutMs: this.#timeoutMs, signal: options.signal },
@@ -459,6 +499,7 @@ export class AdminClient {
         response.status === 401 &&
         code === 'APP_TOKEN_INVALID' &&
         typeof this.#token === 'function' &&
+        token !== null &&
         !tokenRetried
       ) {
         tokenRetried = true;
@@ -490,6 +531,7 @@ export class AdminClient {
   ): number | undefined {
     if (attempt >= this.#retries.maxRetries) return undefined;
     const { status, code } = error;
+    if (BINDING_SETTLED.has(code)) return undefined;
     const retryable =
       // RATE_LIMITED (the installation's bucket) and BUSINESS_RATE_LIMITED
       // (the ceiling the business's apps share) refuse before the route runs,

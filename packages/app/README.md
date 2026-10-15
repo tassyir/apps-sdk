@@ -336,9 +336,103 @@ test double.
 
 ## Tassyir Hosting
 
-Apps hosted on Tassyir Hosting will hold no token: the runtime will call the
-API for them. That runtime is not built yet. It will plug in through the
-`fetch` option and the `accessToken` provider of `AdminClient`.
+An app on Tassyir Hosting is a Cloudflare Worker that Tassyir runs for each
+installation, inside the merchant's dashboard. It holds no client secret and
+no token. Its capabilities arrive with each request in **`ctx.props`**,
+never in `env` (one script serves every installation pinned to its version):
+
+| `ctx.props`    | What it is                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installation` | `{ id, businessId, appId, handle, version, scopes, storeAccess, storeIds, devStore }`: the installation this request runs for.                              |
+| `viewer`       | `{ userId, sessionId }`: the dashboard member who opened the page, or `null` when nobody is looking (a webhook delivery). Who is looking, not a permission. |
+| `STORAGE`      | The installation's own SQLite database: `sql(query, ...bindings)`, `batch([...])` (one transaction), `usage()`. Erased 48 hours after an uninstall.         |
+| `TASSYIR`      | The Admin API as the installation: `fetch()` with the Admin API's URLs, no token.                                                                           |
+
+```ts
+import {
+  hostedAdmin,
+  isTassyirError,
+  readHostedProps,
+  verifyHostedWebhook,
+} from '@tassyir/app';
+
+export default {
+  async fetch(request: Request, env: unknown, ctx: { props?: unknown }) {
+    // Checked: throws HOSTED_PROPS_MISSING anywhere but Tassyir Hosting.
+    const props = readHostedProps(ctx);
+    const url = new URL(request.url);
+
+    if (request.method === 'POST' && url.pathname === '/webhooks') {
+      try {
+        const delivery = await verifyHostedWebhook(request, props);
+        // Deduplicate on delivery.id, then handle delivery.event.
+        return new Response(null, { status: 200 });
+      } catch (error) {
+        if (isTassyirError(error)) return new Response(null, { status: 400 });
+        throw error;
+      }
+    }
+
+    if (url.pathname === '/api/orders') {
+      // The typed client, its requests sent through ctx.props.TASSYIR.
+      const admin = hostedAdmin(props);
+      const page = await admin.get('/orders', {
+        query: { status: 'pending', limit: 20 },
+      });
+      const { rows } = await props.STORAGE.sql(
+        'SELECT value FROM settings WHERE key = ?',
+        'highlightFrom',
+      );
+      return Response.json({ orders: page.data, settings: rows[0] ?? null });
+    }
+    return new Response('Not found', { status: 404 });
+  },
+};
+```
+
+- **`readHostedProps(ctx)`** returns `ctx.props` typed (`HostedProps`) after
+  checking its shape, or throws `HOSTED_PROPS_MISSING` with a fix (the Worker
+  runs outside Tassyir Hosting, or a test forgot its stand-ins).
+- **`hostedAdmin(props, { retries, timeoutMs, onResponse })`** is the same
+  `AdminClient` as above, its requests sent through `ctx.props.TASSYIR` with
+  no `Authorization` header. Each call is a subrequest of the invocation
+  (Tassyir Hosting allows 50 by default), retries included. Answers and
+  problem+json refusals are the API's. The binding refuses some requests
+  itself, in the same problem shape (`HOSTED_BINDING_ERRORS`, with no
+  `requestId`):
+  - `HOSTED_PATH_NOT_ALLOWED` (400): only Admin API paths (`/apps/<version>/…`);
+  - `RESPONSE_TOO_LARGE` (502): an answer over 8 MiB, never retried (ask for
+    less: a smaller `limit`, `fields`);
+  - `TASSYIR_BINDING_NOT_AVAILABLE` (503): the binding is not configured,
+    never retried;
+  - `METHOD_NOT_ALLOWED`, `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`,
+    `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE` and `SERVICE_UNAVAILABLE`
+    (the API did not answer within 30 seconds; retried like any 503).
+
+  A call the API refuses for the installation's state (uninstalled, suspended,
+  its version no longer released) is 401 `HOSTED_CALL_REFUSED`; it is never
+  retried. Send ids as strings in bodies: the binding re-serialises the JSON,
+  so a number past 2^53 would be rounded.
+
+- **`verifyHostedWebhook(request, props, { keys?, testDeliveries? })`**
+  checks a delivery to the manifest's webhook path. The API sends a hosted
+  app's deliveries (the same headers, `v1a` signature and body as an external
+  app's) to Tassyir Hosting's dispatcher, signed with a key only the two of
+  them hold, each delivery once. The dispatcher runs the installation's
+  version with `viewer: null` and POSTs the delivery to the app; a page
+  request always has a viewer, and nothing else reaches the Worker. So the
+  check refuses a request with a viewer (`WEBHOOK_NOT_A_DELIVERY`), requires
+  the envelope to name this installation, its business and its app, and keeps
+  every other rule of `verifyWebhook` (timestamp, test deliveries, `tassyir-*`
+  headers, a `v1a` signature present). The signature itself is verified when
+  you pass `keys` (`WebhookKeys.fromPublicKeys([...])`); a hosted Worker
+  cannot fetch `/apps/webhook-keys` (its outbound requests never reach a
+  Tassyir host), so without them the dispatcher's word stands for it, and
+  `delivery.signatureVerified` is `false`. `app/uninstalled` and
+  `business/redact` still arrive after an uninstall; during those two
+  `TASSYIR` answers `HOSTED_CALL_REFUSED`.
+- **Shared isolates.** One isolate may serve several merchants: keep
+  per-request state per request, never in a module variable.
 
 ## Updating the API types
 
