@@ -9,7 +9,7 @@ inventing styles, and it reads as part of the dashboard.
 They are custom elements, so they work in any framework (React, Vue,
 Svelte, Hono JSX) or none. Browser only, ESM only, no runtime dependency.
 The package collects no analytics, uses no browser storage and makes no
-network request. About 13 kB gzipped for every element.
+network request. About 13.5 kB gzipped for every element.
 
 ## Install
 
@@ -643,14 +643,14 @@ Minified and gzipped, as an app's bundler ships it (`npm run size -w @tassyir/ui
 
 | Import                                         | Minified | Gzipped |
 | ---------------------------------------------- | -------- | ------- |
-| everything (`@tassyir/ui`)                     | 50.9 kB  | 13.0 kB |
+| everything (`@tassyir/ui`)                     | 52.7 kB  | 13.5 kB |
 | the shared core (base class, tokens)           | 5.0 kB   | 2.0 kB  |
-| `tsy-button` alone, with the core              | 11.8 kB  | 4.2 kB  |
+| `tsy-button` alone, with the core              | 12.7 kB  | 4.5 kB  |
 | `tsy-link` alone, with the core                | 8.3 kB   | 3.4 kB  |
-| `tsy-text-field` alone, with the core          | 11.9 kB  | 4.2 kB  |
-| `tsy-select` alone, with the core              | 16.1 kB  | 5.3 kB  |
-| `tsy-checkbox` alone, with the core            | 11.3 kB  | 4.1 kB  |
-| `tsy-radio-group` + `tsy-radio`, with the core | 12.5 kB  | 4.5 kB  |
+| `tsy-text-field` alone, with the core          | 13.0 kB  | 4.6 kB  |
+| `tsy-select` alone, with the core              | 17.4 kB  | 5.7 kB  |
+| `tsy-checkbox` alone, with the core            | 12.3 kB  | 4.5 kB  |
+| `tsy-radio-group` + `tsy-radio`, with the core | 13.8 kB  | 5.0 kB  |
 | `tsy-card` alone, with the core                | 7.7 kB   | 2.8 kB  |
 | `tsy-page-header` alone, with the core         | 9.4 kB   | 3.7 kB  |
 | `tsy-table` alone, with the core               | 10.9 kB  | 3.6 kB  |

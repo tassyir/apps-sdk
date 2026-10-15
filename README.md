@@ -76,7 +76,7 @@ dark, on a phone and on a computer; one helper follows App Bridge's
 language, direction and theme. The form controls submit with a native
 `<form>`. Modals, toasts, pickers and the save bar are App Bridge calls, not
 elements. Custom elements with no runtime dependency, so they work in any
-framework or none. Browser only, ESM only, about 13 kB gzipped; no
+framework or none. Browser only, ESM only, about 13.5 kB gzipped; no
 analytics, no storage, no network.
 
 ### `tassyir`
