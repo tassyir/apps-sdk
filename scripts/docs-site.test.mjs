@@ -168,9 +168,9 @@ describe('error codes', () => {
 
 describe('API reference', () => {
   it('shows each vendored OpenAPI document, byte for byte', () => {
-    expect(OPENAPI_SOURCES.map(({ source }) => source)).toContain(
+    expect(OPENAPI_SOURCES.map(({ source }) => source)).toEqual([
       'packages/app/openapi/openapi.2026-10.json',
-    );
+    ]);
     for (const { source } of OPENAPI_SOURCES) {
       const copy = join(SITE_DIR, 'openapi', source.split('/').pop() ?? '');
       expect(
