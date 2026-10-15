@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { createProject, isCreateError, TEMPLATES } from 'create-tassyir-app';
-import type { CreateAppBody } from '../api-types.js';
+import type { CreateAppBody } from '../developer-types.js';
 import { cell, lines, stringValue, table } from '../command.js';
 import type { Command } from '../command.js';
 import { CliError, EXIT_CODES } from '../errors.js';

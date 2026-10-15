@@ -7,6 +7,7 @@ import { CredentialStore } from 'tassyir';
 import type { CliIo, ExecResult } from 'tassyir';
 import { expect } from 'vitest';
 import {
+  assertFakesFollowTheDocument,
   FAKE_EMAIL,
   FAKE_USER_ID,
   FakeDeveloperApi,
@@ -36,11 +37,15 @@ export interface Answer {
 
 const scratch: string[] = [];
 
-/** Removes every scratch folder (call from afterEach). */
+/**
+ * Removes every scratch folder, then fails if the fake API received or
+ * answered anything the OpenAPI document does not allow (call from afterEach).
+ */
 export async function cleanupHarnesses(): Promise<void> {
   await Promise.all(
     scratch.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
+  assertFakesFollowTheDocument();
 }
 
 export async function createHarness(

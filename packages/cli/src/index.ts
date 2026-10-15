@@ -21,7 +21,7 @@ export type {
   PollResult,
   SignInRequest,
 } from './api.js';
-export type * from './api-types.js';
+export type * from './developer-types.js';
 
 export {
   configDirectory,

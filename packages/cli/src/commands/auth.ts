@@ -1,5 +1,5 @@
 import type { DeveloperApi } from '../api.js';
-import type { CliToken, DeveloperTokenResponse } from '../api-types.js';
+import type { CliToken, DeveloperTokenResponse } from '../developer-types.js';
 import { isBrowsableUrl, openBrowser } from '../browser.js';
 import { lines } from '../command.js';
 import type { Command, CommandResult, Context } from '../command.js';
@@ -30,7 +30,7 @@ export function defaultDeviceName(hostname: string): string | undefined {
 }
 
 /** `ar` or `en`, from --locale or the environment's language ($LANG). */
-function localeOf(context: Context, option: string | undefined): string {
+function localeOf(context: Context, option: string | undefined): 'ar' | 'en' {
   if (option !== undefined) {
     if (option !== 'ar' && option !== 'en') {
       throw usageError(`--locale is "${option}"; use ar or en`, 'login');

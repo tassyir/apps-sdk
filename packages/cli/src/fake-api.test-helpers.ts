@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { validateManifest } from '@tassyir/app-manifest';
 import type {
   AppCredential,
-  AppVersion,
+  AppVersionDetail,
   Delivery,
   DevStore,
   DeveloperAccount,
@@ -10,14 +10,39 @@ import type {
   Installation,
   ReplayOutcome,
   TestDelivery,
-} from './api-types.js';
+} from './developer-types.js';
+import {
+  operationFor,
+  requestProblems,
+  responseProblems,
+} from './openapi.test-helpers.js';
 
-// A local fake of the developer API, built from the backend's reference
-// (docs/api/apps/developer-cli-auth.md, developer.md, dev-stores.md,
-// developer-webhooks.md): the same routes, shapes, codes and rules that the
-// CLI relies on, in memory, behind a `fetch`. The device grant keeps the
-// interval like the API does (a poll sooner than `interval` minus 500 ms is
-// `slow_down`, and the interval grows by 5 s), on the harness's clock.
+// A local fake of the developer API: the routes, shapes, codes and rules the
+// CLI relies on, in memory, behind a `fetch`. Its shapes are the API's
+// OpenAPI document's (openapi/openapi.developer.json, the file the client's
+// types are generated from): every request it receives and every answer it
+// gives is checked against the document, and `cleanupHarnesses` fails the
+// spec on any difference (`takeDocumentViolations`). The device grant keeps
+// the interval like the API does (a poll sooner than `interval` minus 500 ms
+// is `slow_down`, and the interval grows by 5 s), on the harness's clock.
+
+/** What the fakes received or answered that the document does not allow. */
+const VIOLATIONS: string[] = [];
+
+/** Every difference from the document since the last call, then none. */
+export function takeDocumentViolations(): string[] {
+  return VIOLATIONS.splice(0);
+}
+
+/** Throws when a fake received or answered what the document does not allow. */
+export function assertFakesFollowTheDocument(): void {
+  const found = takeDocumentViolations();
+  if (found.length > 0) {
+    throw new Error(
+      `The fake developer API left openapi.developer.json:\n${found.map((line) => `  - ${line}`).join('\n')}`,
+    );
+  }
+}
 
 const BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
@@ -59,7 +84,7 @@ export type PollStep =
   | 'invalid_grant'
   | 'server_error'
   | 'network'
-  /** A 429 that is not OAuth's slow_down (a proxy), Retry-After 90. */
+  /** A 429 that is not OAuth's slow_down (the rate limiter), Retry-After 90. */
   | 'throttled';
 
 interface SignIn {
@@ -119,10 +144,7 @@ export class FakeDeveloperApi {
     updatedAt: '2026-10-12T10:00:00.000Z',
   };
   apps: DeveloperApp[] = [];
-  versions = new Map<
-    string,
-    (AppVersion & { manifest: Record<string, unknown> })[]
-  >();
+  versions = new Map<string, AppVersionDetail[]>();
   credentials = new Map<string, AppCredential[]>();
   /** Every secret minted, so specs can check where it went. */
   secrets: string[] = [];
@@ -197,18 +219,46 @@ export class FakeDeveloperApi {
     return app;
   }
 
-  readonly fetch = (
+  readonly fetch = async (
     input: string,
     init: RequestInit = {},
   ): Promise<Response> => {
-    try {
-      return Promise.resolve(this.#dispatch(input, init));
-    } catch (error) {
-      return Promise.reject(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
+    const response = this.#dispatch(input, init);
+    await this.#check(input, init, response);
+    return response;
   };
+
+  /** Holds the request and the answer to the document (VIOLATIONS). */
+  async #check(
+    input: string,
+    init: RequestInit,
+    response: Response,
+  ): Promise<void> {
+    const url = new URL(input);
+    const method = (init.method ?? 'GET').toUpperCase();
+    const operation = operationFor(method, url.pathname);
+    if (!operation) {
+      VIOLATIONS.push(
+        `${method} ${url.pathname} is not an operation of the document`,
+      );
+      return;
+    }
+    VIOLATIONS.push(
+      ...requestProblems(operation, {
+        query: url.searchParams,
+        contentType: new Headers(init.headers).get('content-type'),
+        body: typeof init.body === 'string' ? init.body : undefined,
+      }),
+    );
+    const text = await response.clone().text();
+    VIOLATIONS.push(
+      ...responseProblems(
+        operation,
+        response.status,
+        text === '' ? undefined : (JSON.parse(text) as unknown),
+      ),
+    );
+  }
 
   #dispatch(input: string, init: RequestInit): Response {
     const url = new URL(input);
@@ -311,53 +361,48 @@ export class FakeDeveloperApi {
     if (
       form.get('grant_type') !== 'urn:ietf:params:oauth:grant-type:device_code'
     ) {
-      return json(400, { error: 'unsupported_grant_type' });
+      return oauthError('unsupported_grant_type');
     }
     if (form.get('client_id') !== 'tassyir-cli') {
-      return json(400, {
-        error: 'invalid_request',
-        error_description: 'client_id is missing',
-      });
+      return oauthError('invalid_request', 'client_id is missing');
     }
     const signIn = this.signIns.find(
       (candidate) => candidate.deviceCode === form.get('device_code'),
     );
-    if (!signIn || signIn.issued) return json(400, { error: 'invalid_grant' });
+    if (!signIn || signIn.issued) return oauthError('invalid_grant');
     const now = this.clock.now();
-    if (now >= signIn.createdAt + 600_000)
-      return json(400, { error: 'expired_token' });
+    if (now >= signIn.createdAt + 600_000) return oauthError('expired_token');
     if (
       signIn.lastPolledAt !== undefined &&
       now - signIn.lastPolledAt < signIn.interval * 1000 - 500
     ) {
       signIn.lastPolledAt = now;
       signIn.interval = Math.min(signIn.interval + 5, 60);
-      return json(400, { error: 'slow_down' });
+      return oauthError('slow_down');
     }
     signIn.lastPolledAt = now;
     const step = this.pollScript.shift() ?? 'pending';
     switch (step) {
       case 'pending':
-        return json(400, { error: 'authorization_pending' });
+        return oauthError('authorization_pending');
       case 'slow_down':
         signIn.interval = Math.min(signIn.interval + 5, 60);
-        return json(400, { error: 'slow_down' });
+        return oauthError('slow_down');
       case 'deny':
-        return json(400, { error: 'access_denied' });
+        return oauthError('access_denied');
       case 'expire':
-        return json(400, { error: 'expired_token' });
+        return oauthError('expired_token');
       case 'invalid_grant':
-        return json(400, { error: 'invalid_grant' });
+        return oauthError('invalid_grant');
       case 'server_error':
         return json(500, { statusCode: 500, message: 'Internal server error' });
       case 'network':
         throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
       case 'throttled':
-        return json(
-          429,
-          { message: 'Too Many Requests' },
-          { 'retry-after': '90' },
-        );
+        // The global rate limiter's body is a bare JSON string.
+        return json(429, 'ThrottlerException: Too Many Requests', {
+          'retry-after': '90',
+        });
       case 'approve': {
         signIn.issued = true;
         const token = `tsy_dt_${base62(43)}`;
@@ -815,6 +860,24 @@ export class FakeDeveloperApi {
     this.#ids += 1;
     return String(this.#ids);
   }
+}
+
+/** What the sign-in routes say for each OAuth error (RFC 6749 §5.2). */
+const OAUTH_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  authorization_pending: 'The sign-in is waiting for your approval',
+  slow_down: 'Polling too fast',
+  access_denied: 'The sign-in was denied',
+  expired_token: 'The code expired',
+  invalid_grant: 'Unknown or used device code',
+  invalid_request: 'The request is malformed',
+  unsupported_grant_type: 'Only the device code grant is supported',
+};
+
+function oauthError(error: string, description?: string): Response {
+  return json(400, {
+    error,
+    error_description: description ?? OAUTH_DESCRIPTIONS[error] ?? error,
+  });
 }
 
 function json(
