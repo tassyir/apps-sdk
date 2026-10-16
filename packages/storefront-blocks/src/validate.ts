@@ -76,6 +76,10 @@ export function compileBlockTemplate(
     ok: true,
     template: Object.freeze({
       target: declaration.target ?? 'any',
+      data: declaration.data ? Object.freeze([...declaration.data]) : null,
+      settings: declaration.settings
+        ? Object.freeze(declaration.settings.map((setting) => setting.key))
+        : null,
       nodes: Object.freeze(nodes),
     }),
   };

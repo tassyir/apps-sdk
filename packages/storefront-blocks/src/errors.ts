@@ -90,7 +90,7 @@ const FIXES = {
   BLOCK_CSS_FUNCTION_NOT_ALLOWED:
     'Use a supported CSS function (see the storefront blocks guide).',
   BLOCK_CSS_DECLARATION_NOT_ALLOWED:
-    'Remove the declaration: a block cannot cover the page or run code from CSS.',
+    'Write position as static, relative, absolute or sticky, and remove behavior and -moz-binding: a block stays in its section and runs no code.',
   BLOCK_CSS_ESCAPE_NOT_ALLOWED:
     'Write the characters themselves: backslash escapes are allowed inside quoted strings only.',
   BLOCK_CSS_THEME_VARIABLE_UNKNOWN:

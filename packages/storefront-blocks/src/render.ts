@@ -477,8 +477,35 @@ class Interpreter {
 /** A template compiled by `compileBlockTemplate`: opaque, reusable, immutable. */
 export interface CompiledBlockTemplate {
   readonly target: BlockTarget;
+  /**
+   * The app data keys (`<owner>.<key>`) and setting keys the declaration
+   * named, or null when it named none. A render passes the template only
+   * these, whatever the context holds: the upload check cannot see through
+   * every alias (`{% assign d = app.data.store %}{{ d.other }}`), so the
+   * render does not rely on it.
+   */
+  readonly data: readonly string[] | null;
+  readonly settings: readonly string[] | null;
   /** @internal */
   readonly nodes: readonly Node[];
+}
+
+/** Only the declared keys of a record, when the declaration names keys. A
+ * value that is not a record gives nothing then. */
+function declaredOnly(
+  record: unknown,
+  allowed: ReadonlySet<string> | null,
+): unknown {
+  if (allowed === null) return record;
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
+    return undefined;
+  }
+  const source = record as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(source)) {
+    if (allowed.has(key)) out[key] = source[key];
+  }
+  return out;
 }
 
 function renderError(
@@ -524,7 +551,15 @@ export function renderCompiledBlock(
     const appData = new Map<string, Value>();
     for (const owner of BLOCK_DATA_OWNERS) {
       if (owner === 'product' && template.target !== 'product') continue;
-      const data = context.appData?.[owner];
+      const keys =
+        template.data === null
+          ? null
+          : new Set(
+              template.data
+                .filter((entry) => entry.startsWith(`${owner}.`))
+                .map((entry) => entry.slice(owner.length + 1)),
+            );
+      const data = declaredOnly(context.appData?.[owner], keys);
       if (data !== undefined) appData.set(owner, toValue(data, budget));
     }
     // Settings, the store and the product are bounded like app data: each is
@@ -534,7 +569,16 @@ export function renderCompiledBlock(
       [
         'block',
         new Map<string, Value>([
-          ['settings', toValue(context.settings ?? {}, own())],
+          [
+            'settings',
+            toValue(
+              declaredOnly(
+                context.settings ?? {},
+                template.settings === null ? null : new Set(template.settings),
+              ) ?? {},
+              own(),
+            ),
+          ],
         ]),
       ],
       ['store', toValue(pick(store, BLOCK_STORE_FIELDS), own())],

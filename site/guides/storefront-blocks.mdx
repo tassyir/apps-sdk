@@ -163,13 +163,16 @@ make an element or attribute name (`<{{ x }}>`), nor fill an unquoted value.
 ## The stylesheet
 
 The optional `.css` file is scoped to the block's section, so its selectors
-cannot reach the rest of the page. At upload it is refused when it holds:
+cannot reach the rest of the page, and the block is drawn inside its section's
+box. At upload it is refused when it holds:
 
 - an at-rule other than `@media`, `@supports` and `@keyframes <plain name>`
   (no `@import`, `@font-face`, `@layer`), or a nested rule;
 - a `url()` outside `https://cdn.tassyir.io/`, or a function that loads
   something (`image-set()`, `src()`);
-- `position: fixed`, `behavior`, `-moz-binding`, `expression()`;
+- `position` other than `static`, `relative`, `absolute` or `sticky`,
+  written as the word itself (never `fixed`, never through `var()`);
+  `behavior`, `-moz-binding`, `expression()`;
 - a backslash escape outside a quoted string, `<`, a bidi or invisible
   character.
 

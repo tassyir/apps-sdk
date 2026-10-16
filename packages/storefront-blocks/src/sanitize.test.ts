@@ -185,6 +185,37 @@ describe('the stylesheet check', () => {
     ).toEqual(['BLOCK_CSS_AT_RULE_NOT_ALLOWED']);
   });
 
+  it('takes position only as a written keyword, never fixed or through var()', () => {
+    for (const css of [
+      '.a { position: absolute; }',
+      '.a { position: sticky !important; }',
+      '.a { position: RELATIVE; }',
+    ]) {
+      expect(validateBlockStylesheet(css), css).toEqual([]);
+    }
+    for (const css of [
+      '.a { position: fixed; }',
+      '.a { --p: fixed; position: var(--p); }',
+      '.a { position: var(--anything, absolute); }',
+      '.a { position: /* */ fixed; }',
+      '.a { position: absolute fixed; }',
+      '.a { position: -webkit-sticky; }',
+    ]) {
+      expect(
+        validateBlockStylesheet(css).map((e) => e.code),
+        css,
+      ).toEqual(['BLOCK_CSS_DECLARATION_NOT_ALLOWED']);
+    }
+  });
+
+  it('checks a theme variable behind a comment too', () => {
+    expect(
+      validateBlockStylesheet('.a { color: var(/* x */ --st-internal); }').map(
+        (e) => e.code,
+      ),
+    ).toEqual(['BLOCK_CSS_THEME_VARIABLE_UNKNOWN']);
+  });
+
   it('accepts escapes inside strings only', () => {
     expect(validateBlockStylesheet('.a::after { content: "\\2605"; }')).toEqual(
       [],

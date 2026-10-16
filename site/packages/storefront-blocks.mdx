@@ -120,61 +120,61 @@ Errors are sorted by position, at most 50 per file (the last one says how
 many more there were). The same input always gives the same errors in the same
 order.
 
-| Code                                | When                                                                                   |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `BLOCK_TEMPLATE_NOT_TEXT`           | The template (or stylesheet) is not a string, or holds a NUL character.                |
-| `BLOCK_TEMPLATE_EMPTY`              | The template is empty or only spaces.                                                  |
-| `BLOCK_TEMPLATE_TOO_LARGE`          | Over 16 KB.                                                                            |
-| `BLOCK_STYLESHEET_TOO_LARGE`        | Over 8 KB.                                                                             |
-| `BLOCK_CHARACTER_NOT_ALLOWED`       | A bidi override or isolate, an invisible or control character, `<` in a stylesheet.    |
-| `BLOCK_LIQUID_UNTERMINATED`         | `{{` or `{%` never closed.                                                             |
-| `BLOCK_LIQUID_SYNTAX`               | An expression the language cannot read.                                                |
-| `BLOCK_TAG_UNKNOWN`                 | A tag Liquid does not have.                                                            |
-| `BLOCK_TAG_NOT_SUPPORTED`           | A Liquid tag blocks do not have (`include`, `render`, `raw`, `form`, `schema`, …).     |
-| `BLOCK_TAG_UNCLOSED`                | `if`, `for`, `case`, `capture` or `comment` without its end tag.                       |
-| `BLOCK_TAG_UNEXPECTED`              | An end, `else`, `elsif`, `when`, `break` or `continue` outside its block.              |
-| `BLOCK_NESTING_TOO_DEEP`            | More than 10 Liquid blocks inside one another.                                         |
-| `BLOCK_LOOP_NESTING_TOO_DEEP`       | More than 3 `for` loops inside one another.                                            |
-| `BLOCK_LOOP_LIMIT_TOO_HIGH`         | A literal `limit:` or range over 50.                                                   |
-| `BLOCK_FILTER_UNKNOWN`              | A filter that does not exist.                                                          |
-| `BLOCK_FILTER_NOT_SUPPORTED`        | A Liquid filter blocks do not have (`raw`, `date`, `json`, `img_url`, …).              |
-| `BLOCK_FILTER_ARGUMENTS`            | The wrong number of arguments, or a named argument.                                    |
-| `BLOCK_FILTER_CHAIN_TOO_LONG`       | More than 10 filters in one expression.                                                |
-| `BLOCK_VARIABLE_UNKNOWN`            | A name that is neither a block object nor a variable the template assigns.             |
-| `BLOCK_OBJECT_NOT_AVAILABLE`        | `product` (or product app data) in a block whose target is not `product`.              |
-| `BLOCK_PROPERTY_UNKNOWN`            | A property the object does not have (`store.phone`).                                   |
-| `BLOCK_SETTING_UNDECLARED`          | A setting (`block.settings.x`, `var(--block-x)`) the block does not declare.           |
-| `BLOCK_DATA_KEY_UNDECLARED`         | App data the block does not list in its `data`.                                        |
-| `BLOCK_DATA_OWNER_UNKNOWN`          | App data of an owner blocks cannot read (`order`, `customer`).                         |
-| `BLOCK_ASSIGN_RESERVED`             | Assigning `block`, `product`, `store`, `app` or `forloop`.                             |
-| `BLOCK_TOO_MANY_VARIABLES`          | More than 64 variables.                                                                |
-| `BLOCK_HTML_TAG_NOT_ALLOWED`        | An element blocks cannot use (`script`, `style`, `form`, `iframe`, `h1`, …).           |
-| `BLOCK_HTML_ATTRIBUTE_NOT_ALLOWED`  | An attribute blocks cannot use (`id`, `data-*`, …).                                    |
-| `BLOCK_HTML_STYLE_ATTRIBUTE`        | A `style` attribute.                                                                   |
-| `BLOCK_HTML_EVENT_HANDLER`          | An `on…` attribute.                                                                    |
-| `BLOCK_HTML_URL_NOT_ALLOWED`        | A link that is not `https://`, a store path or a `#fragment`.                          |
-| `BLOCK_HTML_IMAGE_SOURCE`           | An `<img>` whose `src` is not one `{{ … \| image_url: <width> }}`.                     |
-| `BLOCK_HTML_ATTRIBUTE_VALUE`        | A value the attribute does not accept, or `stars` inside an attribute.                 |
-| `BLOCK_HTML_DYNAMIC_TAG`            | An element name made by Liquid (`<{{ x }}>`).                                          |
-| `BLOCK_HTML_DYNAMIC_ATTRIBUTE`      | An attribute name made by Liquid.                                                      |
-| `BLOCK_HTML_UNQUOTED_ATTRIBUTE`     | Liquid in an attribute value without quotes.                                           |
-| `BLOCK_HTML_UNTERMINATED_TAG`       | A tag never closed with `>`.                                                           |
-| `BLOCK_HTML_TOO_DEEP`               | More than 32 elements inside one another.                                              |
-| `BLOCK_HTML_ENTITY_UNKNOWN`         | A named character reference the language does not know.                                |
-| `BLOCK_CSS_SYNTAX`                  | An unclosed string, comment, bracket or block, a nested rule.                          |
-| `BLOCK_CSS_AT_RULE_NOT_ALLOWED`     | An at-rule other than `@media`, `@supports` and `@keyframes <name>`.                   |
-| `BLOCK_CSS_URL_NOT_ALLOWED`         | A `url()` outside `https://cdn.tassyir.io/`.                                           |
-| `BLOCK_CSS_FUNCTION_NOT_ALLOWED`    | A CSS function blocks cannot use (`expression()`, `image-set()`, …).                   |
-| `BLOCK_CSS_DECLARATION_NOT_ALLOWED` | `position: fixed`, `behavior`, `-moz-binding`.                                         |
-| `BLOCK_CSS_ESCAPE_NOT_ALLOWED`      | A backslash escape outside a quoted string.                                            |
-| `BLOCK_CSS_THEME_VARIABLE_UNKNOWN`  | A `--st-*` variable that is not published.                                             |
-| `BLOCK_RENDER_CONTEXT_INVALID`      | The render context has no store.                                                       |
-| `BLOCK_RENDER_STEP_LIMIT`           | The render used more than 20,000 steps.                                                |
-| `BLOCK_RENDER_OUTPUT_LIMIT`         | The rendered HTML is over 32 KB.                                                       |
-| `BLOCK_RENDER_STRING_LIMIT`         | A string the template builds is over 32,768 characters.                                |
-| `BLOCK_RENDER_ARRAY_LIMIT`          | A list the template builds has more than 500 items.                                    |
-| `BLOCK_RENDER_DATA_TOO_LARGE`       | The data is over 32 KB, nested deeper than 16, or holds a list of more than 500 items. |
-| `BLOCK_RENDER_FAILED`               | The renderer stopped on an error it does not name (report it).                         |
+| Code                                | When                                                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `BLOCK_TEMPLATE_NOT_TEXT`           | The template (or stylesheet) is not a string, or holds a NUL character.                         |
+| `BLOCK_TEMPLATE_EMPTY`              | The template is empty or only spaces.                                                           |
+| `BLOCK_TEMPLATE_TOO_LARGE`          | Over 16 KB.                                                                                     |
+| `BLOCK_STYLESHEET_TOO_LARGE`        | Over 8 KB.                                                                                      |
+| `BLOCK_CHARACTER_NOT_ALLOWED`       | A bidi override or isolate, an invisible or control character, `<` in a stylesheet.             |
+| `BLOCK_LIQUID_UNTERMINATED`         | `{{` or `{%` never closed.                                                                      |
+| `BLOCK_LIQUID_SYNTAX`               | An expression the language cannot read.                                                         |
+| `BLOCK_TAG_UNKNOWN`                 | A tag Liquid does not have.                                                                     |
+| `BLOCK_TAG_NOT_SUPPORTED`           | A Liquid tag blocks do not have (`include`, `render`, `raw`, `form`, `schema`, …).              |
+| `BLOCK_TAG_UNCLOSED`                | `if`, `for`, `case`, `capture` or `comment` without its end tag.                                |
+| `BLOCK_TAG_UNEXPECTED`              | An end, `else`, `elsif`, `when`, `break` or `continue` outside its block.                       |
+| `BLOCK_NESTING_TOO_DEEP`            | More than 10 Liquid blocks inside one another.                                                  |
+| `BLOCK_LOOP_NESTING_TOO_DEEP`       | More than 3 `for` loops inside one another.                                                     |
+| `BLOCK_LOOP_LIMIT_TOO_HIGH`         | A literal `limit:` or range over 50.                                                            |
+| `BLOCK_FILTER_UNKNOWN`              | A filter that does not exist.                                                                   |
+| `BLOCK_FILTER_NOT_SUPPORTED`        | A Liquid filter blocks do not have (`raw`, `date`, `json`, `img_url`, …).                       |
+| `BLOCK_FILTER_ARGUMENTS`            | The wrong number of arguments, or a named argument.                                             |
+| `BLOCK_FILTER_CHAIN_TOO_LONG`       | More than 10 filters in one expression.                                                         |
+| `BLOCK_VARIABLE_UNKNOWN`            | A name that is neither a block object nor a variable the template assigns.                      |
+| `BLOCK_OBJECT_NOT_AVAILABLE`        | `product` (or product app data) in a block whose target is not `product`.                       |
+| `BLOCK_PROPERTY_UNKNOWN`            | A property the object does not have (`store.phone`).                                            |
+| `BLOCK_SETTING_UNDECLARED`          | A setting (`block.settings.x`, `var(--block-x)`) the block does not declare.                    |
+| `BLOCK_DATA_KEY_UNDECLARED`         | App data the block does not list in its `data`.                                                 |
+| `BLOCK_DATA_OWNER_UNKNOWN`          | App data of an owner blocks cannot read (`order`, `customer`).                                  |
+| `BLOCK_ASSIGN_RESERVED`             | Assigning `block`, `product`, `store`, `app` or `forloop`.                                      |
+| `BLOCK_TOO_MANY_VARIABLES`          | More than 64 variables.                                                                         |
+| `BLOCK_HTML_TAG_NOT_ALLOWED`        | An element blocks cannot use (`script`, `style`, `form`, `iframe`, `h1`, …).                    |
+| `BLOCK_HTML_ATTRIBUTE_NOT_ALLOWED`  | An attribute blocks cannot use (`id`, `data-*`, …).                                             |
+| `BLOCK_HTML_STYLE_ATTRIBUTE`        | A `style` attribute.                                                                            |
+| `BLOCK_HTML_EVENT_HANDLER`          | An `on…` attribute.                                                                             |
+| `BLOCK_HTML_URL_NOT_ALLOWED`        | A link that is not `https://`, a store path or a `#fragment`.                                   |
+| `BLOCK_HTML_IMAGE_SOURCE`           | An `<img>` whose `src` is not one `{{ … \| image_url: <width> }}`.                              |
+| `BLOCK_HTML_ATTRIBUTE_VALUE`        | A value the attribute does not accept, or `stars` inside an attribute.                          |
+| `BLOCK_HTML_DYNAMIC_TAG`            | An element name made by Liquid (`<{{ x }}>`).                                                   |
+| `BLOCK_HTML_DYNAMIC_ATTRIBUTE`      | An attribute name made by Liquid.                                                               |
+| `BLOCK_HTML_UNQUOTED_ATTRIBUTE`     | Liquid in an attribute value without quotes.                                                    |
+| `BLOCK_HTML_UNTERMINATED_TAG`       | A tag never closed with `>`.                                                                    |
+| `BLOCK_HTML_TOO_DEEP`               | More than 32 elements inside one another.                                                       |
+| `BLOCK_HTML_ENTITY_UNKNOWN`         | A named character reference the language does not know.                                         |
+| `BLOCK_CSS_SYNTAX`                  | An unclosed string, comment, bracket or block, a nested rule.                                   |
+| `BLOCK_CSS_AT_RULE_NOT_ALLOWED`     | An at-rule other than `@media`, `@supports` and `@keyframes <name>`.                            |
+| `BLOCK_CSS_URL_NOT_ALLOWED`         | A `url()` outside `https://cdn.tassyir.io/`.                                                    |
+| `BLOCK_CSS_FUNCTION_NOT_ALLOWED`    | A CSS function blocks cannot use (`expression()`, `image-set()`, …).                            |
+| `BLOCK_CSS_DECLARATION_NOT_ALLOWED` | `position` not one written `static`/`relative`/`absolute`/`sticky`; `behavior`, `-moz-binding`. |
+| `BLOCK_CSS_ESCAPE_NOT_ALLOWED`      | A backslash escape outside a quoted string.                                                     |
+| `BLOCK_CSS_THEME_VARIABLE_UNKNOWN`  | A `--st-*` variable that is not published.                                                      |
+| `BLOCK_RENDER_CONTEXT_INVALID`      | The render context has no store.                                                                |
+| `BLOCK_RENDER_STEP_LIMIT`           | The render used more than 20,000 steps.                                                         |
+| `BLOCK_RENDER_OUTPUT_LIMIT`         | The rendered HTML is over 32 KB.                                                                |
+| `BLOCK_RENDER_STRING_LIMIT`         | A string the template builds is over 32,768 characters.                                         |
+| `BLOCK_RENDER_ARRAY_LIMIT`          | A list the template builds has more than 500 items.                                             |
+| `BLOCK_RENDER_DATA_TOO_LARGE`       | The data is over 32 KB, nested deeper than 16, or holds a list of more than 500 items.          |
+| `BLOCK_RENDER_FAILED`               | The renderer stopped on an error it does not name (report it).                                  |
 
 ## Limits
 
@@ -221,8 +221,18 @@ is built to make anything else impossible:
   escaped, comments and raw-text elements removed, SVG shapes only inside
   `<svg>`. The browser parses that canonical HTML, never the template's.
   Sanitising the output again leaves it unchanged.
+- **Only declared data reaches the template.** A compiled template keeps its
+  declaration's app data keys and setting keys, and a render passes the
+  template only those, through every alias (`{% assign d = app.data.store %}`).
 - **Execution is bounded by counting**, never by a clock, so the bound holds
   on every machine and cannot be raced.
+- **The box is the host's.** This package decides what the HTML and the
+  stylesheet may say; it cannot keep a block's pixels inside its section. The
+  page that renders a block must contain it: `contain: paint` (and
+  `isolation: isolate`) on the block's section. The stylesheet check refuses
+  `position: fixed` in every spelling, but `position: absolute`, transforms
+  and the page's own utility classes are ordinary CSS that only containment
+  keeps in the box.
 - **Nothing differs between machines**: no `Intl`, no clock, no randomness, no
   locale method, no Unicode property table.
 

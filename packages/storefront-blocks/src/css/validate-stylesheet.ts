@@ -17,8 +17,11 @@ import {
  *   `@font-face`, `@layer`, `@container`, `@property`, nesting;
  * - `url()` only on `https://cdn.tassyir.io/`, and no other way to load
  *   anything (`image-set()`, `src()`, `image()` are not on the function list);
- * - `position: fixed`, `behavior`, `-moz-binding` refused: a block cannot
- *   cover the page or the order form, or run code;
+ * - `position` only as `static`, `relative`, `absolute` or `sticky`, written
+ *   as the word (never `fixed`, never through `var()`); `behavior` and
+ *   `-moz-binding` refused. Keeping a block inside its box is the host's
+ *   containment (`contain: paint` on the section), which this check does not
+ *   replace;
  * - backslash escapes only inside quoted strings, no `<` anywhere (a
  *   stylesheet cannot spell `</style>`), no control or bidi characters;
  * - every string, comment, bracket and block closed.
@@ -264,6 +267,14 @@ const KEYFRAME_SELECTOR =
   /^(?:from|to|\d+(?:\.\d+)?%)(?:\s*,\s*(?:from|to|\d+(?:\.\d+)?%))*$/i;
 const MAX_AT_RULE_DEPTH = 3;
 
+/** The positions a block's elements may take; never `fixed`. */
+const POSITIONS: ReadonlySet<string> = new Set([
+  'static',
+  'relative',
+  'absolute',
+  'sticky',
+]);
+
 class StylesheetChecker {
   private i = 0;
 
@@ -365,7 +376,8 @@ class StylesheetChecker {
       }
       if (token.name === 'var') {
         let j = k + 1;
-        while (tokens[j]?.kind === 'space') j++;
+        while (tokens[j]?.kind === 'space' || tokens[j]?.kind === 'comment')
+          j++;
         const ref = tokens[j];
         if (
           ref?.kind === 'ident' &&
@@ -454,16 +466,31 @@ class StylesheetChecker {
       );
       return;
     }
-    if (
-      name === 'position' &&
-      value.some((t) => t.kind === 'ident' && t.name === 'fixed')
-    ) {
-      this.errors.add(
-        'BLOCK_CSS_DECLARATION_NOT_ALLOWED',
-        property.start,
-        'position: fixed is not allowed: a block stays inside its section.',
+    if (name === 'position') {
+      // One literal keyword, never var() or anything that could compute to
+      // `fixed`: `--p: fixed; position: var(--p)` would pass a check on the
+      // word alone.
+      const words = value.filter(
+        (t) => t.kind !== 'space' && t.kind !== 'comment',
       );
-      return;
+      const only = words[0];
+      const important =
+        words.length === 3 &&
+        this.isDelim(words[1], '!') &&
+        words[2]?.kind === 'ident' &&
+        words[2].name === 'important';
+      if (
+        (words.length !== 1 && !important) ||
+        only?.kind !== 'ident' ||
+        !POSITIONS.has(only.name)
+      ) {
+        this.errors.add(
+          'BLOCK_CSS_DECLARATION_NOT_ALLOWED',
+          property.start,
+          'position takes static, relative, absolute or sticky, written as the word itself: a block stays inside its section.',
+        );
+        return;
+      }
     }
     this.checkFunctions(value, VALUE_FUNCTIONS, 'value');
   }

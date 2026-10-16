@@ -332,4 +332,48 @@ describe('compiled templates', () => {
     const outputs = new Set(Array.from({ length: 5 }, () => html(template)));
     expect(outputs.size).toBe(1);
   });
+  describe('the declaration bounds what a render can read', () => {
+    const declaration: BlockDeclaration = {
+      target: 'any',
+      settings: [{ key: 'title', type: 'text', default: 'T' }],
+      data: ['store.rating'],
+    };
+    const context: BlockRenderContext = {
+      ...sampleBlockContext(declaration, { language: 'en' }),
+      settings: { title: 'Shown', private_note: 'NOT-DECLARED' },
+      appData: {
+        store: { rating: 4, secret: 'NOT-DECLARED' },
+        business: { plan: 'NOT-DECLARED' },
+      },
+    };
+
+    it('passes the template only the declared app data keys and settings, through every alias', () => {
+      // The upload check refuses `app.data.store.secret` written out; these
+      // forms reach the same map, so the render itself drops undeclared keys.
+      const template = [
+        "{{ app['data']['store']['secret'] }}",
+        '{% assign d = app.data.store %}{{ d.secret }}',
+        '{% for kv in app.data.store %}{{ kv[0] }}={{ kv[1] }};{% endfor %}',
+        '{% for kv in app.data.business %}{{ kv[1] }}{% endfor %}',
+        "{% assign s = block.settings %}{{ s.title }}{{ s['private_note'] }}",
+      ].join('|');
+      const compiled = compileBlockTemplate(template, declaration, {
+        checks: 'syntax',
+      });
+      if (!compiled.ok) throw new Error(JSON.stringify(compiled.errors));
+      const result = renderBlock(compiled.template, context);
+      expect(result.ok && result.html).toBe('||rating=4;||Shown');
+    });
+
+    it('passes everything when the declaration names no keys (a quick local render)', () => {
+      const compiled = compileBlockTemplate(
+        '{{ app.data.store.secret }}',
+        {},
+        { checks: 'syntax' },
+      );
+      if (!compiled.ok) throw new Error('compile');
+      const result = renderBlock(compiled.template, context);
+      expect(result.ok && result.html).toBe('NOT-DECLARED');
+    });
+  });
 });

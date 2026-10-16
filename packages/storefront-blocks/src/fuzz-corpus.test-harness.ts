@@ -183,6 +183,8 @@ export const STYLESHEET_VECTORS: readonly string[] = [
   '.a { -moz-binding: url(x.xml#x); }',
   '.a { position: fixed; inset: 0; z-index: 99999; }',
   '.a { position:FIXED }',
+  '.a { --p: fixed; position: var(--p); inset: 0; z-index: 99999; }',
+  '.a { color: var(/**/--st-internal-only); }',
   '.a { pos\\69tion: fixed; }',
   '.a { position: f\\69xed; }',
   '.a { color: red } </style><script>alert(1)</script>',
