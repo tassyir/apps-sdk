@@ -7,8 +7,11 @@ import type {
   DeviceCodeRequest,
   DeviceCodeResponse,
   InstallationFilters,
+  ListingInput,
+  SubmitBody,
   WebhookTopic,
 } from './developer-types.js';
+import type { VersionAssets } from './blocks.js';
 import type { HostedBundle } from './bundle-rules.js';
 import { CliError, EXIT_CODES } from './errors.js';
 import type { ExitCode } from './errors.js';
@@ -24,7 +27,7 @@ import type { paths } from './generated/developer-api.js';
 // Nothing here prints; `debug` gets method, path and status only, never a
 // header or a body.
 
-type HttpMethod = 'get' | 'post' | 'patch' | 'delete';
+type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
 /** The document's paths that answer `method`. */
 type PathsWith<M extends HttpMethod> = {
@@ -281,17 +284,27 @@ export class DeveloperApi {
   }
 
   /**
-   * The parsed `tassyir.app.toml`, as the API's validator takes it, and for
-   * a hosted app (`hosting.mode = "tassyir"`) its bundle.
+   * The parsed `tassyir.app.toml`, as the API's validator takes it; for a
+   * hosted app (`hosting.mode = "tassyir"`) its bundle; for an app on its own
+   * server that declares storefront blocks, their files as `assets`.
    */
   uploadVersion(
     appId: string,
     manifest: Record<string, unknown>,
     bundle?: HostedBundle,
+    assets?: VersionAssets,
   ): Promise<Answer<'post', '/developer/apps/{appId}/versions'>> {
+    // `assets` is AP-B2.4's (Phase 2 §6.1: `{ files: [{ path, content }] }`,
+    // `.liquid` and `.css` only, ≤ 200 KB): the document gains it with that
+    // upload, so the body is typed by the plan's shape until then.
+    const body = {
+      manifest,
+      ...(bundle ? { bundle } : {}),
+      ...(assets ? { assets } : {}),
+    } as { manifest: Record<string, unknown>; bundle?: HostedBundle };
     return this.#call('post', '/developer/apps/{appId}/versions', {
       path: { appId },
-      body: bundle ? { manifest, bundle } : { manifest },
+      body,
       // A bundle can be megabytes: give it time on a slow line.
       ...(bundle ? { timeoutMs: UPLOAD_TIMEOUT_MS } : {}),
     });
@@ -340,6 +353,81 @@ export class DeveloperApi {
       '/developer/apps/{appId}/credentials/{credentialId}',
       { path: { appId, credentialId } },
     );
+  }
+
+  // ── Listing and review (the marketplace) ──────────────────────────────────
+
+  /** The draft listing, what it still needs (`issues`), the live one, the images. */
+  getListing(
+    appId: string,
+  ): Promise<Answer<'get', '/developer/apps/{appId}/listing'>> {
+    return this.#call('get', '/developer/apps/{appId}/listing', {
+      path: { appId },
+    });
+  }
+
+  /** Replaces the whole draft (an absent or null field is cleared). */
+  putListing(
+    appId: string,
+    listing: ListingInput,
+  ): Promise<Answer<'put', '/developer/apps/{appId}/listing'>> {
+    return this.#call('put', '/developer/apps/{appId}/listing', {
+      path: { appId },
+      body: listing,
+    });
+  }
+
+  /** Opens a `listing` review case on the draft and the latest version. */
+  submit(
+    appId: string,
+    body: SubmitBody,
+  ): Promise<Answer<'post', '/developer/apps/{appId}/submissions'>> {
+    return this.#call('post', '/developer/apps/{appId}/submissions', {
+      path: { appId },
+      body,
+    });
+  }
+
+  /** The app's review cases, newest first. */
+  listSubmissions(
+    appId: string,
+    query: { limit?: number; cursor?: string } = {},
+  ): Promise<Answer<'get', '/developer/apps/{appId}/submissions'>> {
+    return this.#call('get', '/developer/apps/{appId}/submissions', {
+      path: { appId },
+      query,
+    });
+  }
+
+  getSubmission(
+    appId: string,
+    reviewId: string,
+    signal?: AbortSignal,
+  ): Promise<Answer<'get', '/developer/apps/{appId}/submissions/{reviewId}'>> {
+    return this.#call('get', '/developer/apps/{appId}/submissions/{reviewId}', {
+      path: { appId, reviewId },
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  /** A dry run of the review checklist (5 per app per hour): queued, then read. */
+  runReviewChecks(
+    appId: string,
+  ): Promise<Answer<'post', '/developer/apps/{appId}/review-checks'>> {
+    return this.#call('post', '/developer/apps/{appId}/review-checks', {
+      path: { appId },
+    });
+  }
+
+  getReviewChecks(
+    appId: string,
+    runId: string,
+    signal?: AbortSignal,
+  ): Promise<Answer<'get', '/developer/apps/{appId}/review-checks/{runId}'>> {
+    return this.#call('get', '/developer/apps/{appId}/review-checks/{runId}', {
+      path: { appId, runId },
+      ...(signal ? { signal } : {}),
+    });
   }
 
   // ── Dev stores ────────────────────────────────────────────────────────────

@@ -273,6 +273,53 @@ header.
 `delivery.event` is typed per topic: `switch (delivery.event.type)` narrows
 `data`.
 
+## App proxy
+
+Not live yet: the app proxy opens after the marketplace. A buyer's request
+to `https://<store>/apps/<handle>/<rest>` reaches your server at
+`<hosting.url><[app_proxy] path>/<rest>`, forwarded by Tassyir without the
+buyer's cookies or IP, with `tassyir-*` headers and an Ed25519 `v1a`
+signature by Tassyir's webhook keys over
+`tassyir-proxy.v1.{timestamp}.{METHOD}.{path+query}.{sha256 hex of the body}.{installationId}.{storeId}`.
+`verifyProxyRequest(request, { keys, installationId })` (or `verifyProxy`
+with `{ method, url, headers, body }`) checks it:
+
+```ts
+import { verifyProxyRequest, WebhookKeys } from '@tassyir/app';
+
+const keys = WebhookKeys.remote(); // one per process: it caches
+
+export async function proxy(request: Request): Promise<Response> {
+  let verified;
+  try {
+    verified = await verifyProxyRequest(request, {
+      keys,
+      installationId: (id) => installations.has(id),
+    });
+  } catch {
+    return new Response(null, { status: 401 });
+  }
+  const reviews = await reviewsFor(verified.installationId, verified.storeId);
+  return Response.json(reviews);
+}
+```
+
+1. The signature, on the path and query exactly as received and the raw
+   body. The label keeps a webhook's signature from passing as a proxy
+   request, and the reverse.
+2. The timestamp, within 5 minutes of now (`PROXY_TIMESTAMP_OUT_OF_RANGE`).
+3. The installation, by your check (an id, a list, or a function given the
+   installation and the store). Required: the keys are Tassyir's, the same
+   for every app, so this check is what makes a request yours.
+
+It answers the signed `installationId`, `storeId`, `method` and `path`, and
+the headers the signature does not cover (`businessId`, `storeHost`,
+`country`, `locale`) under `unsigned`. Refusals are
+`TassyirVerificationError`s with a `PROXY_*` code: answer 401. A request may
+be replayed within the 5 minutes, so keep non-GET handlers idempotent. The
+store answers only JSON, plain text, XML or images from the proxy, and drops
+`Set-Cookie`. How a hosted app receives proxy requests is settled when the proxy opens.
+
 ## Admin API
 
 `tassyir.admin(installationId)` returns an `AdminClient` that uses the

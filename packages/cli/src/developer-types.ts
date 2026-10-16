@@ -71,6 +71,37 @@ export type ReplayOutcome = ReplayResponse['outcome'];
 /** `POST …/webhooks/test`: what the endpoint answered a test event. */
 export type TestDelivery = Schemas['WebhookTestResult'];
 
+// ── Listing and review (the marketplace) ─────────────────────────────────────
+
+/** `GET developer/apps/:appId/listing`: the draft, its issues, the live one. */
+export type DeveloperListing = Schemas['DeveloperListing'];
+/** The draft as the API holds it: what `tassyir listing pull` writes. */
+export type ListingDraft = Schemas['Listing'];
+/** What `PUT developer/apps/:appId/listing` takes: the whole draft. */
+export type ListingInput = Schemas['UpdateAppListingInput'];
+/** One thing the draft still needs before a submission. */
+export type ListingIssue = DeveloperListing['issues'][number];
+export type ReviewCase = Schemas['ReviewCase'];
+/** The states a review case moves through (the document types `state` as a string). */
+export type ReviewCaseState =
+  | 'checking'
+  | 'checks_failed'
+  | 'submitted'
+  | 'in_review'
+  | 'approved'
+  | 'changes_requested'
+  | 'rejected'
+  | 'withdrawn'
+  | 'superseded';
+export type SubmitBody = Schemas['SubmitListingInput'];
+export type Distribution = SubmitBody['distribution'];
+/** A dry run of the review checklist (`POST …/review-checks`). */
+export type ReviewChecksRun = Schemas['ReviewChecksRun'];
+/** The checklist's verdict: every check in a fixed order. */
+export type ReviewChecks = NonNullable<ReviewChecksRun['checks']>;
+export type ReviewCheck = ReviewChecks['results'][number];
+export type ReviewCheckKey = ReviewCheck['key'];
+
 /** A paged list: pass `nextCursor` back as `cursor`; null on the last page. */
 export interface Page<T> {
   data: T[];

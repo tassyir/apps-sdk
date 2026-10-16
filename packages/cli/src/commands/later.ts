@@ -4,8 +4,7 @@ import { checkManifest, loadManifest } from '../manifest.js';
 
 // The commands that wait for the platform. `dev` prints the checklist for an
 // app on your own server (tunnels stay the developer's choice); `logs --tail`
-// needs Tassyir Hosting (AP-B1.14 to B1.16); `submit` is Phase 2 (public
-// distribution and review, AP-B2.2). Each keeps its name and its seam.
+// needs Tassyir Hosting's log streaming. Each keeps its name and its seam.
 
 interface Step {
   step: number;
@@ -129,20 +128,6 @@ export const logsCommand: Command = {
     reason:
       '`logs --tail` streams logs of apps on Tassyir Hosting, which is not open yet',
     fix: 'An app on your own server writes its own logs: read them where it runs. For deliveries, `tassyir webhook deliveries`.',
-  },
-  run() {
-    return Promise.reject(new Error('unavailable'));
-  },
-};
-
-export const submitCommand: Command = {
-  name: 'submit',
-  summary: 'Submit an app for review and public listing (Phase 2)',
-  usage: 'tassyir submit',
-  options: {},
-  unavailable: {
-    reason: 'public listing and review open with the marketplace (Phase 2)',
-    fix: 'Custom apps need no review: install yours on your own businesses, or the one named with `tassyir app create --custom-business`.',
   },
   run() {
     return Promise.reject(new Error('unavailable'));

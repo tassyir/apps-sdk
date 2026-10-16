@@ -1,0 +1,334 @@
+---
+title: Publishing to the marketplace
+description: List your app in the Tassyir app marketplace. The listing, the developer terms, the review checklist, which new versions go back to a person, and ratings.
+order: 165
+---
+
+# Publishing to the marketplace
+
+**Not open yet.** The marketplace opens to merchants once its first apps are
+reviewed. The listing, the checks and the submission below are live in the
+API, so you can prepare your app now; until the opening, a submission may
+wait longer than the turnaround Tassyir aims at. Ratings come after the
+opening.
+
+Every app starts as a **custom** app: it installs on its developer's own
+businesses, or on the one business it names, and needs no review. To offer it
+to every Tassyir merchant, you list it:
+
+| Distribution | Who installs it                                                        | Review |
+| ------------ | ---------------------------------------------------------------------- | ------ |
+| `custom`     | Your own businesses, or the one business the app names                 | None   |
+| `public`     | Any business: browsed and searched in the marketplace                  | Yes    |
+| `unlisted`   | Any business with the app's link (`apps.tassyir.io/<locale>/<handle>`) | Yes    |
+
+A listing is shown under Tassyir's name, so a person at Tassyir approves it
+before merchants see it. Most of the review is automated: you can run the
+same checks yourself, as often as you need, before you submit.
+
+## The steps
+
+1. Deploy the version you want listed (`tassyir deploy`), with the
+   [compliance topics](compliance-and-uninstall.md) subscribed.
+2. In the developer console, set your account's support email and emergency
+   contact, and accept the developer terms.
+3. Write the listing (`tassyir listing pull`, edit, `tassyir listing push`)
+   and upload its images in the developer console.
+4. Run the review checks: `tassyir submit --checks-only`.
+5. Submit: `tassyir submit --distribution public`.
+
+```bash
+tassyir listing pull                 # writes tassyir.listing.json
+tassyir listing push                 # saves it as the draft, lists what is missing
+tassyir submit --checks-only         # the checklist, nothing submitted
+tassyir submit --distribution public --note "Demo account: demo@acme.example.com"
+tassyir submissions                  # where your reviews stand
+```
+
+An agent with the [dev MCP server](https://developers.tassyir.io/packages/dev-mcp)
+runs the checks with its `run_review_checks` tool. Submitting stays a
+person's decision: the tools never submit for you.
+
+## The listing
+
+The listing belongs to the app, not to a version. You edit a **draft** at any
+time; the marketplace shows the **live** listing, which changes only when a
+review approves the draft. Write every text in Arabic **and** English.
+
+| Field                 | Rule                                                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                | The app's name, at most 30 characters to be listed. Once listed, the app is renamed here, through a review.                                            |
+| `tagline`             | One line, 10 to 100 characters.                                                                                                                        |
+| `description`         | 100 to 1,500 characters of plain text: paragraphs and `- ` lines.                                                                                      |
+| `features`            | 1 to 6 lines of at most 80 characters.                                                                                                                 |
+| `category`            | One of `orders`, `delivery`, `marketing`, `messaging`, `reviews`, `storefront`, `catalog`, `analytics`, `finance`, `customer_service`, `productivity`. |
+| `searchTerms`         | At most 5 terms of 2 to 30 characters.                                                                                                                 |
+| `iconMediaId`         | A square icon, 512 to 1200 px.                                                                                                                         |
+| `screenshots.desktop` | 3 to 6 images, exactly 16:9 (1600x900 to 3200x1800), each with an `alt` of at most 120 characters.                                                     |
+| `screenshots.mobile`  | 0 to 4 images, exactly 9:16 (900x1600 to 1800x3200), each with an `alt`.                                                                               |
+| `supportUrl`          | Your support page.                                                                                                                                     |
+| `privacyPolicyUrl`    | Required. Your privacy policy: what data the app keeps, where, and for how long.                                                                       |
+| `externalService`     | When the app needs an account on your own service: `{ name, url, paid }`. The listing then says "Requires an account on {name}, which may be paid".    |
+| `languages`           | The languages your app's own pages support: `ar`, `en`, `fr`.                                                                                          |
+
+Every text is **plain text**: no HTML, no Markdown link, no invisible or
+control characters. Links are `https` addresses on your own public domain
+(port 443, no IP address, no Tassyir domain). Images are PNG, JPEG or WebP of
+at most 2 MB, uploaded by their bytes in the developer console; the listing
+names them by id (`tassyir listing pull` lists them).
+
+`tassyir listing pull` writes the draft as `tassyir.listing.json`:
+
+```json
+{
+  "name": { "ar": "طلبات التقييم", "en": "Review Requests" },
+  "tagline": {
+    "ar": "اطلب من زبائنك تقييما بعد التسليم",
+    "en": "Ask your buyers for a review after delivery"
+  },
+  "description": {
+    "ar": "يرسل التطبيق رسالة إلى كل زبون بعد تسليم طلبه…",
+    "en": "Sends each buyer a message once the order is delivered…"
+  },
+  "features": [{ "ar": "رسالة بعد التسليم", "en": "A message after delivery" }],
+  "category": "reviews",
+  "searchTerms": ["reviews", "ratings"],
+  "iconMediaId": "7400000000000000062",
+  "screenshots": {
+    "desktop": [
+      {
+        "mediaId": "7400000000000000063",
+        "alt": { "ar": "لوحة التقييمات", "en": "The reviews dashboard" }
+      }
+    ],
+    "mobile": []
+  },
+  "supportUrl": "https://acme-apps.example.com/support",
+  "privacyPolicyUrl": "https://acme-apps.example.com/privacy",
+  "externalService": null,
+  "languages": ["ar", "en"]
+}
+```
+
+`tassyir listing push` sends the whole file as the draft (a field left out or
+`null` is cleared). It is refused, with every problem at once
+(`LISTING_INVALID`), only for what is never right: HTML in a text, a length
+over its maximum, an unknown category, an image that is not the app's. What
+is still missing (the second language, a screenshot, the privacy policy) is
+saved, and listed as `issues`, each with a `fix`. A submission needs none
+left.
+
+## The developer terms
+
+A submission needs the current developer terms accepted, in the developer
+console. They cover, among other things:
+
+- buyer data stays within what your scopes allow, and is deleted when the
+  compliance topics ask;
+- no block collects buyer contact data;
+- no rating is bought, rewarded or pressured;
+- Tassyir may pause an app at once when it harms merchants or buyers.
+
+When Tassyir publishes a new version of the terms, you accept it again before
+your next submission (`DEVELOPER_TERMS_REQUIRED`). Apps already listed keep
+working.
+
+Your account also needs a support email and an **emergency contact** (an
+email and a phone in international form) before a submission. Only you and
+Tassyir staff read the emergency contact. In your first review, the reviewer
+verifies who you are; the marketplace then shows "Verified developer".
+
+## The review checklist
+
+Every submission runs these checks first, in this order. A **hard** check
+that fails stops the submission (`checks_failed`): fix it and submit again. A
+warning is for the reviewer.
+
+| Check                        | What it checks                                                                                                                                 | Hard    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `listing_complete`           | Every listing field present and within its rule, in both languages, the images uploaded                                                        | yes     |
+| `privacy_policy_reachable`   | `privacyPolicyUrl` answers 200 with an HTML page over https within 5 seconds (at most 3 redirects)                                             | yes     |
+| `support_contact`            | Your account's support email and emergency contact are set                                                                                     | yes     |
+| `terms_accepted`             | The current developer terms are accepted                                                                                                       | yes     |
+| `version_releasable`         | The latest version can be released: its manifest validates; on Tassyir Hosting, its scan passed                                                | yes     |
+| `compliance_topics`          | The version subscribes `customers/data_request`, `customers/redact` and `business/redact`                                                      | yes     |
+| `webhooks_verify_signatures` | On your own server: each webhook endpoint answers 2xx to a correctly signed test delivery and 4xx (never 2xx) to a forged signature            | yes     |
+| `admin_page_frames`          | On your own server: `admin.page` answers within 3 seconds, may be framed by `https://app.tassyir.io`                                           | yes     |
+| `blocks_valid`               | Every storefront block passes the upload check                                                                                                 | yes     |
+| `api_version_current`        | The version names a supported API version                                                                                                      | yes     |
+| `sensitive_scopes`           | Names the sensitive scopes the version asks for (`read_customer_contact`, `read_finance`, `read_costs`, `dispatch_orders`, `write_storefront`) | warning |
+| `scan_findings`              | On Tassyir Hosting: the scan's warnings and the AI review's notes                                                                              | warning |
+| `developer_verified`         | Whether you are verified yet; the reviewer verifies you in your first review                                                                   | warning |
+
+Each result is `{ key, status, hard, message, fix }`, where `status` is
+`pass`, `fail`, `warning`, `skipped` (it does not apply, like webhooks for an
+app without any) or `error` (Tassyir could not run it; never yours to fix,
+and it never stops a submission).
+
+### Webhooks that refuse a forged signature
+
+`webhooks_verify_signatures` sends two deliveries to every webhook endpoint:
+a test delivery signed like a real one (marked `tassyir-test: true`), which
+must get a 2xx, and one with a forged signature, which must get a 4xx. Verify
+every delivery with `@tassyir/app`, answer 2xx to a test delivery, and 400
+when verification fails:
+
+```ts
+import { isTassyirError, TassyirVerificationError } from '@tassyir/app';
+
+// POST /webhooks
+export async function receive(request: Request): Promise<Response> {
+  try {
+    const delivery = await tassyir.verifyWebhook(request, {
+      installationId,
+      testDeliveries: 'accept',
+    });
+    if (delivery.test) return new Response(null, { status: 204 });
+    // … handle delivery.event, at least once, in any order …
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    if (isTassyirError(error, 'KEYS_UNAVAILABLE')) {
+      return new Response(null, { status: 503 });
+    }
+    if (error instanceof TassyirVerificationError) {
+      return new Response(null, { status: 400 });
+    }
+    throw error;
+  }
+}
+```
+
+An endpoint that answers 2xx to anything, or that skips verification for a
+test delivery, fails the check.
+
+### The admin page in a frame
+
+The dashboard shows `admin.page` in a frame from `https://app.tassyir.io`.
+Do not send `X-Frame-Options: DENY` or `SAMEORIGIN`, and if you send a
+`Content-Security-Policy` with `frame-ancestors`, include
+`https://app.tassyir.io`. The check sends no session, so a 401 or 403 is
+fine.
+
+### Run the checks first
+
+`tassyir submit --checks-only` runs the whole checklist on your draft listing
+and latest version, exactly as a submission would, and submits nothing. It
+fetches your privacy policy and admin page and sends the two test deliveries
+to your endpoints, so it is limited to **5 runs per app per hour**
+(`REVIEW_CHECKS_RATE_LIMITED`, with `retryAfterSeconds`): fix everything one
+run names before the next.
+
+## Submitting
+
+`tassyir submit --distribution public` (or `unlisted`) snapshots the draft
+listing and names your **latest** version. A `--note` reaches the reviewer:
+test steps, a demo account on your service. A new submission replaces a
+review still open, and so does any new upload of the app: a reviewer never
+decides on something stale.
+
+| State               | Meaning                                                                |
+| ------------------- | ---------------------------------------------------------------------- |
+| `checking`          | The checklist is running (seconds to a minute)                         |
+| `checks_failed`     | A hard check failed: fix it, then submit again                         |
+| `submitted`         | Waiting for a reviewer                                                 |
+| `in_review`         | A reviewer is on it                                                    |
+| `approved`          | The listing is live and the version released                           |
+| `changes_requested` | The reviewer asked for changes, each named: make them and submit again |
+| `rejected`          | Not listed; your live listing, if any, is unchanged                    |
+| `withdrawn`         | You took it back                                                       |
+| `superseded`        | A newer submission or upload replaced it                               |
+
+Tassyir aims to decide within **5 working days** for a first listing and
+**2 working days** for anything after (a resubmission, a listing update, a
+new version); working days are Sunday to Thursday. An open review carries
+its `turnaround`. You get an email on each decision, and
+`tassyir submissions <id>` shows the reviewer's message and notes.
+
+### What a person checks
+
+On top of the checklist, the reviewer installs your app on a dev store and
+checks that:
+
+- the app does what the listing says;
+- each scope is used, and its reason is honest;
+- the listing has no prices, testimonials, superlatives or Tassyir marks;
+- the screenshots show the real app;
+- storefront blocks look right in Arabic (right to left) and English;
+- nothing collects buyer contact data in a block or sends data outside the
+  hosts the merchant consented to.
+
+## New versions of a listed app
+
+Once your app is listed, each upload is compared with the last approved
+version. Most updates are released by the automated checks alone; a version
+goes back to a person only for one of these reasons:
+
+| Reason            | When                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `first_listing`   | The app was never listed                                                                                             |
+| `scopes_added`    | The version asks for a scope the approved one did not (required or optional)                                         |
+| `hosts_added`     | It reaches a host the merchant has not consented to: the base host, a webhook address, the callback, an allowed host |
+| `storefront_code` | A storefront block is added or its template, stylesheet or data changes; an app proxy is added or moved              |
+| `ai_hold`         | On Tassyir Hosting: the AI review of the code asked for a person                                                     |
+
+Dropping scopes or hosts, changing webhook topics within your scopes, data
+definitions, settings labels or `admin.page`: no person, released once the
+checks pass. With a reason, the version waits for review and a review opens
+by itself; add notes to it with the developer console, nothing else to
+submit. `tassyir submissions` lists it.
+
+An upload of a listed app must still subscribe the compliance topics and name
+a supported API version, or it is refused before anything is stored
+(`REVIEW_CHECKS_FAILED`). Whatever the review decides, an installation stays
+on its version until a member of the business accepts the update, with a
+consent screen when it adds scopes or hosts.
+
+## Ratings and reviews
+
+**Not live yet.** Merchants rate the apps they use:
+
+- A business may rate an app it has had installed for at least 48 hours, or
+  uninstalled within the last 45 days: 1 to 5 stars and an optional text of
+  at most 1,000 characters, once (it can edit or delete its rating). Dev
+  stores and your own businesses cannot rate your app.
+- A text with a link, an email address or a phone number is refused, and so
+  is abusive language. A rating is published at once.
+- The merchant chooses to appear by the business's name or as "A Tassyir
+  merchant in {wilaya}".
+- The marketplace shows the average and the count, and the stars only from 3
+  ratings. A business no longer using the app is marked so.
+- You reply once to each rating (and may edit the reply; the latest shows).
+  You and merchants can report a rating; Tassyir staff hide what breaks the
+  rules.
+- Asking for a rating in exchange for anything, or pressuring a merchant, is
+  against the developer terms.
+
+## Delisting and pauses
+
+`POST /developer/apps/:appId/delist` takes your listed app out of the
+marketplace and search: no new installs, and existing installations keep
+working. `relist` brings it back (an app Tassyir delisted only Tassyir
+relists).
+
+Tassyir can **pause** an app at once when it harms merchants or buyers (a
+leak, a broken app, a policy or legal problem). While paused, its API calls
+and webhooks stop, its pages and blocks do not show, and it cannot be
+installed; installations and their data are kept, so resuming restores
+everything. You get an email with the reason; the merchants are told the
+category only.
+
+## Errors
+
+| Code                         | Fix                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `DEVELOPER_TERMS_REQUIRED`   | Accept the current developer terms in the developer console, then submit again.             |
+| `LISTING_INVALID`            | Fix each error in `errors` (each has a `path` and a `fix`), then push the listing again.    |
+| `REVIEW_CHECKS_RATE_LIMITED` | Wait `retryAfterSeconds`: 5 runs per app per hour.                                          |
+| `REVIEW_CHECKS_FAILED`       | A listed app's upload: subscribe the compliance topics and name a supported API version.    |
+| `REVIEW_CASE_STATE`          | The review is closed: submit again (a new review).                                          |
+| `APP_NOT_LISTABLE`           | `reason` says why: `not_listed`, `already_delisted`, `not_delisted`, `delisted_by_tassyir`. |
+| `APP_NAME_LOCKED`            | A listed app is renamed through its listing: change `name` there and submit it.             |
+
+`tassyir submit` refuses, before sending anything, a draft with missing
+fields (`LISTING_INCOMPLETE`); a failed hard check ends it with exit code 1
+(`SUBMISSION_CHECKS_FAILED`), each check with its `fix`.

@@ -1,12 +1,15 @@
 import type { Command } from '../command.js';
 import { appCreateCommand, appInitCommand, appListCommand } from './app.js';
 import { loginCommand, logoutCommand, whoamiCommand } from './auth.js';
-import { devCommand, logsCommand, submitCommand } from './later.js';
+import { blockPreviewCommand } from './block.js';
+import { devCommand, logsCommand } from './later.js';
+import { listingPullCommand, listingPushCommand } from './listing.js';
 import {
   appVersionCommand,
   deployCommand,
   validateCommand,
 } from './manifest.js';
+import { submissionsCommand, submitCommand } from './review.js';
 import {
   secretsCreateCommand,
   secretsListCommand,
@@ -31,6 +34,7 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   appVersionCommand,
   validateCommand,
   deployCommand,
+  blockPreviewCommand,
   secretsListCommand,
   secretsCreateCommand,
   secretsRotateCommand,
@@ -40,9 +44,12 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   webhookTriggerCommand,
   webhookDeliveriesCommand,
   webhookReplayCommand,
+  listingPullCommand,
+  listingPushCommand,
+  submitCommand,
+  submissionsCommand,
   devCommand,
   logsCommand,
-  submitCommand,
 ]);
 
 /** The words that take a subcommand (`tassyir app create`). */

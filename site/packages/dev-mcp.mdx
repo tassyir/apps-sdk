@@ -70,7 +70,7 @@ The client starts the server in your project's folder: relative paths, and
 the `tassyir.app.toml` the tools read by default, are resolved from there.
 
 The tools that act on your Tassyir account (`trigger_test_webhook`,
-`seed_dev_store`, `list_dev_stores`) use the sign-in of the
+`seed_dev_store`, `list_dev_stores`, `run_review_checks`) use the sign-in of the
 [`tassyir` CLI](/packages/cli). Sign in once, in a terminal:
 
 ```bash
@@ -113,20 +113,20 @@ MCP SDK refuses them first, with its own validation message naming the field.
 
 ## Tools
 
-| Tool                   | What it does                                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `search_docs`          | Searches the guides, the Admin API's operations and the webhook topics; each result names the tool call that reads it.                                                   |
-| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time, with its address on developers.tassyir.io; without a slug, lists the guides.          |
-| `get_api_operation`    | One Admin API operation (by `operationId` or `METHOD /path`), one component schema, or the list of operations; `"api": "developer"` for the developer API the CLI calls. |
-| `get_event_schema`     | One webhook topic: envelope, resource, headers, the scope to subscribe, the answer to give; without a topic, the list.                                                   |
-| `validate_manifest`    | Validates `tassyir.app.toml` (its text, a path, or `./tassyir.app.toml`) with `@tassyir/app-manifest`, as the API will.                                                  |
-| `scaffold`             | Writes a new app from `create-tassyir-app` into a new or empty folder; never overwrites, installs nothing.                                                               |
-| `trigger_test_webhook` | Sends a signed test event of one topic to your app's endpoint through Tassyir and reports the answer. Needs `tassyir login`.                                             |
-| `seed_dev_store`       | Creates a dev store seeded with products, orders and customers (at most 3, permanent). Needs `tassyir login`.                                                            |
-| `list_dev_stores`      | Your dev stores and their dashboard links. Needs `tassyir login`.                                                                                                        |
-| `validate_block`       | Not available yet: storefront blocks arrive with the marketplace. Answers `TOOL_NOT_AVAILABLE` with what to do instead.                                                  |
-| `tail_logs`            | Not available yet: it reads the logs of apps on Tassyir Hosting. Answers `TOOL_NOT_AVAILABLE`.                                                                           |
-| `run_review_checks`    | Not available yet: the checks come with the review of public apps. Answers `TOOL_NOT_AVAILABLE`.                                                                         |
+| Tool                   | What it does                                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search_docs`          | Searches the guides, the Admin API's operations and the webhook topics; each result names the tool call that reads it.                                                                                                                           |
+| `fetch_doc`            | Reads a guide as Markdown, a page (about 3,500 characters) or a section at a time, with its address on developers.tassyir.io; without a slug, lists the guides.                                                                                  |
+| `get_api_operation`    | One Admin API operation (by `operationId` or `METHOD /path`), one component schema, or the list of operations; `"api": "developer"` for the developer API the CLI calls.                                                                         |
+| `get_event_schema`     | One webhook topic: envelope, resource, headers, the scope to subscribe, the answer to give; without a topic, the list.                                                                                                                           |
+| `validate_manifest`    | Validates `tassyir.app.toml` (its text, a path, or `./tassyir.app.toml`) with `@tassyir/app-manifest`, as the API will.                                                                                                                          |
+| `scaffold`             | Writes a new app from `create-tassyir-app` into a new or empty folder; never overwrites, installs nothing.                                                                                                                                       |
+| `trigger_test_webhook` | Sends a signed test event of one topic to your app's endpoint through Tassyir and reports the answer. Needs `tassyir login`.                                                                                                                     |
+| `seed_dev_store`       | Creates a dev store seeded with products, orders and customers (at most 3, permanent). Needs `tassyir login`.                                                                                                                                    |
+| `list_dev_stores`      | Your dev stores and their dashboard links. Needs `tassyir login`.                                                                                                                                                                                |
+| `validate_block`       | A storefront block checked offline by `@tassyir/storefront-blocks`, the API's upload check: the app's `[[storefront.blocks]]` files, or a template as text. Each problem with file:line:column and a fix; `preview` renders it with sample data. |
+| `tail_logs`            | Not available yet: it reads the logs of apps on Tassyir Hosting. Answers `TOOL_NOT_AVAILABLE`.                                                                                                                                                   |
+| `run_review_checks`    | The marketplace review's automated checklist as a dry run on the draft listing and latest version: each check with its fix, never a submission. 5 runs per app per hour. Needs `tassyir login`.                                                  |
 
 Every tool has a JSON Schema input that refuses unknown arguments, and every
 tool that can succeed declares the JSON Schema of its answer. Every answer is

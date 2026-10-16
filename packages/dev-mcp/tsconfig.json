@@ -9,6 +9,7 @@
     // build and the published package use the real dependencies.
     "paths": {
       "@tassyir/app-manifest": ["../app-manifest/src/index.ts"],
+      "@tassyir/storefront-blocks": ["../storefront-blocks/src/index.ts"],
       "create-tassyir-app": ["../create-tassyir-app/src/index.ts"],
       "tassyir": ["../cli/src/index.ts"]
     }

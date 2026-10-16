@@ -51,11 +51,20 @@ export type VerificationErrorCode =
   | 'WEBHOOK_UNKNOWN_INSTALLATION'
   | 'WEBHOOK_HEADER_MISMATCH'
   | 'WEBHOOK_TEST_DELIVERY'
-  | 'WEBHOOK_NOT_A_DELIVERY';
+  | 'WEBHOOK_NOT_A_DELIVERY'
+  | 'PROXY_BODY_NOT_RAW'
+  | 'PROXY_HEADER_MISSING'
+  | 'PROXY_HEADER_INVALID'
+  | 'PROXY_PATH_INVALID'
+  | 'PROXY_TIMESTAMP_OUT_OF_RANGE'
+  | 'PROXY_SIGNATURE_MISSING'
+  | 'PROXY_SIGNATURE_INVALID'
+  | 'PROXY_UNKNOWN_INSTALLATION';
 
 /**
- * An ID token or a webhook delivery failed verification. Answer the request
- * with 401 (ID token) or 400 (webhook); never process it.
+ * An ID token, a webhook delivery or an app proxy request failed
+ * verification. Answer the request with 401 (ID token, proxy) or 400
+ * (webhook); never process it.
  */
 export class TassyirVerificationError extends TassyirError {
   declare readonly code: VerificationErrorCode;

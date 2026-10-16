@@ -304,3 +304,119 @@ export const listDevStores = defineTool({
     };
   },
 });
+
+/** How often run_review_checks asks for a queued run while it waits. */
+const CHECKS_POLL_MS = 5_000;
+
+const checkResult = z.object({
+  key: z.string(),
+  status: z.enum(['pass', 'fail', 'warning', 'skipped', 'error']),
+  hard: z.boolean(),
+  message: z.string(),
+  fix: z.string().nullable(),
+});
+
+export const runReviewChecks = defineTool({
+  name: 'run_review_checks',
+  title: "Run the marketplace review's checks (a dry run)",
+  description: [
+    "Run Tassyir's automated review checklist on the app's DRAFT listing and LATEST version,",
+    'as a marketplace submission would, without submitting: listing complete, privacy policy',
+    'reachable, support and emergency contacts, developer terms accepted, the version',
+    'releasable, the compliance topics subscribed, webhook endpoints that refuse a forged',
+    'signature, the admin page allowed in a frame, storefront blocks, the API version; then',
+    'warnings for the reviewer. Answers `passed` (no hard check failed), the failed checks',
+    'with their `fix`, and every result. It fetches the privacy policy and the admin page and',
+    'sends two test webhooks (one signed, one forged) to your endpoints, so the API allows 5',
+    'runs per app per hour: fix everything a run names before the next. It waits up to',
+    '`waitSeconds` (default 60) for the verdict; if still `queued`, call it again with',
+    '`runId` (kept 24 hours). Needs `tassyir login` on this machine. To submit, your user',
+    'runs `tassyir submit` (submitting is theirs to decide).',
+  ].join(' '),
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  remote: true,
+  input: z.strictObject({
+    app: z
+      .string()
+      .regex(/^(?:[a-z0-9]+(?:-[a-z0-9]+)*|\d{1,24})$/)
+      .max(64)
+      .optional()
+      .describe(
+        "The app's handle or numeric id. Default: the handle in ./tassyir.app.toml.",
+      ),
+    runId: z
+      .string()
+      .regex(/^rcr_[0-9a-f]{1,64}$/)
+      .optional()
+      .describe(
+        'A run this tool started before: read it instead of starting a new one.',
+      ),
+    waitSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(120)
+      .optional()
+      .describe(
+        'How long to wait for the verdict. Default 60; 0 answers at once.',
+      ),
+  }),
+  output: z.object({
+    app: z.object({ id: z.string(), handle: z.string() }),
+    runId: z.string(),
+    status: z.enum(['queued', 'finished']),
+    passed: z
+      .boolean()
+      .nullable()
+      .describe('No hard check failed; null while queued.'),
+    failed: z
+      .array(checkResult)
+      .describe('The hard checks that failed: fix each, then run again.'),
+    results: z.array(checkResult).describe('Every check, in the API order.'),
+    next: z.string(),
+  }),
+  async run({ app: appReference, runId, waitSeconds }, context) {
+    const api = await developerApi(context);
+    const app = await resolveApp(context, api, appReference);
+    let run = runId
+      ? (await call(() => api.getReviewChecks(app.id, runId))).data
+      : (await call(() => api.runReviewChecks(app.id))).data;
+    const deadline = context.io.now() + (waitSeconds ?? 60) * 1000;
+    while (run.status !== 'finished' && context.io.now() < deadline) {
+      await context.io.sleep(
+        Math.min(CHECKS_POLL_MS, deadline - context.io.now()),
+      );
+      const current = run.runId;
+      run = (await call(() => api.getReviewChecks(app.id, current))).data;
+    }
+    const results = (run.checks?.results ?? []).map((check) => ({
+      key: check.key,
+      status: check.status,
+      hard: check.hard,
+      message: check.message,
+      fix: check.fix,
+    }));
+    const failed = results.filter(
+      (check) => check.hard && check.status === 'fail',
+    );
+    return {
+      app: { id: app.id, handle: app.handle },
+      runId: run.runId,
+      status: run.status,
+      passed: run.checks ? run.checks.passed : null,
+      failed,
+      results,
+      next:
+        run.status !== 'finished'
+          ? `Still queued: call run_review_checks again with { "runId": "${run.runId}" }.`
+          : failed.length > 0
+            ? 'Fix each failed check (its fix), then run the checks again.'
+            : 'Every hard check passes: your user can submit with `tassyir submit --distribution public` (or unlisted).',
+    };
+  },
+});

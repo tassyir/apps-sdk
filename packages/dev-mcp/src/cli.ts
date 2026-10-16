@@ -16,7 +16,7 @@ Started by your AI agent's MCP client, not by hand. Claude Code:
 
 Tools: search_docs, fetch_doc, get_api_operation, get_event_schema,
 validate_manifest, scaffold, trigger_test_webhook, seed_dev_store,
-list_dev_stores (and validate_block, tail_logs, run_review_checks, not
+list_dev_stores, validate_block, run_review_checks (and tail_logs, not
 available yet).
 
 The account tools use the sign-in of \`tassyir login\` on this machine.

@@ -20,7 +20,8 @@ uri    = "/webhooks"
 ```
 
 The compliance topics need no scope. A custom app is not required to
-subscribe to them; an app in the public catalogue will be. Subscribe anyway
+subscribe to them; an app in the marketplace is (the review checks it:
+[Publishing to the marketplace](publishing.md#the-review-checklist)). Subscribe anyway
 if your app keeps any data about a business or its buyers: Tassyir deletes
 the data it holds for your app either way, but only your app can delete what
 your servers hold.

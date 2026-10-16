@@ -61,7 +61,10 @@ provides:
   installation, viewer, `STORAGE`, `TASSYIR`), `hostedAdmin(props)` (the same
   client, sent through `ctx.props.TASSYIR` with no token) and
   `verifyHostedWebhook` (a delivery's signature verified with Tassyir's keys
-  read through `ctx.props.TASSYIR`).
+  read through `ctx.props.TASSYIR`);
+- `verifyProxyRequest` for the app proxy (a store's `/apps/<handle>/…`
+  requests forwarded to the app, signed with Tassyir's keys; AP-K2.3, built to
+  the contract before the proxy opens).
 
 ### `@tassyir/app-bridge`
 
@@ -105,8 +108,13 @@ API's rules before the upload, and its scan followed to the verdict, AP-K1.11),
 `app version` (one version and its scan's findings),
 `secrets create | rotate | revoke` (a secret is shown once, or written to
 `.env` only when asked), `store create | list` (seeded dev stores), and
-`webhook trigger | deliveries | replay`. `dev` prints the checklist for now;
-`logs --tail` waits for Tassyir Hosting and `submit` for the marketplace.
+`webhook trigger | deliveries | replay`. For the marketplace (AP-K2.3):
+`validate` and `deploy` check storefront blocks' files with
+`@tassyir/storefront-blocks` (and `deploy` uploads them), `block preview`
+renders one with sample data, `listing pull | push` keeps the draft listing in
+a file, `submit` sends the app to review and follows its checklist
+(`--checks-only` runs it alone), and `submissions` shows the reviews. `dev`
+prints the checklist for now; `logs --tail` waits for Tassyir Hosting.
 Every command prints `--json`, every error has a stable `code` and a `fix`,
 and the exit codes are documented. Its developer-API client is typed from the
 API's OpenAPI document. Published to npm only.
@@ -142,9 +150,10 @@ API's): `search_docs`, `fetch_doc`,
 own validator). `scaffold` writes a new app from `create-tassyir-app`.
 `trigger_test_webhook`, `seed_dev_store` and `list_dev_stores` call the
 developer API with the sign-in of `tassyir login`, whose token never appears
-in an answer. `validate_block`, `tail_logs` and `run_review_checks` are listed
-and answer that they are not available yet (the marketplace, Tassyir
-Hosting). Every tool has a JSON Schema input and output, every answer is at
+in an answer. `validate_block` checks a storefront block offline, and
+`run_review_checks` runs the marketplace review's checklist as a dry run
+(AP-K2.3). `tail_logs` is listed and answers that it is not available yet
+(Tassyir Hosting's logs). Every tool has a JSON Schema input and output, every answer is at
 most 8 KB, and every refusal of a well-formed call has a `code` and a `fix`.
 
 In Claude Code, the `tassyir` plugin bundles the server with the starter's
