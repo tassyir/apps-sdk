@@ -47,6 +47,8 @@ Every fenced block is checked:
 | `ts browser` | Page code: typechecked against the packed packages with the DOM, no Node.                               |
 | `toml`       | Parsed. A whole manifest (it has `api_version`) must pass `@tassyir/app-manifest`'s `validateManifest`. |
 | `json`       | Parsed.                                                                                                 |
+| `liquid`     | Compiled as a storefront block template (target `product`) by `@tassyir/storefront-blocks`.             |
+| `css`        | Validated as a storefront block stylesheet by `@tassyir/storefront-blocks`.                             |
 | others       | Not checked (`bash`, `http`, `yaml`).                                                                   |
 
 A sample may use, without declaring them, the names the guides set up once:

@@ -70,6 +70,7 @@
               "guides/customers",
               "guides/stores-and-delivery",
               "guides/app-data",
+              "guides/storefront-blocks",
               "guides/dev-stores",
               "guides/tassyir-hosting",
               "guides/compliance-and-uninstall",
@@ -208,6 +209,7 @@
               "packages/app-bridge",
               "packages/app-manifest",
               "packages/dev-mcp",
+              "packages/storefront-blocks",
               "packages/ui",
               "packages/create-tassyir-app",
               "packages/cli"

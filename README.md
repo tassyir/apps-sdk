@@ -14,7 +14,8 @@ pipeline (AP-K1.1). On npm since 0.1.0: `@tassyir/app-manifest` (AP-K1.2),
 (AP-K1.6) and `create-tassyir-app` (AP-K1.7). `@tassyir/dev-mcp` (AP-K1.8)
 has its first release, 0.1.0, from the Version Packages PR of 2026-10-15.
 `@tassyir/ui` (AP-K1.5) awaits its first release, 0.1.0: the owner's npm
-stub and trusted publisher come first. Each package's CHANGELOG says what
+stub and trusted publisher come first. So does `@tassyir/storefront-blocks`
+(AP-K2.2), the first package of the marketplace phase. Each package's CHANGELOG says what
 each version changed. The other packages arrive one ticket at a time.
 
 Packages are published to the public npm registry under the `@tassyir` scope.
@@ -158,6 +159,21 @@ The marketplace is [`.claude-plugin/marketplace.json`](.claude-plugin/marketplac
 and the plugin [`plugins/tassyir`](plugins/tassyir). Its server is pinned to
 the current `@tassyir/dev-mcp` release and its skill is the template's, both
 kept in step by `npm run plugin:sync` and a spec.
+
+### `@tassyir/storefront-blocks`
+
+[`packages/storefront-blocks`](packages/storefront-blocks) (AP-K2.2). The
+language of storefront blocks, the HTML an app adds to a merchant's store
+pages (not live yet: blocks open with the marketplace): a Liquid subset with
+its own small parser, a validator whose every error has a `code`, a `line`, a
+`column` and a `fix`, and a renderer that escapes every output, counts its
+work in steps (never a clock) and rebuilds the HTML from an allowlist. The
+Tassyir API checks block uploads with it, the store builder and the
+storefront render with it, and the CLI previews with it. No dependency; the
+same bytes in Node and browsers, proved by a fuzzed corpus of planted
+sanitiser bypasses (`npm run browser-parity -w @tassyir/storefront-blocks`
+runs it in Chrome and JavaScriptCore). Ships as ESM and CommonJS, to npm and
+GitHub Packages.
 
 ## Developer guides
 

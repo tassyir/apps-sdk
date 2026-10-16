@@ -1,6 +1,7 @@
 // Typechecks every TypeScript sample of the developer guides (docs/guides)
 // the way a developer's project meets the packages:
-//   1. packs @tassyir/app, @tassyir/app-bridge and @tassyir/app-manifest
+//   1. packs @tassyir/app, @tassyir/app-bridge, @tassyir/app-manifest and
+//      @tassyir/storefront-blocks
 //      (this commit's tarballs: they may not be on npm yet);
 //   2. installs them in a scratch project, with smol-toml and @types/node at
 //      this repo's versions, from npm;
@@ -41,6 +42,7 @@ const PACKAGES = [
   '@tassyir/app',
   '@tassyir/app-bridge',
   '@tassyir/app-manifest',
+  '@tassyir/storefront-blocks',
 ];
 const GUIDES = join(ROOT, 'docs', 'guides');
 const TSC = join(ROOT, 'node_modules', '.bin', 'tsc');

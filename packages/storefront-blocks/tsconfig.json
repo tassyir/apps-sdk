@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The library uses no Node or DOM API and imports nothing
+    // (boundary.test.ts); the specs and the local browser-parity script use
+    // Node.
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    // One spec reads @tassyir/app-manifest's normalised manifest: typecheck it
+    // against that package's source, as vitest.config.ts runs it. The library
+    // never imports it.
+    "paths": {
+      "@tassyir/app-manifest": ["../app-manifest/src/index.ts"]
+    }
+  },
+  "include": ["src", "scripts", "tsdown.config.ts"]
+}

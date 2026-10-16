@@ -1,0 +1,55 @@
+{
+  "name": "@tassyir/storefront-blocks",
+  "version": "0.0.0",
+  "description": "The language of Tassyir's declarative storefront blocks: a Liquid subset with a validator (coded errors with line, column and fix), a step-counted renderer and an allowlist HTML gate. The same bytes in Node and in browsers.",
+  "keywords": [
+    "tassyir",
+    "tassyir-app",
+    "liquid",
+    "storefront",
+    "template",
+    "sanitizer"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tassyir/apps-sdk.git",
+    "directory": "packages/storefront-blocks"
+  },
+  "homepage": "https://github.com/tassyir/apps-sdk/tree/main/packages/storefront-blocks#readme",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json",
+    "browser-parity": "node scripts/browser-parity.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "parse5": "8.0.1"
+  }
+}
