@@ -1,6 +1,6 @@
 {
   "name": "tassyir",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "The Tassyir developer CLI: sign in, create apps, validate and deploy tassyir.app.toml, manage client secrets, dev stores and test webhooks. --json on every command.",
   "license": "MIT",
   "repository": {
@@ -50,10 +50,10 @@
     "openapi:generate": "node scripts/openapi.mjs generate"
   },
   "dependencies": {
-    "@tassyir/app-manifest": "^0.3.0",
+    "@tassyir/app-manifest": "^0.3.1",
     "acorn": "^8.18.0",
     "acorn-walk": "^8.3.5",
-    "create-tassyir-app": "^0.2.1",
+    "create-tassyir-app": "^0.2.2",
     "esbuild": "0.28.2",
     "smol-toml": "^1.9.0"
   },

@@ -1,5 +1,17 @@
 # @tassyir/dev-mcp
 
+## 0.1.4
+
+### Patch Changes
+
+- 0cfc8d0: The Tassyir Hosting guide (`fetch_doc tassyir-hosting`) follows `@tassyir/app`'s hosted helpers: the `hosted` template and `tassyir deploy --dry-run`, `readHostedProps`, the page on `@tassyir/app-bridge/react`, `hostedAdmin` and `HOSTED_BINDING_ERRORS`, and webhooks verified with `verifyHostedWebhook` (Tassyir's keys read through `ctx.props.TASSYIR`, never pinned in the bundle); the errors guide points to the hosted helpers' codes. `scaffold` with `template: "hosted"` answers the hosted project's next steps (`npm run check`, `npm run deploy`; no `npm run setup`, no secret).
+- Updated dependencies [0cfc8d0]
+- Updated dependencies [0cfc8d0]
+- Updated dependencies [0cfc8d0]
+  - tassyir@0.4.0
+  - create-tassyir-app@0.2.2
+  - @tassyir/app-manifest@0.3.1
+
 ## 0.1.3
 
 ### Patch Changes
