@@ -20,6 +20,7 @@ export const PLANNED_PUBLIC_PACKAGES = Object.freeze({
   tassyir: 'AP-K1.6',
   'create-tassyir-app': 'AP-K1.7',
   '@tassyir/dev-mcp': 'AP-K1.8',
+  '@tassyir/storefront-blocks': 'AP-K2.2',
 });
 
 /** The scope that GitHub Packages also receives (D11). GitHub Packages only

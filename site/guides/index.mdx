@@ -31,37 +31,39 @@ catalogue of apps comes later.
 
 ## The parts
 
-| Part                     | What it is                                                                                  | Guide                                                   |
-| ------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Manifest                 | `tassyir.app.toml`: what the app is, the scopes it asks for, its address, page and webhooks | [The manifest](/guides/manifest)                             |
-| Scopes and consent       | What a merchant grants on install, and how a new version asks again                         | [Scopes and consent](/guides/scopes-and-consent)             |
-| Tokens                   | ID tokens, offline and online access tokens, refresh tokens, install codes                  | [Tokens](/guides/tokens)                                     |
-| Embedded pages           | Your page inside the dashboard, talking to it through App Bridge                            | [Embedded pages and App Bridge](/guides/embedded-pages)      |
-| Webhooks                 | Signed deliveries of the business's events                                                  | [Webhooks](/guides/webhooks)                                 |
-| Admin API                | The versioned REST API an app calls                                                         | [Admin API conventions](/guides/admin-api)                   |
-| Orders                   | Read, create, edit, confirm, cancel and comment on orders                                   | [Orders](/guides/orders)                                     |
-| Products and collections | The catalogue, its images and collections                                                   | [Products and collections](/guides/products-and-collections) |
-| Stock                    | Stock levels, and correcting a count                                                        | [Stock](/guides/stock)                                       |
-| Customers                | Buyers and their delivery record, and the contact data scope                                | [Customers and contact data](/guides/customers)              |
-| Stores and delivery      | A business's stores, carriers and delivery prices                                           | [Stores and delivery](/guides/stores-and-delivery)           |
-| App data                 | Values your app keeps in Tassyir, next to the merchant's resources                          | [App data](/guides/app-data)                                 |
-| Dev stores               | Test businesses with synthetic data, where nothing reaches the outside world                | [Dev stores](/guides/dev-stores)                             |
-| Tassyir Hosting          | Running the app on Tassyir: deploying, the scan, what each request receives                 | [Tassyir Hosting](/guides/tassyir-hosting)                   |
-| Compliance and uninstall | What happens when a merchant uninstalls, and the buyer data requests an app must honour     | [Compliance and uninstall](/guides/compliance-and-uninstall) |
-| Errors                   | Every error code, and what to do about the common ones                                      | [Errors](/guides/errors)                                     |
+| Part                     | What it is                                                                                    | Guide                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Manifest                 | `tassyir.app.toml`: what the app is, the scopes it asks for, its address, page and webhooks   | [The manifest](/guides/manifest)                             |
+| Scopes and consent       | What a merchant grants on install, and how a new version asks again                           | [Scopes and consent](/guides/scopes-and-consent)             |
+| Tokens                   | ID tokens, offline and online access tokens, refresh tokens, install codes                    | [Tokens](/guides/tokens)                                     |
+| Embedded pages           | Your page inside the dashboard, talking to it through App Bridge                              | [Embedded pages and App Bridge](/guides/embedded-pages)      |
+| Webhooks                 | Signed deliveries of the business's events                                                    | [Webhooks](/guides/webhooks)                                 |
+| Admin API                | The versioned REST API an app calls                                                           | [Admin API conventions](/guides/admin-api)                   |
+| Orders                   | Read, create, edit, confirm, cancel and comment on orders                                     | [Orders](/guides/orders)                                     |
+| Products and collections | The catalogue, its images and collections                                                     | [Products and collections](/guides/products-and-collections) |
+| Stock                    | Stock levels, and correcting a count                                                          | [Stock](/guides/stock)                                       |
+| Customers                | Buyers and their delivery record, and the contact data scope                                  | [Customers and contact data](/guides/customers)              |
+| Stores and delivery      | A business's stores, carriers and delivery prices                                             | [Stores and delivery](/guides/stores-and-delivery)           |
+| App data                 | Values your app keeps in Tassyir, next to the merchant's resources                            | [App data](/guides/app-data)                                 |
+| Storefront blocks        | Not live yet: HTML your app adds to store pages, a Liquid template Tassyir checks and renders | [Storefront blocks](/guides/storefront-blocks)               |
+| Dev stores               | Test businesses with synthetic data, where nothing reaches the outside world                  | [Dev stores](/guides/dev-stores)                             |
+| Tassyir Hosting          | Running the app on Tassyir: deploying, the scan, what each request receives                   | [Tassyir Hosting](/guides/tassyir-hosting)                   |
+| Compliance and uninstall | What happens when a merchant uninstalls, and the buyer data requests an app must honour       | [Compliance and uninstall](/guides/compliance-and-uninstall) |
+| Errors                   | Every error code, and what to do about the common ones                                        | [Errors](/guides/errors)                                     |
 
 Start with [Getting started](/guides/getting-started): it creates an app, runs it
 on your machine and installs it on a dev store.
 
 ## The packages
 
-| Package                                                                                           | Use it for                                                                               |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`create-tassyir-app`](https://github.com/tassyir/apps-sdk/tree/main/packages/create-tassyir-app) | `npm create tassyir-app`: a working app to start from                                    |
-| [`@tassyir/app`](https://github.com/tassyir/apps-sdk/tree/main/packages/app)                      | Your server: tokens, ID-token and webhook verification, the typed Admin API client       |
-| [`@tassyir/app-bridge`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge)        | Your page in the dashboard: ID tokens, toasts, modals, the save bar, navigation, pickers |
-| [`@tassyir/app-manifest`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-manifest)    | Validating `tassyir.app.toml` with the same code the Tassyir API runs                    |
-| [`tassyir`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli)                           | The command line: sign in, create apps, validate and deploy, follow a hosted version     |
+| Package                                                                                                  | Use it for                                                                               |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`create-tassyir-app`](https://github.com/tassyir/apps-sdk/tree/main/packages/create-tassyir-app)        | `npm create tassyir-app`: a working app to start from                                    |
+| [`@tassyir/app`](https://github.com/tassyir/apps-sdk/tree/main/packages/app)                             | Your server: tokens, ID-token and webhook verification, the typed Admin API client       |
+| [`@tassyir/app-bridge`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge)               | Your page in the dashboard: ID tokens, toasts, modals, the save bar, navigation, pickers |
+| [`@tassyir/app-manifest`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-manifest)           | Validating `tassyir.app.toml` with the same code the Tassyir API runs                    |
+| [`tassyir`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli)                                  | The command line: sign in, create apps, validate and deploy, follow a hosted version     |
+| [`@tassyir/storefront-blocks`](https://github.com/tassyir/apps-sdk/tree/main/packages/storefront-blocks) | Writing and testing storefront blocks with the code the Tassyir API runs (not live yet)  |
 
 ## Addresses
 

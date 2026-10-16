@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The library uses no Node or DOM API (boundary.test.ts); the specs and
+    // the local browser-parity script use Node.
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "scripts", "tsdown.config.ts"]
+}

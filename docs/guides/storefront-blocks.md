@@ -1,0 +1,286 @@
+---
+title: Storefront blocks
+description: Not live yet. Add HTML to a merchant's store pages with a block, a Liquid template Tassyir checks at upload and renders with no JavaScript.
+order: 145
+---
+
+# Storefront blocks
+
+**Not live yet.** Storefront blocks open with the Tassyir app marketplace.
+Until then the API refuses `[[storefront.blocks]]` in a manifest. The block
+language is published now, in
+[`@tassyir/storefront-blocks`](https://developers.tassyir.io/packages/storefront-blocks),
+so you can write and test blocks before the opening. This guide describes it;
+details may still change until the opening.
+
+A block is a piece of a store page your app provides: a rating under the
+product's price, a size chart, a trust badge, a delivery estimate. The
+merchant places it in the store builder, like any section. Your app ships the
+block's template and stylesheet with its version. Tassyir checks them at
+upload, then renders the template on its own servers for every page view,
+with the data your app stored.
+
+A block runs no JavaScript and has no form. The store page holds the order
+form, with the buyer's name, phone and address, so a block can only ever be
+markup and styles: Tassyir escapes every value, rebuilds the HTML from an
+allowlist, and scopes the stylesheet to the block.
+
+## Declare a block
+
+In `tassyir.app.toml`, with the `write_storefront` scope:
+
+```toml
+[[data.definitions]]
+owner      = "product"
+key        = "rating"
+type       = "json"
+visibility = "storefront"
+
+[[storefront.blocks]]
+handle     = "product-rating"
+template   = "blocks/product-rating.liquid"
+stylesheet = "blocks/product-rating.css"
+name       = { ar = "تقييم المنتج", en = "Product rating" }
+target     = "product"
+data       = ["product.rating"]
+
+  [[storefront.blocks.settings]]
+  key     = "accent_color"
+  type    = "color"
+  label   = { ar = "اللون", en = "Colour" }
+  default = "#0b6e4f"
+```
+
+- `target`: `product` for the product page (the template reads `product`),
+  or `any` (the default) for any page but checkout.
+- `data`: the [app data](app-data.md) keys the block reads, as
+  `<owner>.<key>`. Each must be declared with `storefront` visibility. Owners:
+  `product` (target `product` only), `store`, `business`. Order and customer
+  data never reach a store page.
+- `settings`: what the merchant sets in the builder. Types: `string`,
+  `text`, `boolean`, `integer`, `number`, `select`, `color`, `image`, `url`,
+  `product`, `collection`. A value that no longer fits the declaration falls
+  back to the default when the block renders.
+
+## The template
+
+A block template is a `.liquid` file in a subset of Liquid. If you know
+Shopify's Liquid, the syntax is the same: `{{ value | filter: argument }}`
+outputs, `{% tag %}` logic, `{{-` and `-}}` to trim whitespace.
+
+```liquid
+<section class="rating">
+  {%- assign rating = app.data.product.rating -%}
+  {%- if rating %}
+  <p>{{ rating.average | stars }} <small>({{ rating.count }})</small></p>
+  {%- else %}
+  <p>{{ product.name }}: no reviews yet</p>
+  {%- endif %}
+  <img src="{{ product.image | image_url: 320 }}" alt="{{ product.name }}">
+</section>
+```
+
+### Objects
+
+| Object                   | What it holds                                                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `block.settings.<key>`   | The merchant's value of each setting.                                                                                                                      |
+| `product`                | Target `product` only: `id`, `name`, `url`, `price` and `compareAtPrice` (decimal strings, `compareAtPrice` may be nil), `currency`, `image`, `available`. |
+| `store`                  | `name`, `url`, `locale` (`ar`, `fr`, `en`), `direction` (`rtl`, `ltr`), `currency`.                                                                        |
+| `app.data.<owner>.<key>` | Your app data the block lists in `data`: owner `product`, `store` or `business`. A key with no value is nil.                                               |
+| `forloop`                | Inside a `for` loop: `index`, `index0`, `rindex`, `rindex0`, `first`, `last`, `length`.                                                                    |
+
+Nothing about the buyer or the cart is ever available. Any value answers
+`size`, `first` and `last`; a record answers its own keys only. A name that is
+not one of these objects or a variable the template assigns is an error at
+upload.
+
+### Tags
+
+| Tag                                            | Notes                                                                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `if` / `elsif` / `else` / `endif`, `unless`    | Operators `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `contains`; `and` / `or` read from the right. `empty` and `blank`. |
+| `case` / `when` / `else` / `endcase`           | `when` takes several values: `when 'a', 'b'` or `when 'a' or 'b'`.                                                   |
+| `for` / `else` / `endfor`, `break`, `continue` | `limit:`, `offset:`, `reversed`. A loop runs at most 50 times; a range may use variables.                            |
+| `assign`, `capture` / `endcapture`             | Variables live for the whole template; a loop's variable only inside its loop.                                       |
+| `comment` / `endcomment`, `{% # note %}`       | Removed from the output.                                                                                             |
+
+Not available, each refused at upload with a fix: `include`, `render`,
+`section`, `layout`, `block`, `raw`, `liquid`, `echo`, `form`, `schema`,
+`style`, `stylesheet`, `javascript`, `paginate`, `tablerow`, `cycle`,
+`increment`, `decrement`. A block is one self-contained template.
+
+### Filters
+
+| Filters                                                                                                                                                                                                   | Notes                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `append`, `prepend`, `capitalize`, `downcase`, `upcase`, `strip`, `lstrip`, `rstrip`, `strip_newlines`, `strip_html`, `replace`, `replace_first`, `replace_last`, `remove`, `remove_first`, `remove_last` | Text.                                                                                                                            |
+| `truncate`, `truncatewords`, `slice`, `split`, `url_encode`, `default`                                                                                                                                    | Lengths count characters, not bytes.                                                                                             |
+| `size`, `first`, `last`, `join`, `reverse`, `sort`, `sort_natural`, `map`, `where`, `uniq`, `compact`, `concat`, `sum`                                                                                    | Lists. `sort` orders by character code, the same everywhere.                                                                     |
+| `plus`, `minus`, `times`, `divided_by`, `modulo`, `abs`, `ceil`, `floor`, `round`, `at_least`, `at_most`                                                                                                  | Numbers have one type: `7.0` is `7`. `divided_by: 0` and `modulo: 0` give nil.                                                   |
+| `escape`, `escape_once`                                                                                                                                                                                   | Accepted, and change nothing: every output is already escaped.                                                                   |
+| `money`                                                                                                                                                                                                   | The storefront's price format: `4 500 دج` in Arabic, `4 500 DA` in French and English.                                           |
+| `image_url: <width>`                                                                                                                                                                                      | A Tassyir image at that width (80, 160, 240, 320, 480, 640, 800, 1080 or 1600, rounded up). Anything else gives an empty string. |
+| `stars` or `stars: <max>`                                                                                                                                                                                 | A rating as stars with an accessible name in the store's language. Use it between tags.                                          |
+| `t`                                                                                                                                                                                                       | Picks the store's language from `{ ar, fr, en }` (a text setting can hold one per language).                                     |
+
+Not available, each refused with a fix: `raw` (there is no unescaped output),
+`date` (a block has no clock: store the date as text), `json`, `img_url` (use
+`image_url`), `money_with_currency` (use `money`), `link_to`, `script_tag`,
+`stylesheet_tag`, hashes and base64.
+
+## The HTML a block may use
+
+The rendered HTML is parsed and written out again from an allowlist. What the
+template writes outside the allowlist is an error at upload; what data brings
+in is removed at render.
+
+- **Elements:** `a`, `abbr`, `article`, `aside`, `b`, `bdi`, `bdo`,
+  `blockquote`, `br`, `caption`, `cite`, `code`, `dd`, `del`, `details`,
+  `dfn`, `div`, `dl`, `dt`, `em`, `figcaption`, `figure`, `footer`, `h2` to
+  `h6`, `header`, `hr`, `i`, `img`, `ins`, `kbd`, `li`, `mark`, `meter`, `ol`,
+  `p`, `pre`, `progress`, `q`, `s`, `samp`, `section`, `small`, `span`,
+  `strong`, `sub`, `summary`, `sup`, the table elements, `time`, `u`, `ul`,
+  `var`, `wbr`. No `h1`: the page has its own.
+- **SVG icons:** `svg` with `g`, `path`, `circle`, `ellipse`, `line`,
+  `polygon`, `polyline`, `rect` and a text-only `title` inside it, with their
+  shape and paint attributes (`fill="currentColor"` follows the text colour).
+- **Attributes:** `class`, `title`, `lang`, `dir`, `role`, `hidden`,
+  `translate`, a set of `aria-*`, and each element's own (`href` and `target`
+  on links; `src`, `alt`, `width`, `height` on images; `colspan`, `datetime`,
+  `open`, …). No `id` or `name`: an element with an id becomes a global
+  variable of the page, which can break the store's own scripts. No `style`
+  (use the stylesheet), no `data-*`, no `on…` handler.
+- **Links:** `https://` addresses (Tassyir adds `rel="nofollow noopener
+noreferrer"`), paths on the store (`/collections/all`) and fragments.
+- **Images:** an `<img>` takes its `src` from `{{ … | image_url: <width> }}`
+  only, so every image comes from Tassyir's CDN. Images load lazily.
+- **Text:** bidirectional override and isolate characters, zero-width and
+  control characters are removed from values; Arabic's marks and joiners stay.
+
+Liquid may fill a quoted attribute value or an element's content. It may not
+make an element or attribute name (`<{{ x }}>`), nor fill an unquoted value.
+
+## The stylesheet
+
+The optional `.css` file is scoped to the block's section, so its selectors
+cannot reach the rest of the page. At upload it is refused when it holds:
+
+- an at-rule other than `@media`, `@supports` and `@keyframes <plain name>`
+  (no `@import`, `@font-face`, `@layer`), or a nested rule;
+- a `url()` outside `https://cdn.tassyir.io/`, or a function that loads
+  something (`image-set()`, `src()`);
+- `position: fixed`, `behavior`, `-moz-binding`, `expression()`;
+- a backslash escape outside a quoted string, `<`, a bidi or invisible
+  character.
+
+Match the store's theme with its variables:
+
+| Variable                                   | What it is                                       |
+| ------------------------------------------ | ------------------------------------------------ |
+| `--st-primary`, `--st-on-primary`          | The brand colour, and text on it.                |
+| `--st-primary-text`                        | The brand colour as text on the page background. |
+| `--st-secondary`                           | The second brand colour.                         |
+| `--st-bg`, `--st-surface`                  | The page background, and cards and panels.       |
+| `--st-text`, `--st-muted`                  | The main and the secondary text colour.          |
+| `--st-border`                              | Borders and dividers.                            |
+| `--st-font`, `--st-heading-font`           | The body and the heading font family.            |
+| `--st-heading-weight`, `--st-body-size`    | The heading weight and the body font size.       |
+| `--st-radius`, `--st-space`, `--st-shadow` | Corner radius, spacing unit, card shadow.        |
+
+Other `--st-*` variables may change without notice and are refused. Each
+`color` setting is published on the block as `--block-<key>`, underscores as
+hyphens: `accent_color` is `var(--block-accent-color)`.
+
+```css
+.rating {
+  color: var(--block-accent-color);
+  background: var(--st-surface);
+  border-radius: var(--st-radius);
+  padding: var(--st-space);
+}
+.rating small {
+  color: var(--st-muted);
+}
+```
+
+## Limits
+
+A template is at most 16 KB, a stylesheet 8 KB, a version at most 20 blocks
+and 100 KB of block files. A render reads at most 32 KB of app data and writes
+at most 32 KB of HTML. A `for` loop runs at most 50 times, and at most 3 loops
+nest. Render work is counted in steps, never timed: every tag, output, loop
+iteration and condition is a step, and every filter or comparison costs one
+more per 256 characters it touches, up to 20,000 steps. A block over a limit
+renders nothing: the page shows without it.
+
+## Test a block on your machine
+
+The package runs the upload check and renders previews with sample data: the
+store "Dar Amina", a product with a price, your settings' defaults, and the
+app data you pass.
+
+```ts
+import {
+  renderBlock,
+  sampleBlockContext,
+  validateBlock,
+} from '@tassyir/storefront-blocks';
+import type { BlockDeclaration } from '@tassyir/storefront-blocks';
+import { readFileSync } from 'node:fs';
+
+const declaration: BlockDeclaration = {
+  target: 'product',
+  settings: [{ key: 'accent_color', type: 'color', default: '#0b6e4f' }],
+  data: ['product.rating'],
+};
+const template = readFileSync('blocks/product-rating.liquid', 'utf8');
+const stylesheet = readFileSync('blocks/product-rating.css', 'utf8');
+
+const check = validateBlock({ template, stylesheet, declaration });
+if (!check.ok) {
+  for (const error of check.errors) {
+    console.error(
+      `${error.source}:${String(error.line)}:${String(error.column)} ${error.code}: ${error.message} ${error.fix}`,
+    );
+  }
+}
+
+for (const language of ['ar', 'fr', 'en'] as const) {
+  const preview = renderBlock(
+    template,
+    sampleBlockContext(declaration, {
+      language,
+      appData: { product: { rating: { average: 4.4, count: 128 } } },
+    }),
+    declaration,
+  );
+  console.log(language, preview.ok ? preview.html : preview.errors);
+}
+```
+
+`validateBlock` is the check the API runs on upload: it compiles the template
+against the declaration, checks the stylesheet, and renders the block with
+sample data in Arabic, French and English and with no app data, since a
+block must render before your app has stored anything.
+
+## Errors
+
+Every error has a stable `code`, a `source` (`template`, `stylesheet` or
+`render`), a 1-based `line` and `column` (0 for a render limit), a `message`
+and a `fix`. On upload, the API refuses a version with an invalid block with
+`BLOCK_TEMPLATE_INVALID`, naming the block and listing these errors. The
+package's reference lists
+[every code](https://developers.tassyir.io/packages/storefront-blocks#what-you-get-back).
+The ones you will meet first:
+
+| Code                         | Fix                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `BLOCK_VARIABLE_UNKNOWN`     | Read `block`, `product`, `store`, `app`, or a variable the template assigns. |
+| `BLOCK_DATA_KEY_UNDECLARED`  | List the key in the block's `data`, declared with `storefront` visibility.   |
+| `BLOCK_OBJECT_NOT_AVAILABLE` | Set `target = "product"` to read the product.                                |
+| `BLOCK_HTML_TAG_NOT_ALLOWED` | Use an allowed element: no script, style, form, frame or `h1`.               |
+| `BLOCK_HTML_IMAGE_SOURCE`    | Write `src="{{ image \| image_url: 320 }}"`.                                 |
+| `BLOCK_HTML_STYLE_ATTRIBUTE` | Move the styles to the stylesheet.                                           |
+| `BLOCK_TAG_NOT_SUPPORTED`    | Put the markup in the template itself.                                       |
+| `BLOCK_RENDER_STEP_LIMIT`    | Do less work: fewer iterations, fewer filters on long strings.               |

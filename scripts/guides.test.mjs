@@ -1,6 +1,6 @@
 // The developer guides (docs/guides) themselves: front matter, links, public
-// content only, every TOML and JSON sample, and errors.md in step with the
-// OpenAPI document. The TypeScript samples are typechecked against the
+// content only, every TOML, JSON, Liquid and CSS sample, and errors.md in step
+// with the OpenAPI document. The TypeScript samples are typechecked against the
 // packed packages by `npm run check:guides`.
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -8,6 +8,10 @@ import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { validateManifest } from '@tassyir/app-manifest';
+import {
+  compileBlockTemplate,
+  validateBlockStylesheet,
+} from '@tassyir/storefront-blocks';
 import {
   HOSTED_BINDING_CODES,
   HOSTED_BINDING_SHARED_CODES,
@@ -45,6 +49,8 @@ const KNOWN_FENCES = new Set([
   'ts browser',
   'toml',
   'json',
+  'liquid',
+  'css',
   'bash',
   'http',
   'yaml',
@@ -114,6 +120,24 @@ describe('docs/guides', () => {
       }
     }
     expect(manifests).toBeGreaterThanOrEqual(2);
+  });
+
+  it('compiles every Liquid sample and validates every CSS sample as a storefront block', () => {
+    let samples = 0;
+    for (const guide of guides) {
+      for (const block of codeBlocks(guide.body, guide.bodyLine)) {
+        if (block.lang !== 'liquid' && block.lang !== 'css') continue;
+        samples += 1;
+        const where = `${guide.file}:${String(block.line)}`;
+        if (block.lang === 'css') {
+          expect(validateBlockStylesheet(block.code), where).toEqual([]);
+          continue;
+        }
+        const result = compileBlockTemplate(block.code, { target: 'product' });
+        expect(result.ok ? [] : result.errors, where).toEqual([]);
+      }
+    }
+    expect(samples).toBeGreaterThanOrEqual(2);
   });
 
   describe('errors.md', () => {

@@ -28,7 +28,7 @@ const ready = () => ({
 });
 
 describe('PLANNED_PUBLIC_PACKAGES', () => {
-  it('is exactly the plan list of AP-K1.2 to AP-K1.8', () => {
+  it('is exactly the plan list of AP-K1.2 to AP-K1.8 and AP-K2.2', () => {
     expect(PLANNED_PUBLIC_PACKAGES).toEqual({
       '@tassyir/app-manifest': 'AP-K1.2',
       '@tassyir/app': 'AP-K1.3',
@@ -37,6 +37,7 @@ describe('PLANNED_PUBLIC_PACKAGES', () => {
       tassyir: 'AP-K1.6',
       'create-tassyir-app': 'AP-K1.7',
       '@tassyir/dev-mcp': 'AP-K1.8',
+      '@tassyir/storefront-blocks': 'AP-K2.2',
     });
     expect(Object.isFrozen(PLANNED_PUBLIC_PACKAGES)).toBe(true);
   });
