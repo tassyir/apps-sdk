@@ -1,5 +1,11 @@
 # @tassyir/app-manifest
 
+## 0.3.1
+
+### Patch Changes
+
+- 0cfc8d0: `MANIFEST_HOST_NOT_ALLOWED`'s fix for a Tassyir host says a hosted app calls Tassyir through `ctx.props.TASSYIR` (a hosted Worker's `env` is empty).
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # create-tassyir-app
 
+## 0.2.2
+
+### Patch Changes
+
+- 0cfc8d0: The hosted template's `npm run deploy:check` builds the page, then runs `tassyir deploy --dry-run` (the checks `tassyir deploy` runs before it uploads, no sign-in, nothing sent); its `scripts/deploy-check.ts` is gone.
+- Updated dependencies [0cfc8d0]
+  - @tassyir/app-manifest@0.3.1
+
 ## 0.2.1
 
 ### Patch Changes
