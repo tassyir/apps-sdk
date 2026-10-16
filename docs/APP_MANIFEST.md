@@ -42,13 +42,16 @@ as JSON with key order:
 - this package's schema files with the ones the door generates, byte for
   byte (a difference from the backend's committed file is printed: the pin
   move then runs `npm run apps:manifest-schema` too);
-- about 25,000 manifests (`src/manifest-corpus.test-harness.ts`): every field
+- about 50,000 manifests (`src/manifest-corpus.test-harness.ts`): every field
   given every value the specs use, every key removed, retyped or joined by an
-  unknown one, every scope and topic combination, the limits, odd inputs and
-  seeded random combinations. The door's `validateAppManifest` (live
-  vocabulary) is compared with the package's default call (shipped
-  vocabulary), and the build with the source on two fixture vocabularies (one
-  with storefront blocks available). The normalised manifests' helpers
+  unknown one, every scope and topic combination, the marketplace fields
+  (every setting type with every field and default, block data against every
+  visibility and target, admin action targets against every scope), the
+  limits, odd inputs and seeded random combinations. The door's
+  `validateAppManifest` (live vocabulary) is compared with the package's
+  default call (shipped vocabulary), and the build with the source on two
+  fixture vocabularies (one with storefront blocks requestable and the app
+  proxy open). The normalised manifests' helpers
   (`manifestVersionColumns`, `resolveManifestUri`) are compared too. The
   corpus must produce every error code.
 

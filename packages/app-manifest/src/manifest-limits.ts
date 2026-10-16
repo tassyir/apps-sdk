@@ -36,6 +36,20 @@ export const MANIFEST_LIMITS = {
   dataKeyMaxLength: 64,
   storefrontBlocksMax: 20,
   templateMaxLength: 200,
+  /** Each language of a `{ ar, en }` label: the `name` rule. */
+  labelMaxLength: 50,
+  /** App data keys one block reads (`<owner>.<key>`). */
+  blockDataMax: 20,
+  blockSettingsMax: 20,
+  settingKeyMaxLength: 40,
+  settingOptionsMin: 2,
+  settingOptionsMax: 20,
+  settingOptionValueMaxLength: 40,
+  /** The longest `string` or `text` value, and `max_length`'s ceiling. */
+  settingTextMaxLength: 1000,
+  /** A `url` setting's default. */
+  settingUrlMaxLength: 512,
+  adminActionsMax: 10,
 } as const;
 
 export const HOSTING_MODES = ['tassyir', 'external'] as const;
@@ -54,6 +68,60 @@ export const DATA_TYPES = [
   'json',
 ] as const;
 export const DATA_VISIBILITIES = ['app', 'merchant', 'storefront'] as const;
+
+/**
+ * The owners of app data a storefront block may read: never `order` or
+ * `customer`, which hold buyer data (Phase 2 rule 3).
+ */
+export const BLOCK_DATA_OWNERS = ['business', 'store', 'product'] as const;
+
+/**
+ * Where a block may be placed: `product`, the product page (its template
+ * reads the page's `product`), or `any` builder page but the order form's
+ * (no `product`). `any` is the default.
+ */
+export const BLOCK_TARGETS = ['product', 'any'] as const;
+
+/**
+ * The merchant settings field types: one list for storefront blocks and,
+ * later, for the other extensions (which add their own types).
+ */
+export const SETTING_TYPES = [
+  'string',
+  'text',
+  'boolean',
+  'integer',
+  'number',
+  'select',
+  'color',
+  'image',
+  'url',
+  'product',
+  'collection',
+] as const;
+
+/**
+ * Where an admin action appears in the dashboard: the order, product or
+ * customer page, or a selection in the orders or products list.
+ */
+export const ADMIN_ACTION_TARGETS = [
+  'order.details',
+  'orders.selection',
+  'product.details',
+  'products.selection',
+  'customer.details',
+] as const;
+
+/** The scope an admin action's target needs: the read scope of its resource. */
+export const ADMIN_ACTION_TARGET_SCOPES: Readonly<
+  Record<(typeof ADMIN_ACTION_TARGETS)[number], string>
+> = {
+  'order.details': 'read_orders',
+  'orders.selection': 'read_orders',
+  'product.details': 'read_products',
+  'products.selection': 'read_products',
+  'customer.details': 'read_customers',
+};
 
 /**
  * The names the dashboard uses NEXT TO its app pages
@@ -107,7 +175,7 @@ export const RESERVED_HANDLES: readonly string[] = [
  * Tassyir's own domains. An external app may not live on them (the API
  * trusts every `*.tassyir.io` origin with credentials, D2, and another app
  * owns each `*.tassyir-apps.com` origin), and a hosted app reaches Tassyir
- * through `env.TASSYIR`, never through its egress allowlist.
+ * through `ctx.props.TASSYIR`, never through its egress allowlist.
  */
 export const RESERVED_DOMAINS: readonly string[] = [
   'tassyir.io',
@@ -188,3 +256,19 @@ export const DATA_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
 /** A file of the hosted bundle, lowercase segments, a `.liquid` template. */
 export const TEMPLATE_PATTERN = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.liquid$/;
+
+/** A block's stylesheet: the template's rule, a `.css` file. */
+export const STYLESHEET_PATTERN = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.css$/;
+
+/** The app data a block reads: `<owner>.<key>`, a key of `[[data.definitions]]`. */
+export const BLOCK_DATA_PATTERN =
+  /^(?:business|store|product)\.[a-z][a-z0-9_]{0,63}$/;
+
+/** A setting's key, as a template reads it: `block.settings.<key>`. */
+export const SETTING_KEY_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
+
+/** A `select` option's value: lowercase letters, digits, "_" and "-". */
+export const SETTING_OPTION_VALUE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+/** A `color` setting's value: `#rrggbb`. */
+export const SETTING_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;

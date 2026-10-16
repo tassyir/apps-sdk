@@ -81,22 +81,25 @@ uri    = "https://privacy.example.com/tassyir"
 
 ## Fields
 
-| Field                    | Rule                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                   | Required. 1 to 50 characters on one line: no control, line-break or invisible characters (bidi controls, zero-width), no spaces around it. Arabic and English listing names are set in the console.                                                                                                                                                             |
-| `handle`                 | Required. 3 to 40 lowercase letters and digits, in runs joined by single hyphens. Unique on Tassyir, never changes, and must equal the handle of the app in the console. Some names are reserved (`www`, `api`, `tassyir`, …).                                                                                                                                  |
-| `api_version`            | Required. `2026-10`.                                                                                                                                                                                                                                                                                                                                            |
-| `access.scopes`          | The scopes the app needs ([Scopes and consent](/guides/scopes-and-consent)). Each once.                                                                                                                                                                                                                                                                              |
-| `access.optional_scopes` | Scopes the merchant may tick. Never also in `scopes`, and never one a required scope already implies.                                                                                                                                                                                                                                                           |
-| `access.scope_reasons`   | One sentence per requested scope, required and optional, shown on the install screen: 10 to 200 characters, the `name` text rules. No reason for a scope you do not request.                                                                                                                                                                                    |
-| `hosting.mode`           | Required. `external`: the app runs on your server. `tassyir`: the app runs on [Tassyir Hosting](/guides/tassyir-hosting), whose uploads are refused until it opens.                                                                                                                                                                                                  |
-| `hosting.url`            | Required for `external`. `https://host` or `https://host/path`, at most 512 characters: no port (443 only), no user or password, no query, fragment or trailing `/`. The host is a public lowercase hostname: no IP address, no private name (`localhost`, `.local`, `.test`, …), nothing on Tassyir's domains.                                                 |
-| `hosting.allowed_hosts`  | Required for `tassyir` (an empty list when the code calls no other service), refused for `external`. At most 20 hosts the app's code calls, each once: a lowercase hostname of two labels or more, or `*.` + one for its subdomains. No scheme, port, path, IP address, private name or Tassyir domain: a hosted app calls Tassyir through `ctx.props.TASSYIR`. |
-| `auth.callback_url`      | Optional, `external` only. Where a headless app receives its install code ([Tokens](/guides/tokens#headless-apps-the-install-code)). The `hosting.url` rules, but a trailing `/` is allowed.                                                                                                                                                                         |
-| `admin.page`             | Optional. Your page in the dashboard: a path on `hosting.url` (on a hosted app, its own address), starting with `/` (not `//`), at most 256 characters, no query, fragment, backslash, space, `.` / `..` / empty segment or encoded slash; on a hosted app, never `/.tassyir` or below. Omit it for a headless app.                                             |
-| `webhooks`               | At most 10 entries, each `topics` (one or more) and `uri`. A topic is subscribed once in the whole manifest, and needs the scope that reads its resource ([Webhooks](/guides/webhooks#topics)). `uri` is a path on `hosting.url` (the `admin.page` rules), or for an external app an absolute https URL (the `hosting.url` rules).                                   |
-| `data.definitions`       | At most 50 keys of [app data](/guides/app-data): `owner` (`business`, `store`, `product`, `order`, `customer`), `key` (`[a-z][a-z0-9_]{0,63}`, unique per owner), `type` (`string`, `number`, `integer`, `boolean`, `json`), `visibility` (`app`, `merchant`, `storefront`).                                                                                         |
-| `storefront.blocks`      | Part of the format, refused until storefront blocks open.                                                                                                                                                                                                                                                                                                       |
+| Field                      | Rule                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                     | Required. 1 to 50 characters on one line: no control, line-break or invisible characters (bidi controls, zero-width), no spaces around it. Arabic and English listing names are set in the console.                                                                                                                                                             |
+| `handle`                   | Required. 3 to 40 lowercase letters and digits, in runs joined by single hyphens. Unique on Tassyir, never changes, and must equal the handle of the app in the console. Some names are reserved (`www`, `api`, `tassyir`, …).                                                                                                                                  |
+| `api_version`              | Required. `2026-10`.                                                                                                                                                                                                                                                                                                                                            |
+| `access.scopes`            | The scopes the app needs ([Scopes and consent](/guides/scopes-and-consent)). Each once.                                                                                                                                                                                                                                                                              |
+| `access.optional_scopes`   | Scopes the merchant may tick. Never also in `scopes`, and never one a required scope already implies.                                                                                                                                                                                                                                                           |
+| `access.scope_reasons`     | One sentence per requested scope, required and optional, shown on the install screen: 10 to 200 characters, the `name` text rules. No reason for a scope you do not request.                                                                                                                                                                                    |
+| `hosting.mode`             | Required. `external`: the app runs on your server. `tassyir`: the app runs on [Tassyir Hosting](/guides/tassyir-hosting), whose uploads are refused until it opens.                                                                                                                                                                                                  |
+| `hosting.url`              | Required for `external`. `https://host` or `https://host/path`, at most 512 characters: no port (443 only), no user or password, no query, fragment or trailing `/`. The host is a public lowercase hostname: no IP address, no private name (`localhost`, `.local`, `.test`, …), nothing on Tassyir's domains.                                                 |
+| `hosting.allowed_hosts`    | Required for `tassyir` (an empty list when the code calls no other service), refused for `external`. At most 20 hosts the app's code calls, each once: a lowercase hostname of two labels or more, or `*.` + one for its subdomains. No scheme, port, path, IP address, private name or Tassyir domain: a hosted app calls Tassyir through `ctx.props.TASSYIR`. |
+| `auth.callback_url`        | Optional, `external` only. Where a headless app receives its install code ([Tokens](/guides/tokens#headless-apps-the-install-code)). The `hosting.url` rules, but a trailing `/` is allowed.                                                                                                                                                                         |
+| `admin.page`               | Optional. Your page in the dashboard: a path on `hosting.url` (on a hosted app, its own address), starting with `/` (not `//`), at most 256 characters, no query, fragment, backslash, space, `.` / `..` / empty segment or encoded slash; on a hosted app, never `/.tassyir` or below. Omit it for a headless app.                                             |
+| `webhooks`                 | At most 10 entries, each `topics` (one or more) and `uri`. A topic is subscribed once in the whole manifest, and needs the scope that reads its resource ([Webhooks](/guides/webhooks#topics)). `uri` is a path on `hosting.url` (the `admin.page` rules), or for an external app an absolute https URL (the `hosting.url` rules).                                   |
+| `data.definitions`         | At most 50 keys of [app data](/guides/app-data): `owner` (`business`, `store`, `product`, `order`, `customer`), `key` (`[a-z][a-z0-9_]{0,63}`, unique per owner), `type` (`string`, `number`, `integer`, `boolean`, `json`), `visibility` (`app`, `merchant`, `storefront`).                                                                                         |
+| `data.definitions[].label` | Optional, `{ ar = "…", en = "…" }`: the name the dashboard shows next to a value. Not live yet, see [Marketplace fields](#marketplace-fields-not-live-yet).                                                                                                                                                                                                     |
+| `storefront.blocks`        | Storefront blocks: see [Marketplace fields](#marketplace-fields-not-live-yet). Not live yet.                                                                                                                                                                                                                                                                    |
+| `admin.actions`            | Menu entries in the dashboard: see [Marketplace fields](#marketplace-fields-not-live-yet). Not live yet.                                                                                                                                                                                                                                                        |
+| `app_proxy`                | Part of the format, refused until the app proxy opens.                                                                                                                                                                                                                                                                                                          |
 
 - **Every table is strict:** a key that is not a manifest field is an error,
   and the error's `fix` names the field you probably meant.
@@ -108,6 +111,162 @@ uri    = "https://privacy.example.com/tassyir"
   to its own address, `https://{handle}.tassyir-apps.com`.
 - **Every host your data reaches** (`hosting.url`, an absolute webhook `uri`,
   `auth.callback_url`) is shown to the merchant on the install screen.
+
+## Marketplace fields (not live yet)
+
+These fields belong to the marketplace, which is **not live yet**. The
+validator in `@tassyir/app-manifest` already checks them, so you can prepare
+a manifest now, but the API refuses an upload that uses any of them until the
+marketplace opens: the fields are unknown to it, or `write_storefront` is not
+offered yet. This page will say when that changes.
+
+```toml
+name        = "Review Stars"
+handle      = "review-stars"
+api_version = "2026-10"
+
+[access]
+scopes = ["read_orders", "read_products", "write_storefront"]
+
+[access.scope_reasons]
+read_orders      = "Find delivered orders to ask for a review"
+read_products    = "Show each product's rating"
+write_storefront = "Add the rating block to your product pages"
+
+[hosting]
+mode = "external"
+url  = "https://stars.example.com"
+
+[admin]
+page = "/"
+
+[[admin.actions]]
+handle = "ask-for-reviews"
+target = "orders.selection"
+label  = { ar = "اطلب التقييمات", en = "Ask for reviews" }
+path   = "/actions/ask"
+
+[[data.definitions]]
+owner      = "product"
+key        = "rating"
+type       = "json"
+visibility = "storefront"
+label      = { ar = "التقييم", en = "Rating" }
+
+[[storefront.blocks]]
+handle     = "product-rating"
+template   = "blocks/product-rating.liquid"
+stylesheet = "blocks/product-rating.css"
+name       = { ar = "تقييم المنتج", en = "Product rating" }
+target     = "product"
+data       = ["product.rating"]
+
+  [[storefront.blocks.settings]]
+  key     = "show_count"
+  type    = "boolean"
+  label   = { ar = "عرض عدد التقييمات", en = "Show the number of ratings" }
+  default = true
+
+  [[storefront.blocks.settings]]
+  key     = "heading"
+  type    = "string"
+  label   = { ar = "العنوان", en = "Heading" }
+  default = { ar = "آراء الزبائن", en = "What buyers say" }
+```
+
+### Labels
+
+Text a merchant reads in the dashboard or the store builder is a table with
+both languages, `{ ar = "…", en = "…" }`: a block's `name`, a setting's and an
+option's `label`, an admin action's `label` and a data definition's `label`.
+Each language follows the `name` rules (1 to 50 characters on one line, no
+invisible character, no spaces around it), and no other key is accepted.
+
+### Storefront blocks
+
+A block is a template that Tassyir renders on the store's pages, where the
+merchant places it from the store builder. It runs no JavaScript: a block
+holds no script, and any key that would add code (`script`, `html`, `src`,
+`on…`) is refused. Blocks need the `write_storefront` scope, at most 20 a
+version.
+
+| Field        | Rule                                                                                                                                                                                                                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handle`     | Required. The `handle` rules; unique among the app's blocks.                                                                                                                                                                                                                            |
+| `template`   | Required. A `.liquid` file of the app's files: a relative path of lowercase letters, digits, `_` and `-`, at most 200 characters.                                                                                                                                                       |
+| `stylesheet` | Optional. A `.css` file, the same path rules.                                                                                                                                                                                                                                           |
+| `name`       | Optional label: how the block is listed in the store builder. Write it: the review asks for one.                                                                                                                                                                                        |
+| `target`     | `product` (the product page; the template can read the page's product) or `any` (any page but the order form's, without a product). Default `any`.                                                                                                                                      |
+| `data`       | At most 20 app data keys the template reads, each once, as `<owner>.<key>`: declared in `[[data.definitions]]` with `visibility = "storefront"`, the owner `business`, `store` or `product`. Order and customer data never reach a store page. Product data needs `target = "product"`. |
+| `settings`   | At most 20 `[[storefront.blocks.settings]]`: what the merchant sets for the block.                                                                                                                                                                                                      |
+
+### Block settings
+
+The template reads a setting as `block.settings.<key>`. The store builder
+draws the form from the declaration and checks every value against it.
+
+| Field        | Rule                                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`        | Required. 1 to 40 lowercase letters, digits and underscores, starting with a letter; unique in the block.                              |
+| `type`       | Required. `string`, `text`, `boolean`, `integer`, `number`, `select`, `color`, `image`, `url`, `product` or `collection`.              |
+| `label`      | Required label: the field's name in the store builder.                                                                                 |
+| `default`    | Optional, a value of the type (below).                                                                                                 |
+| `options`    | `select` only, and required there: 2 to 20 `{ value, label }`. A `value` is 1 to 40 lowercase letters, digits, `_` and `-`, each once. |
+| `min`, `max` | `integer` and `number` only: the range, `min` at most `max`; whole numbers for an `integer`.                                           |
+| `max_length` | `string` and `text` only: 1 to 1,000 characters (1,000 when absent).                                                                   |
+
+| Type                             | `default`                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `string`                         | One line of text, or `{ ar = "…", en = "…" }` for each language, within `max_length`.          |
+| `text`                           | The same, line breaks allowed.                                                                 |
+| `boolean`                        | `true` or `false`.                                                                             |
+| `integer`, `number`              | A whole number (`integer`) or a number, within `min` and `max`.                                |
+| `select`                         | The `value` of one of its options.                                                             |
+| `color`                          | `"#rrggbb"`.                                                                                   |
+| `url`                            | An `https://` link or a path of the store starting with `/`, at most 512 characters, no space. |
+| `image`, `product`, `collection` | None: the merchant picks one from their own store.                                             |
+
+```toml
+[[storefront.blocks.settings]]
+key     = "layout"
+type    = "select"
+label   = { ar = "الشكل", en = "Layout" }
+default = "grid"
+options = [
+  { value = "grid", label = { ar = "شبكة", en = "Grid" } },
+  { value = "list", label = { ar = "قائمة", en = "List" } },
+]
+```
+
+### Admin actions
+
+`[[admin.actions]]` adds a menu entry on an order, product or customer page,
+or on a selection in the orders or products list. Choosing it opens one of
+the app's pages in the dashboard's app window, with the ids added to its
+address (`?id=` or `?ids=`, at most 50): read them again through the Admin
+API, where your scopes and the installation's stores apply. At most 10.
+
+| Field    | Rule                                                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handle` | Required. The `handle` rules; unique among the app's actions.                                                                                                                                              |
+| `target` | Required. `order.details`, `orders.selection`, `product.details`, `products.selection` or `customer.details`. It needs the read scope of its resource: `read_orders`, `read_products` or `read_customers`. |
+| `label`  | Required label: the menu entry.                                                                                                                                                                            |
+| `path`   | Required. The page it opens: the `admin.page` rules.                                                                                                                                                       |
+
+An app with actions does not need `admin.page`.
+
+### The app proxy
+
+`[app_proxy]` names the path on your app where Tassyir forwards requests made
+to the store's own address, `https://{store}/apps/{handle}/…`. It needs the
+`write_storefront` scope, and its `path` follows the `admin.page` rules. It is
+part of the format but refused until the app proxy opens
+(`MANIFEST_PROXY_NOT_AVAILABLE`), even by the validator.
+
+```toml
+[app_proxy]
+path = "/proxy"
+```
 
 ## Validate before you upload
 

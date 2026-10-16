@@ -57,15 +57,20 @@ describe('MANIFEST_VOCABULARY', () => {
     expect(scopeNames).toContain(vocabulary.storefrontBlocksScope);
   });
 
-  it('only write_storefront is unavailable, with a reason that ends a fix sentence', () => {
-    const unavailable = vocabulary.scopes.filter((scope) => !scope.available);
-    expect(unavailable.map((scope) => scope.name)).toEqual([
-      'write_storefront',
-    ]);
-    for (const scope of unavailable) {
-      expect(scope.unavailableReason).toMatch(/^[a-z][^.]*[^.]$/);
-    }
+  it('offers every scope, write_storefront included (Phase 2)', () => {
+    expect(
+      vocabulary.scopes.filter((scope) => !scope.available).map((s) => s.name),
+    ).toEqual([]);
+    expect(
+      vocabulary.scopes.filter((scope) => 'unavailableReason' in scope),
+    ).toEqual([]);
     expect(vocabulary.storefrontBlocksScope).toBe('write_storefront');
+  });
+
+  it('keeps the app proxy closed, with a reason that ends a fix sentence', () => {
+    expect(vocabulary.appProxy.available).toBe(false);
+    expect(vocabulary.appProxy.unavailableReason).toMatch(/^[a-z][^.]*[^.]$/);
+    expect(Object.isFrozen(vocabulary.appProxy)).toBe(true);
   });
 
   it('is the default of validateManifest', () => {
@@ -107,18 +112,56 @@ describe('rules that depend on the shipped vocabulary', () => {
     ]);
   });
 
-  it('write_storefront cannot be requested yet, and blocks are refused', () => {
+  it('write_storefront can be requested, and a block with its settings passes', () => {
     const doc = base();
     doc.access.scopes.push('write_storefront');
     doc.access.scope_reasons.write_storefront =
       'Show the stars on product pages';
     doc.storefront = {
-      blocks: [{ handle: 'stars', template: 'blocks/stars.liquid' }],
+      blocks: [
+        {
+          handle: 'stars',
+          template: 'blocks/stars.liquid',
+          name: { ar: 'النجوم', en: 'Stars' },
+          target: 'product',
+          data: ['product.rating'],
+          settings: [
+            {
+              key: 'show_count',
+              type: 'boolean',
+              label: { ar: 'عرض العدد', en: 'Show the count' },
+              default: true,
+            },
+          ],
+        },
+      ],
     };
+    doc.admin.actions = [
+      {
+        handle: 'ask-for-reviews',
+        target: 'orders.selection',
+        label: { ar: 'اطلب التقييمات', en: 'Ask for reviews' },
+        path: '/actions/ask',
+      },
+    ];
     const result = validateManifest(doc);
-    expect(result.ok ? [] : codes(result.errors)).toEqual([
-      'MANIFEST_SCOPE_NOT_AVAILABLE access.scopes[2]',
-      'MANIFEST_BLOCKS_NOT_AVAILABLE storefront.blocks',
+    expect(result.ok ? [] : codes(result.errors)).toEqual([]);
+  });
+
+  it('the app proxy is refused, saying why', () => {
+    const doc = base();
+    doc.access.scopes.push('write_storefront');
+    doc.access.scope_reasons.write_storefront =
+      'Answer the review form on the store';
+    doc.app_proxy = { path: '/proxy' };
+    const result = validateManifest(doc);
+    expect(result.ok ? [] : result.errors).toEqual([
+      {
+        code: 'MANIFEST_PROXY_NOT_AVAILABLE',
+        path: 'app_proxy',
+        message: 'The app proxy cannot be declared yet.',
+        fix: 'Remove the [app_proxy] table; the app proxy is not open yet, and until then Tassyir forwards no store request to an app.',
+      },
     ]);
   });
 
@@ -219,6 +262,15 @@ describe('normalised manifest helpers', () => {
     ).toEqual({
       via: 'external',
       url: 'https://privacy.example.com/tassyir',
+    });
+    // An admin action's or the proxy's path resolves like a page.
+    expect(resolveManifestUri(external, '/actions/print')).toEqual({
+      via: 'external',
+      url: 'https://sync.example.com/tassyir/actions/print',
+    });
+    expect(resolveManifestUri(hosted, '/proxy')).toEqual({
+      via: 'hosted',
+      url: 'https://review-requests.tassyir-apps.com/proxy',
     });
   });
 });
