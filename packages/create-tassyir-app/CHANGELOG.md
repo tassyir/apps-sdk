@@ -1,5 +1,11 @@
 # create-tassyir-app
 
+## 0.2.3
+
+### Patch Changes
+
+- 0b5430e: New projects name the `@tassyir/app` and `tassyir` releases with the marketplace (`verifyProxyRequest`; storefront blocks in `tassyir validate` and `deploy`, `tassyir block preview`, `listing`, `submit`).
+
 ## 0.2.2
 
 ### Patch Changes

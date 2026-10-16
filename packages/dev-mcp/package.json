@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/dev-mcp",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "An MCP server for the AI agent that builds your Tassyir app: the guides, the Admin API and webhook schemas, manifest validation, the starter, and test webhooks and dev stores through your tassyir login.",
   "license": "MIT",
   "repository": {
@@ -50,9 +50,9 @@
     "@modelcontextprotocol/server": "2.2.0",
     "@tassyir/app-manifest": "^0.3.1",
     "@tassyir/storefront-blocks": "^0.1.0",
-    "create-tassyir-app": "^0.2.2",
+    "create-tassyir-app": "^0.2.3",
     "smol-toml": "^1.9.0",
-    "tassyir": "^0.4.0",
+    "tassyir": "^0.5.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,5 +1,18 @@
 # @tassyir/dev-mcp
 
+## 0.2.0
+
+### Minor Changes
+
+- 0b5430e: `validate_block` and `run_review_checks` are live (no longer `TOOL_NOT_AVAILABLE`). `validate_block` checks a storefront block offline with `@tassyir/storefront-blocks`, the API's upload check: every `[[storefront.blocks]]` entry of `tassyir.app.toml` with its files (or one, `block`), or a template given as text (`template`, `stylesheet`, `declaration`), each problem with its `code`, `path` (`file:line:column`) and `fix`; `preview` adds the sample render's HTML. `run_review_checks` runs the marketplace review's checklist as a dry run on the draft listing and latest version (the sign-in of `tassyir login`), waits up to `waitSeconds` and answers `passed`, the failed hard checks with their fix and every result; `runId` reads a run again. It never submits. `tail_logs` stays a seam.
+
+### Patch Changes
+
+- Updated dependencies [0b5430e]
+- Updated dependencies [0b5430e]
+  - tassyir@0.5.0
+  - create-tassyir-app@0.2.3
+
 ## 0.1.4
 
 ### Patch Changes
