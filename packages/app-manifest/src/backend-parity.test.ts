@@ -20,9 +20,11 @@ import {
 import { manifestJsonSchema } from './manifest-schema.js';
 import {
   FIXTURE_VOCABULARY,
+  STOREFRONT_VOCABULARY,
   externalManifest,
   hostedManifest,
   readmeExamples,
+  storefrontManifest,
 } from './manifest.test-harness.js';
 import * as types from './manifest-types.js';
 import type { ManifestVocabulary } from './manifest-types.js';
@@ -78,15 +80,8 @@ const clone = (value: unknown): any => JSON.parse(JSON.stringify(value));
 /** The vocabularies a corpus case may name besides the shipped one. */
 const VOCABULARIES: Record<string, ManifestVocabulary> = {
   fixture: FIXTURE_VOCABULARY,
-  // The Phase 2 shape: storefront blocks requestable.
-  storefront: {
-    ...FIXTURE_VOCABULARY,
-    scopes: FIXTURE_VOCABULARY.scopes.map((scope) =>
-      scope.name === FIXTURE_VOCABULARY.storefrontBlocksScope
-        ? { name: scope.name, implies: [], available: true }
-        : scope,
-    ),
-  },
+  // The Phase 2 shape: storefront blocks requestable, the app proxy open.
+  storefront: STOREFRONT_VOCABULARY,
 };
 
 const FIXTURE_BASES = {
@@ -110,6 +105,7 @@ function buildInput(): string {
       },
       {
         ...FIXTURE_BASES,
+        marketplace: storefrontManifest,
         vocabulary: VOCABULARIES['storefront'] as ManifestVocabulary,
       },
       {
@@ -121,6 +117,12 @@ function buildInput(): string {
           api_version: '2026-10',
           hosting: { mode: 'tassyir', allowed_hosts: [] },
         }),
+        // The shipped vocabulary keeps the app proxy closed.
+        marketplace: () => {
+          const doc = storefrontManifest();
+          delete doc['app_proxy'];
+          return doc;
+        },
         vocabulary: MANIFEST_VOCABULARY,
       },
     ),

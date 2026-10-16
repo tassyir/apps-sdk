@@ -50,6 +50,13 @@ export interface ManifestVocabulary {
   topics: readonly ManifestTopicTerm[];
   /** The scope storefront blocks need (`write_storefront`). */
   storefrontBlocksScope: string;
+  /**
+   * Whether a manifest may declare `[app_proxy]` (Tassyir forwards store
+   * requests to apps), and if not, why: a clause (no capital, no final
+   * period) that ends the error's one-sentence `fix`. It also needs
+   * {@link storefrontBlocksScope}.
+   */
+  appProxy: { available: boolean; unavailableReason?: string };
 }
 
 export type ManifestHostingMode = 'tassyir' | 'external';
@@ -58,6 +65,31 @@ export type ManifestDataOwner =
 export type ManifestDataType =
   'string' | 'number' | 'integer' | 'boolean' | 'json';
 export type ManifestDataVisibility = 'app' | 'merchant' | 'storefront';
+export type ManifestBlockTarget = 'product' | 'any';
+export type ManifestSettingType =
+  | 'string'
+  | 'text'
+  | 'boolean'
+  | 'integer'
+  | 'number'
+  | 'select'
+  | 'color'
+  | 'image'
+  | 'url'
+  | 'product'
+  | 'collection';
+export type ManifestAdminActionTarget =
+  | 'order.details'
+  | 'orders.selection'
+  | 'product.details'
+  | 'products.selection'
+  | 'customer.details';
+
+/** Text shown to merchants, in Arabic and English: `{ ar = "…", en = "…" }`. */
+export interface ManifestLabel {
+  ar: string;
+  en: string;
+}
 
 export interface ManifestWebhook {
   topics: string[];
@@ -69,19 +101,69 @@ export interface ManifestDataDefinition {
   key: string;
   type: ManifestDataType;
   visibility: ManifestDataVisibility;
+  /** Shown next to a `merchant` or `storefront` value in the dashboard. */
+  label?: ManifestLabel;
 }
 
+/** One choice of a `select` setting. */
+export interface ManifestSettingOption {
+  value: string;
+  label: ManifestLabel;
+}
+
+/**
+ * A setting the merchant fills in for a block in the store builder; the
+ * template reads it as `block.settings.<key>`. Present only when declared:
+ * `default`, `options` (`select`), `min` and `max` (`integer`, `number`),
+ * `max_length` (`string`, `text`).
+ */
+export interface ManifestSetting {
+  key: string;
+  type: ManifestSettingType;
+  label: ManifestLabel;
+  /**
+   * A value of the type: a string (`string`, `text`, `select`, `color`,
+   * `url`; `string` and `text` may give `{ ar, en }` instead), a number
+   * (`integer`, `number`) or a boolean. `image`, `product` and `collection`
+   * take none.
+   */
+  default?: string | number | boolean | ManifestLabel;
+  options?: ManifestSettingOption[];
+  min?: number;
+  max?: number;
+  max_length?: number;
+}
+
+/**
+ * A declarative storefront block (D9). `target`, `data` (sorted) and
+ * `settings` are always present in the normalised manifest; `stylesheet`
+ * and `name` only when declared.
+ */
 export interface ManifestStorefrontBlock {
   handle: string;
   template: string;
+  stylesheet?: string;
+  name?: ManifestLabel;
+  target: ManifestBlockTarget;
+  /** The app data the template reads: `<owner>.<key>`. */
+  data: string[];
+  settings: ManifestSetting[];
+}
+
+/** A menu entry in the dashboard that opens one of the app's pages. */
+export interface ManifestAdminAction {
+  handle: string;
+  target: ManifestAdminActionTarget;
+  label: ManifestLabel;
+  path: string;
 }
 
 /**
  * The normalised manifest: what the Tassyir API stores for an app version
  * (`app_versions.manifest`). Same keys as
  * the TOML file (snake_case). Every list is present (possibly empty); a
- * table that only holds optional values (`auth`, `admin`) is present only
- * when it holds one. Sets (scopes, topics, hosts) are in catalogue or
+ * table that only holds optional values (`auth`, `admin`, `app_proxy`) is
+ * present only when it holds one, and so is `admin.actions`. Sets (scopes, topics, hosts) are in catalogue or
  * alphabetical order; lists of tables keep the file's order. Validating a
  * normalised manifest returns it unchanged.
  */
@@ -98,10 +180,12 @@ export interface AppManifest {
     | { mode: 'external'; url: string }
     | { mode: 'tassyir'; allowed_hosts: string[] };
   auth?: { callback_url: string };
-  admin?: { page: string };
+  /** Present when it holds a page or at least one action. */
+  admin?: { page?: string; actions?: ManifestAdminAction[] };
   webhooks: ManifestWebhook[];
   data: { definitions: ManifestDataDefinition[] };
   storefront: { blocks: ManifestStorefrontBlock[] };
+  app_proxy?: { path: string };
 }
 
 /**
@@ -132,6 +216,7 @@ export const MANIFEST_ERROR_CODES = [
   'MANIFEST_FIELD_NOT_FOR_MODE',
   'MANIFEST_LIST_TOO_LONG',
   'MANIFEST_LIST_EMPTY',
+  'MANIFEST_LIST_TOO_SHORT',
   'MANIFEST_VALUE_NOT_ALLOWED',
   'MANIFEST_NAME_INVALID',
   'MANIFEST_HANDLE_INVALID',
@@ -158,12 +243,34 @@ export const MANIFEST_ERROR_CODES = [
   'MANIFEST_TOPIC_SCOPE_MISSING',
   'MANIFEST_DATA_KEY_INVALID',
   'MANIFEST_DATA_KEY_DUPLICATE',
+  'MANIFEST_DATA_LABEL_INVALID',
   'MANIFEST_BLOCKS_NOT_AVAILABLE',
   'MANIFEST_BLOCKS_SCOPE_MISSING',
   'MANIFEST_BLOCK_SCRIPT_NOT_ALLOWED',
   'MANIFEST_BLOCK_HANDLE_INVALID',
   'MANIFEST_BLOCK_HANDLE_DUPLICATE',
   'MANIFEST_BLOCK_TEMPLATE_INVALID',
+  'MANIFEST_BLOCK_STYLESHEET_INVALID',
+  'MANIFEST_BLOCK_NAME_INVALID',
+  'MANIFEST_BLOCK_DATA_INVALID',
+  'MANIFEST_BLOCK_DATA_DUPLICATE',
+  'MANIFEST_BLOCK_DATA_NOT_DECLARED',
+  'MANIFEST_BLOCK_DATA_NOT_STOREFRONT',
+  'MANIFEST_BLOCK_DATA_TARGET_MISMATCH',
+  'MANIFEST_BLOCK_SETTING_KEY_INVALID',
+  'MANIFEST_BLOCK_SETTING_KEY_DUPLICATE',
+  'MANIFEST_BLOCK_SETTING_LABEL_INVALID',
+  'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE',
+  'MANIFEST_BLOCK_SETTING_OPTION_INVALID',
+  'MANIFEST_BLOCK_SETTING_OPTION_DUPLICATE',
+  'MANIFEST_BLOCK_SETTING_RANGE_INVALID',
+  'MANIFEST_BLOCK_SETTING_DEFAULT_INVALID',
+  'MANIFEST_PROXY_NOT_AVAILABLE',
+  'MANIFEST_PROXY_SCOPE_MISSING',
+  'MANIFEST_ACTION_HANDLE_INVALID',
+  'MANIFEST_ACTION_HANDLE_DUPLICATE',
+  'MANIFEST_ACTION_LABEL_INVALID',
+  'MANIFEST_ACTION_SCOPE_MISSING',
 ] as const;
 
 export type ManifestErrorCode = (typeof MANIFEST_ERROR_CODES)[number];

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- the corpus is loose JSON on purpose: most of it is invalid */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call -- the corpus is loose JSON on purpose: most of it is invalid */
 import type { ManifestVocabulary } from './manifest-types.js';
 
 /**
@@ -46,6 +46,8 @@ function decode(value) {
     case 'symbol': return Symbol('x');
     case 'function': return () => 1;
     case 'bigint': return BigInt(1);
+    case 'infinity': return Infinity;
+    case 'nan': return NaN;
     case 'null-prototype': return copy(Object.create(null), value.value);
     case 'cycle': { const doc = decode(value.value); doc.data.self = doc; return doc; }
     case 'deep': {
@@ -80,8 +82,11 @@ function evaluate(api, input) {
     if (!result.ok) return { result };
     const manifest = result.manifest;
     const again = api.validate(JSON.parse(JSON.stringify(manifest)), item.vocabulary);
-    const uris = manifest.admin ? [manifest.admin.page] : [];
+    const uris = [];
+    if (manifest.admin && manifest.admin.page !== undefined) uris.push(manifest.admin.page);
+    for (const action of (manifest.admin && manifest.admin.actions) || []) uris.push(action.path);
     for (const hook of manifest.webhooks) uris.push(hook.uri);
+    if (manifest.app_proxy) uris.push(manifest.app_proxy.path);
     return {
       result,
       stable: JSON.stringify(again) === JSON.stringify(result),
@@ -307,6 +312,41 @@ const VALUES: readonly string[] = [
     '../secrets.liquid',
     '/abs/star.liquid',
     `blocks/${'a'.repeat(200)}.liquid`,
+    // marketplace fields: stylesheets, block data, targets, settings, actions
+    'blocks/star-rating.css',
+    'blocks/star.scss',
+    'product.rating',
+    'store.theme',
+    'business.plan',
+    'order.notes',
+    'customer.vip',
+    'product.Rating',
+    'any',
+    'boolean',
+    'select',
+    'integer',
+    'color',
+    'url',
+    'image',
+    'show_count',
+    'Show Count',
+    'grid',
+    'list',
+    'Big Cards',
+    'order.details',
+    'orders.selection',
+    'customer.details',
+    'products.selection',
+    '/actions/print',
+    '/proxy',
+    '/.tassyir/proxy',
+    '#1a7f5a',
+    '#ABCDEF',
+    '#12345',
+    'red',
+    '/collections/new',
+    'https://example.com/help?topic=reviews#top',
+    'a\u0007b',
   ]),
 ];
 
@@ -315,7 +355,13 @@ const ODD_VALUES: readonly unknown[] = [
   null,
   0,
   1.5,
+  5,
+  -1,
+  1001,
+  tag('infinity'),
   true,
+  false,
+  { ar: 'نص', en: 'Text' },
   [],
   {},
   ['x'],
@@ -425,6 +471,26 @@ const HOSTED_LEAVES: readonly (readonly Segment[])[] = [
   ['data', 'definitions', 0, 'visibility'],
   ['storefront', 'blocks', 0, 'handle'],
   ['storefront', 'blocks', 0, 'template'],
+  ['data', 'definitions', 0, 'label', 'ar'],
+  ['storefront', 'blocks', 0, 'stylesheet'],
+  ['storefront', 'blocks', 0, 'name', 'en'],
+  ['storefront', 'blocks', 0, 'target'],
+  ['storefront', 'blocks', 0, 'data', 0],
+  ['storefront', 'blocks', 0, 'settings', 0, 'key'],
+  ['storefront', 'blocks', 0, 'settings', 0, 'type'],
+  ['storefront', 'blocks', 0, 'settings', 0, 'label', 'ar'],
+  ['storefront', 'blocks', 0, 'settings', 0, 'default'],
+  ['storefront', 'blocks', 0, 'settings', 1, 'default'],
+  ['storefront', 'blocks', 0, 'settings', 1, 'options', 0, 'value'],
+  ['storefront', 'blocks', 0, 'settings', 2, 'default'],
+  ['storefront', 'blocks', 0, 'settings', 2, 'min'],
+  ['storefront', 'blocks', 0, 'settings', 3, 'default'],
+  ['storefront', 'blocks', 0, 'settings', 3, 'max_length'],
+  ['admin', 'actions', 0, 'handle'],
+  ['admin', 'actions', 0, 'target'],
+  ['admin', 'actions', 0, 'label', 'en'],
+  ['admin', 'actions', 0, 'path'],
+  ['app_proxy', 'path'],
 ];
 const EXTERNAL_LEAVES: readonly (readonly Segment[])[] = [
   ['name'],
@@ -438,6 +504,8 @@ const EXTERNAL_LEAVES: readonly (readonly Segment[])[] = [
   ['webhooks', 0, 'uri'],
   ['webhooks', 1, 'uri'],
   ['webhooks', 1, 'topics', 0],
+  ['admin', 'actions', 0, 'path'],
+  ['app_proxy', 'path'],
 ];
 
 /** Keys to add next to existing ones: unknown, near, prototype, quoted. */
@@ -456,6 +524,11 @@ export interface CorpusBases {
   hosted: () => Doc;
   external: () => Doc;
   bare: () => Doc;
+  /**
+   * A hosted manifest with every marketplace field, valid for the
+   * vocabulary when it offers them: its fields are mutated like the others.
+   */
+  marketplace?: () => Doc;
   vocabulary: ManifestVocabulary;
 }
 
@@ -474,6 +547,9 @@ function casesFor(kind: CorpusVocabulary, bases: CorpusBases): CorpusCase[] {
     ['hosted', bases.hosted],
     ['external', bases.external],
     ['bare', bases.bare],
+    ...(bases.marketplace
+      ? [['marketplace', bases.marketplace] as [string, () => Doc]]
+      : []),
   ];
 
   // Valid documents, and their key order reversed (deep).
@@ -498,7 +574,7 @@ function casesFor(kind: CorpusVocabulary, bases: CorpusBases): CorpusCase[] {
 
   // Every leaf, every value.
   for (const [label, make, leaves] of [
-    ['hosted', bases.hosted, HOSTED_LEAVES],
+    ['hosted', bases.marketplace ?? bases.hosted, HOSTED_LEAVES],
     ['external', bases.external, EXTERNAL_LEAVES],
   ] as const) {
     for (const path of leaves) {
@@ -633,6 +709,196 @@ function casesFor(kind: CorpusVocabulary, bases: CorpusBases): CorpusCase[] {
     };
     add(`${n} storefront blocks`, doc);
   }
+  const market = bases.marketplace ?? bases.hosted;
+  const label = (en: string) => ({ ar: 'خيار', en });
+  for (const n of [19, 20, 21]) {
+    const doc = market();
+    doc.storefront = {
+      blocks: [
+        {
+          handle: 'many',
+          template: 'blocks/many.liquid',
+          data: Array.from({ length: n }, (_, i) => `store.k${i}`),
+          settings: Array.from({ length: n }, (_, i) => ({
+            key: `s${i}`,
+            type: 'boolean',
+            label: label(`Option ${i}`),
+          })),
+        },
+      ],
+    };
+    add(`a block with ${n} data keys and settings`, doc);
+  }
+  for (const n of [0, 1, 2, 20, 21]) {
+    const doc = market();
+    doc.storefront = {
+      blocks: [
+        {
+          handle: 'choices',
+          template: 'blocks/choices.liquid',
+          settings: [
+            {
+              key: 'pick',
+              type: 'select',
+              label: label('Pick'),
+              options: Array.from({ length: n }, (_, i) => ({
+                value: `v${i}`,
+                label: label(`Value ${i}`),
+              })),
+            },
+          ],
+        },
+      ],
+    };
+    add(`a select with ${n} options`, doc);
+  }
+  for (const n of [10, 11]) {
+    const doc = market();
+    doc.admin = {
+      actions: Array.from({ length: n }, (_, i) => ({
+        handle: `action-${i}`,
+        target: 'orders.selection',
+        label: label(`Action ${i}`),
+        path: `/actions/${i}`,
+      })),
+    };
+    add(`${n} admin actions`, doc);
+  }
+  if (bases.marketplace) {
+    const doc = bases.marketplace();
+    const block = doc.storefront.blocks[0];
+    block.data = ['product.rating', 'product.rating'];
+    block.settings.push({ ...block.settings[0] });
+    block.settings[1].options.push({ ...block.settings[1].options[0] });
+    doc.admin.actions.push({ ...doc.admin.actions[0] });
+    add('marketplace duplicates everywhere', doc);
+  }
+  if (bases.marketplace) {
+    // Every setting type with every field and a default of every kind.
+    const types = [
+      'string',
+      'text',
+      'boolean',
+      'integer',
+      'number',
+      'select',
+      'color',
+      'image',
+      'url',
+      'product',
+      'collection',
+    ];
+    const defaults: unknown[] = [
+      'x',
+      'line\nline',
+      true,
+      3,
+      2.5,
+      'v0',
+      '#1a7f5a',
+      '/collections/new',
+      { ar: 'نص', en: 'Text' },
+    ];
+    for (const type of types) {
+      for (const value of defaults) {
+        const doc = market();
+        doc.storefront.blocks[0].settings = [
+          {
+            key: 'one',
+            type,
+            label: label('One'),
+            default: value,
+            ...(type === 'select'
+              ? {
+                  options: [
+                    { value: 'v0', label: label('Zero') },
+                    { value: 'v1', label: label('One') },
+                  ],
+                }
+              : {}),
+          },
+        ];
+        add(`setting ${type} default ${JSON.stringify(value)}`, doc);
+      }
+      for (const field of ['options', 'min', 'max', 'max_length']) {
+        const doc = market();
+        doc.storefront.blocks[0].settings = [
+          {
+            key: 'one',
+            type,
+            label: label('One'),
+            [field]:
+              field === 'options'
+                ? [
+                    { value: 'a', label: label('A') },
+                    { value: 'a', label: label('B') },
+                  ]
+                : 4,
+          },
+        ];
+        add(`setting ${type} with ${field}`, doc);
+      }
+    }
+    for (const [min, max] of [
+      [1, 10],
+      [10, 1],
+      [1.5, 3],
+      [0, 0],
+    ]) {
+      for (const type of ['integer', 'number']) {
+        const doc = market();
+        doc.storefront.blocks[0].settings = [
+          { key: 'n', type, label: label('N'), min, max, default: 5 },
+        ];
+        add(`setting ${type} min ${String(min)} max ${String(max)}`, doc);
+      }
+    }
+    for (const target of [
+      'order.details',
+      'orders.selection',
+      'product.details',
+      'products.selection',
+      'customer.details',
+    ]) {
+      for (const scope of bases.vocabulary.scopes.map((s) => s.name)) {
+        const doc = market();
+        doc.access = {
+          scopes: [scope],
+          scope_reasons: reasonsFor([scope]),
+        };
+        doc.webhooks = [];
+        delete doc.storefront;
+        delete doc.app_proxy;
+        doc.admin.actions[0].target = target;
+        add(`action ${target} with ${scope}`, doc);
+      }
+    }
+    for (const data of [
+      ['product.rating'],
+      ['store.theme'],
+      ['business.plan', 'product.rating', 'product.rating'],
+    ]) {
+      for (const target of [undefined, 'product', 'any']) {
+        for (const visibility of ['storefront', 'merchant', 'app', 'shop']) {
+          const doc = market();
+          doc.data.definitions.push({
+            owner: 'store',
+            key: 'theme',
+            type: 'json',
+            visibility,
+          });
+          const block = doc.storefront.blocks[0];
+          block.data = data;
+          if (target === undefined) delete block.target;
+          else block.target = target;
+          add(
+            `block data ${data.join('+')} target ${String(target)} store.theme ${visibility}`,
+            doc,
+          );
+        }
+      }
+    }
+  }
   {
     const doc = bases.hosted();
     doc.hosting.allowed_hosts = [
@@ -741,6 +1007,47 @@ function oddInputs(make: () => Doc): CorpusCase[] {
     ],
     ['odd definitions', { data: { definitions: [{}, null] } }],
     ['blocks as a string', { storefront: { blocks: 'x' } }],
+    [
+      'odd block fields',
+      {
+        storefront: {
+          blocks: [
+            {
+              handle: 'b-1',
+              template: 'b.liquid',
+              name: 'x',
+              data: 'product.rating',
+              settings: [null, 1, { label: [] }, { default: tag('map') }],
+            },
+          ],
+        },
+      },
+    ],
+    [
+      'odd actions and proxy',
+      { admin: { actions: { 0: {} } }, app_proxy: 'proxy' },
+    ],
+    [
+      'a default holding a cycle-free date',
+      {
+        storefront: {
+          blocks: [
+            {
+              handle: 'b-1',
+              template: 'b.liquid',
+              settings: [
+                {
+                  key: 'a',
+                  type: 'string',
+                  label: { ar: 'a', en: 'a' },
+                  default: tag('date'),
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
     [
       'odd hosts',
       { hosting: { mode: 'tassyir', allowed_hosts: [null, 1, {}] } },

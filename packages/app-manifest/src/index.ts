@@ -23,6 +23,10 @@ export type {
   ResolvedManifestUri,
 } from './manifest-helpers.js';
 export {
+  ADMIN_ACTION_TARGETS,
+  ADMIN_ACTION_TARGET_SCOPES,
+  BLOCK_DATA_OWNERS,
+  BLOCK_TARGETS,
   DATA_KEY_PATTERN,
   DATA_OWNERS,
   DATA_TYPES,
@@ -33,17 +37,26 @@ export {
   MANIFEST_LIMITS,
   RESERVED_DOMAINS,
   RESERVED_HANDLES,
+  SETTING_KEY_PATTERN,
+  SETTING_TYPES,
 } from './manifest-limits.js';
 export { MANIFEST_ERROR_CODES } from './manifest-types.js';
 export type {
   AppManifest,
+  ManifestAdminAction,
+  ManifestAdminActionTarget,
+  ManifestBlockTarget,
   ManifestDataDefinition,
   ManifestDataOwner,
   ManifestDataType,
   ManifestDataVisibility,
   ManifestError,
   ManifestErrorCode,
+  ManifestLabel,
   ManifestScopeTerm,
+  ManifestSetting,
+  ManifestSettingOption,
+  ManifestSettingType,
   ManifestStorefrontBlock,
   ManifestTopicTerm,
   ManifestValidationResult,

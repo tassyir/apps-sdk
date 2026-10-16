@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import {
+  ADMIN_ACTION_TARGETS,
   ALLOWED_HOST_PATTERN,
+  BLOCK_DATA_PATTERN,
+  BLOCK_TARGETS,
   DATA_KEY_PATTERN,
   DATA_OWNERS,
   DATA_TYPES,
@@ -12,6 +15,10 @@ import {
   MANIFEST_FILE_NAME,
   MANIFEST_LIMITS,
   RELATIVE_PATH_HINT,
+  SETTING_KEY_PATTERN,
+  SETTING_OPTION_VALUE_PATTERN,
+  SETTING_TYPES,
+  STYLESHEET_PATTERN,
   TEMPLATE_PATTERN,
   TEXT_PATTERN,
 } from './manifest-limits.js';
@@ -52,6 +59,76 @@ function httpsUrl() {
 
 function relativePath() {
   return z.string().max(L.pathMaxLength).regex(RELATIVE_PATH_HINT);
+}
+
+/** Text shown to merchants in both dashboard languages. */
+function label(description: string) {
+  return z
+    .strictObject({
+      ar: displayText(1, L.labelMaxLength),
+      en: displayText(1, L.labelMaxLength),
+    })
+    .describe(description);
+}
+
+function handle() {
+  return z
+    .string()
+    .min(L.handleMinLength)
+    .max(L.handleMaxLength)
+    .regex(HANDLE_PATTERN);
+}
+
+/**
+ * The merchant settings of a block (one schema for every kind of extension
+ * that takes settings): the field rules here, the rules across fields (which
+ * keys go with which type, `default` of the type) in the validator.
+ */
+function settings() {
+  return z
+    .array(
+      z.strictObject({
+        key: z
+          .string()
+          .max(L.settingKeyMaxLength)
+          .regex(SETTING_KEY_PATTERN)
+          .describe(
+            'Unique in the block; the template reads block.settings.<key>.',
+          ),
+        type: z.enum(SETTING_TYPES),
+        label: label('The field label the merchant reads in the builder.'),
+        default: z
+          .unknown()
+          .describe(
+            'Optional: a value of the type. string and text: a string or { ar, en }; select: an option value; color: "#rrggbb"; url: https or a path of the store. image, product and collection take none.',
+          )
+          .optional(),
+        options: z
+          .array(
+            z.strictObject({
+              value: z
+                .string()
+                .max(L.settingOptionValueMaxLength)
+                .regex(SETTING_OPTION_VALUE_PATTERN),
+              label: label('The choice as the merchant reads it.'),
+            }),
+          )
+          .min(L.settingOptionsMin)
+          .max(L.settingOptionsMax)
+          .describe('select only (required there): the choices.')
+          .optional(),
+        min: z.number().describe('integer and number only.').optional(),
+        max: z.number().describe('integer and number only.').optional(),
+        max_length: z
+          .int()
+          .min(1)
+          .max(L.settingTextMaxLength)
+          .describe('string and text only.')
+          .optional(),
+      }),
+    )
+    .max(L.blockSettingsMax)
+    .describe('What the merchant sets for the block in the store builder.');
 }
 
 /**
@@ -150,6 +227,26 @@ export function buildManifestSchema(
               "The embedded dashboard page: a path on the app's origin. Omit for a headless app.",
             )
             .optional(),
+          actions: z
+            .array(
+              z.strictObject({
+                handle: handle().describe('Unique among the actions.'),
+                target: z
+                  .enum(ADMIN_ACTION_TARGETS)
+                  .describe(
+                    'Where the menu entry appears. Needs the read scope of its resource.',
+                  ),
+                label: label('The menu entry as the merchant reads it.'),
+                path: relativePath().describe(
+                  "The app's page the entry opens in the dashboard's app window, with ?id= or ?ids= added.",
+                ),
+              }),
+            )
+            .max(L.adminActionsMax)
+            .describe(
+              'Menu entries on the order, product and customer pages and lists.',
+            )
+            .optional(),
         })
         .optional(),
       webhooks: z
@@ -198,6 +295,9 @@ export function buildManifestSchema(
                   .describe(
                     '"app": the app only. "merchant": also shown in the dashboard. "storefront": also readable by the app\'s storefront blocks.',
                   ),
+                label: label(
+                  'Optional: the name the dashboard shows next to a merchant or storefront value.',
+                ).optional(),
               }),
             )
             .max(L.dataDefinitionsMax)
@@ -210,11 +310,7 @@ export function buildManifestSchema(
           blocks: z
             .array(
               z.strictObject({
-                handle: z
-                  .string()
-                  .min(L.handleMinLength)
-                  .max(L.handleMaxLength)
-                  .regex(HANDLE_PATTERN),
+                handle: handle(),
                 template: z
                   .string()
                   .max(L.templateMaxLength)
@@ -222,12 +318,48 @@ export function buildManifestSchema(
                   .describe(
                     'A .liquid file of the app bundle. Declarative only: no scripts.',
                   ),
+                stylesheet: z
+                  .string()
+                  .max(L.templateMaxLength)
+                  .regex(STYLESHEET_PATTERN)
+                  .describe('Optional: a .css file of the app bundle.')
+                  .optional(),
+                name: label(
+                  'The block as the merchant reads it in the store builder.',
+                ).optional(),
+                target: z
+                  .enum(BLOCK_TARGETS)
+                  .describe(
+                    '"product": the product page (the template reads `product`). "any" (the default): any page but the order form\'s.',
+                  )
+                  .optional(),
+                data: z
+                  .array(z.string().regex(BLOCK_DATA_PATTERN))
+                  .max(L.blockDataMax)
+                  .meta(UNIQUE)
+                  .describe(
+                    'App data the template reads: "<owner>.<key>" of a [[data.definitions]] entry with storefront visibility.',
+                  )
+                  .optional(),
+                settings: settings().optional(),
               }),
             )
             .max(L.storefrontBlocksMax)
-            .describe('Storefront blocks (Phase 2: refused until then).')
+            .describe(
+              'Declarative storefront blocks: they need the write_storefront scope.',
+            )
             .optional(),
         })
+        .optional(),
+      app_proxy: z
+        .strictObject({
+          path: relativePath().describe(
+            "Where Tassyir forwards https://{store}/apps/{handle}/…: a path on the app's origin.",
+          ),
+        })
+        .describe(
+          'The app proxy: needs the write_storefront scope. Answers are JSON, text, XML or images, never HTML.',
+        )
         .optional(),
     })
     .meta({

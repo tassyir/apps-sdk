@@ -7,9 +7,9 @@ import type { ManifestVocabulary } from './manifest-types.js';
  * It equals what the Tassyir API builds from its live catalogues
  * (tassyir/backend `appManifestVocabulary()`): the scope catalogue in
  * consent-screen order with its implications (plan §3.3), the scopes not
- * requestable yet, the scopes that need another, and the webhook topics in
+ * requestable yet, the scopes that need another, the webhook topics in
  * catalogue order with the scope that reads each topic's resource (plan
- * §3.7, `event-scopes.ts`). The API keeps passing its live vocabulary; this
+ * §3.7, `event-scopes.ts`), and whether the app proxy is open. The API keeps passing its live vocabulary; this
  * copy is for everyone without a backend. `backend-parity.test.ts` compares
  * the two against a backend checkout (`TASSYIR_BACKEND_DIR`), so change this
  * file only to match the backend.
@@ -53,13 +53,7 @@ export const MANIFEST_VOCABULARY: ManifestVocabulary =
       { name: 'read_finance', implies: [], available: true },
       { name: 'read_stores', implies: [], available: true },
       { name: 'read_delivery', implies: [], available: true },
-      {
-        name: 'write_storefront',
-        implies: [],
-        available: false,
-        unavailableReason:
-          'storefront blocks arrive in Phase 2, and until then the scope grants nothing',
-      },
+      { name: 'write_storefront', implies: [], available: true },
     ],
     topics: [
       { name: 'orders/created', scope: 'read_orders' },
@@ -84,4 +78,9 @@ export const MANIFEST_VOCABULARY: ManifestVocabulary =
       { name: 'bulk/finished', scope: null },
     ],
     storefrontBlocksScope: 'write_storefront',
+    appProxy: {
+      available: false,
+      unavailableReason:
+        'the app proxy is not open yet, and until then Tassyir forwards no store request to an app',
+    },
   });
