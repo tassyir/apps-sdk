@@ -610,7 +610,7 @@ export function checkBundleCode(
           request.node,
           'tassyir-host',
           'error',
-          `${request.call}() to ${target.host}: call Tassyir through env.TASSYIR`,
+          `${request.call}() to ${target.host}: call Tassyir through ctx.props.TASSYIR`,
         );
       } else if (!hostAllowed(target.host, allowedHosts)) {
         add(

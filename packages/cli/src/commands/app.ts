@@ -14,8 +14,9 @@ export const appInitCommand: Command = {
   usage: 'tassyir app init [folder] [options]',
   description: [
     'Writes a Tassyir app that runs on your own server: tassyir.app.toml, a Node server,',
-    'an embedded page, webhooks, specs, AGENTS.md and CLAUDE.md. Nothing is created on',
-    'Tassyir: run `tassyir app create` in the new folder next.',
+    'an embedded page, webhooks, specs, AGENTS.md and CLAUDE.md. With --template hosted, an',
+    'app on Tassyir Hosting instead: a Worker and a React page, no server to run. Nothing is',
+    'created on Tassyir: run `tassyir app create` in the new folder next.',
   ].join('\n'),
   positionals: { min: 0, max: 1, names: '[folder]' },
   options: {
@@ -73,15 +74,27 @@ export const appInitCommand: Command = {
     const cd = /^[\w./-]+$/.test(folder)
       ? folder
       : `'${folder.replaceAll("'", `'\\''`)}'`;
-    const next = [
-      `cd ${cd}`,
-      'npm install',
-      'npm run setup',
-      'tassyir app create',
-      'tassyir secrets create --write-env',
-      'tassyir deploy',
-      'tassyir dev',
-    ];
+    // A hosted project has no server, .env or secret: its checks, then the
+    // app on Tassyir, its first version and a dev store to install it on.
+    const next =
+      result.template === 'hosted'
+        ? [
+            `cd ${cd}`,
+            'npm install',
+            'npm run check',
+            'tassyir app create',
+            'npm run deploy',
+            'tassyir store create',
+          ]
+        : [
+            `cd ${cd}`,
+            'npm install',
+            'npm run setup',
+            'tassyir app create',
+            'tassyir secrets create --write-env',
+            'tassyir deploy',
+            'tassyir dev',
+          ];
     return {
       data: { ...result, next },
       text: lines(
@@ -182,14 +195,17 @@ export const appCreateCommand: Command = {
 
     const { api } = await context.api();
     const app = (await api.createApp(body)).data;
+    // A hosted app needs no client secret: it calls the Admin API through
+    // ctx.props.TASSYIR, with no token.
+    const next =
+      hostingMode === 'tassyir'
+        ? ['tassyir deploy', 'tassyir store create']
+        : [
+            `tassyir secrets create --app ${app.handle} --write-env`,
+            'tassyir deploy',
+          ];
     return {
-      data: {
-        app,
-        next: [
-          `tassyir secrets create --app ${app.handle} --write-env`,
-          'tassyir deploy',
-        ],
-      },
+      data: { app, next },
       text: lines(
         `✓ Created ${app.nameEn} on Tassyir.`,
         `  handle     ${app.handle} (permanent)`,
@@ -197,8 +213,10 @@ export const appCreateCommand: Command = {
         `  client id  ${app.clientId}`,
         '',
         'Next:',
-        `  tassyir secrets create --app ${app.handle} --write-env`,
-        '  tassyir deploy',
+        ...next.map((step) => `  ${step}`),
+        hostingMode === 'tassyir'
+          ? '  (in a project from the hosted starter, `npm run deploy` builds the page first)'
+          : null,
       ),
     };
   },

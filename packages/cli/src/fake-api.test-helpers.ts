@@ -579,7 +579,7 @@ export class FakeDeveloperApi {
     }
     if (route === 'GET /developer/apps') return json(200, { data: this.apps });
     if (route === 'POST /developer/apps') {
-      if (body['hostingMode'] === 'tassyir') {
+      if (body['hostingMode'] === 'tassyir' && this.hosting === 'off') {
         return this.#refuse(
           400,
           'APP_HOSTING_NOT_AVAILABLE',

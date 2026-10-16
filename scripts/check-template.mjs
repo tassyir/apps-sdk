@@ -11,8 +11,8 @@
 //      dependency pulls in) and everything else from npm;
 //   4. runs the project's validate, typecheck, test and build scripts (the
 //      hosted template: validate, typecheck, test in workerd, and
-//      deploy:check, the build and checks `tassyir deploy` runs before it
-//      uploads);
+//      `tassyir deploy --dry-run`, the checks `tassyir deploy` runs before
+//      it uploads, as its deploy:check does);
 //   5. starts the external project's server with throwaway settings and
 //      calls it.
 // Needs the network (npm) and `npm run build` first. Usage:
@@ -224,21 +224,28 @@ async function checkTemplate(template, folder, files, bin, tarballs, versions) {
   if (template === 'hosted') {
     // 5. What `tassyir deploy` checks before it uploads: the Worker bundled
     // as Tassyir Hosting runs it, the API's bundle rules, the scan's code
-    // checks. Nothing is uploaded.
+    // checks (deploy:check after its build, which ran above). The project's
+    // own CLI, from this repo's tarball; no sign-in, nothing uploaded.
+    const dryRun = run(
+      join(project, 'node_modules', '.bin', 'tassyir'),
+      ['deploy', '--dry-run', '--json'],
+      { cwd: project, allowFailure: true },
+    );
     /** @type {unknown} */
     const deployJson = JSON.parse(
-      run('node', ['scripts/deploy-check.ts', '--json'], { cwd: project })
-        .stdout,
+      dryRun.stdout.trim().split('\n').at(-1) ?? '{}',
     );
     const deploy =
-      /** @type {{ ok: boolean, bytes?: number, errors?: unknown[] }} */ (
+      /** @type {{ ok: boolean, dryRun?: boolean, bytes?: number, error?: unknown }} */ (
         deployJson
       );
-    if (!deploy.ok) {
-      throw new Error(`npm run deploy:check: ${JSON.stringify(deploy.errors)}`);
+    if (dryRun.status !== 0 || !deploy.ok || deploy.dryRun !== true) {
+      throw new Error(
+        `tassyir deploy --dry-run exited with ${String(dryRun.status)}: ${JSON.stringify(deploy.error ?? deploy)}`,
+      );
     }
     step(
-      `npm run deploy:check: worker.js (${String(Math.round((deploy.bytes ?? 0) / 1024))} KB) passes the API's bundle rules and the scan's code checks`,
+      `tassyir deploy --dry-run: worker.js (${String(Math.round((deploy.bytes ?? 0) / 1024))} KB) passes the API's bundle rules and the scan's code checks`,
     );
     return;
   }

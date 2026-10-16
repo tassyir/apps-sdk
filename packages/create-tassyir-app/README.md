@@ -77,13 +77,13 @@ src/storage.ts          ctx.props.STORAGE: the installation's own SQLite databas
 src/webhooks.ts         verifyHostedWebhook: the signature (keys through TASSYIR), this installation
 src/page/               a React page on @tassyir/app-bridge/react and @tassyir/ui (ar/en, rtl, dark)
 test/worker/            specs in workerd (Cloudflare's Vitest integration) with stand-in ctx.props
-scripts/deploy-check.ts what `tassyir deploy` checks before it uploads, nothing uploaded
 AGENTS.md, CLAUDE.md, .claude/skills/tassyir-app/SKILL.md
 ```
 
 It holds no secret and no `.env`: a hosted app reads its installation, who
 is looking, its storage and the Admin API from `ctx.props`, per request.
-`npm run check` validates, typechecks, runs the specs and `deploy:check`;
+`npm run check` validates, typechecks, runs the specs and `deploy:check`
+(`tassyir deploy --dry-run`: the bundle built and checked, nothing uploaded);
 `npm run deploy` is `tassyir deploy`.
 
 The generated `package.json` names the versions of this repo's packages

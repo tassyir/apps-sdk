@@ -12,7 +12,7 @@
     "validate": "node scripts/validate.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json && tsc -p src/page/tsconfig.json",
     "test": "vitest run",
-    "deploy:check": "npm run build && node scripts/deploy-check.ts",
+    "deploy:check": "npm run build && tassyir deploy --dry-run",
     "deploy": "npm run build && tassyir deploy",
     "check": "npm run validate && npm run typecheck && npm test && npm run deploy:check"
   },

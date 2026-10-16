@@ -1,6 +1,6 @@
 ---
 title: Tassyir Hosting
-description: Run your app on Tassyir with no server of your own, deploy it with tassyir deploy, read the scan's findings, and use what each request receives.
+description: Run your app on Tassyir with no server of your own, from the hosted template to tassyir deploy, the scan's findings and what each request receives.
 order: 155
 ---
 
@@ -16,6 +16,33 @@ two from one version to the next.
 version with `APP_HOSTING_NOT_AVAILABLE` and `tassyir deploy` says so; run
 your app on your own server meanwhile (`hosting.mode = "external"`). This
 guide is the contract hosting opens with, so you can build for it now.
+
+## Start from the template
+
+The `hosted` template of `create-tassyir-app` starts a project that deploys
+as it is:
+
+```bash
+npm create tassyir-app@latest -- --template hosted
+```
+
+(`tassyir app init --template hosted` writes the same project.) It holds a
+Worker (Hono) that reads everything from `ctx.props`, a React page on
+`@tassyir/app-bridge/react` and `@tassyir/ui`, webhooks checked with
+`verifyHostedWebhook`, an example of `STORAGE` and of an Admin API read, and
+specs that run the Worker in workerd with stand-in `ctx.props`. It holds no
+secret and no `.env`. In the new folder:
+
+| Command                | What it does                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `npm run check`        | Validates the manifest, typechecks, runs the specs, then `deploy:check`                                          |
+| `npm run deploy:check` | Builds the page, then `tassyir deploy --dry-run`: the bundle built and checked, with no sign-in and nothing sent |
+| `npm run deploy`       | Builds the page, then `tassyir deploy`                                                                           |
+
+Then sign in (`npx tassyir login`: the CLI is a dev dependency of the
+project), create the app once (`npx tassyir app create`: its handle is
+permanent), deploy it (`npm run deploy`), and make a
+[dev store](dev-stores.md) to install it on (`npx tassyir store create`).
 
 ## What a hosted app is
 
@@ -67,48 +94,29 @@ uri    = "/webhooks"
 
 The code is one ES module whose default export has a `fetch` handler, the
 Workers way. Everything about the installation arrives in `ctx.props`, per
-request; `env` is empty:
+request; `env` is empty. `readHostedProps(ctx)` from `@tassyir/app` returns
+it typed (`HostedProps`) after checking its shape, and throws
+`HOSTED_PROPS_MISSING` (a `TassyirError` with a `fix`) anywhere else: code
+run outside Tassyir Hosting, or a test that forgot its stand-in props.
 
 ```ts
-interface HostedProps {
-  installation: {
-    id: string;
-    businessId: string;
-    appId: string;
-    handle: string;
-    version: number;
-    scopes: string[];
-    storeAccess: 'all' | 'selected';
-    storeIds: string[];
-    devStore: boolean;
-  };
-  /** The dashboard member looking at your page; null for a webhook. */
-  viewer: { userId: string; sessionId: string } | null;
-  STORAGE: {
-    sql(
-      query: string,
-      ...bindings: unknown[]
-    ): Promise<{ rows: Record<string, unknown>[] }>;
-  };
-  TASSYIR: { fetch(url: string, init?: RequestInit): Promise<Response> };
-}
+import { hostedAdmin, readHostedProps } from '@tassyir/app';
 
 export default {
   async fetch(
     request: Request,
     env: unknown,
-    ctx: { props: HostedProps },
+    ctx: { props?: unknown },
   ): Promise<Response> {
-    const { installation, TASSYIR } = ctx.props;
+    const props = readHostedProps(ctx);
     if (new URL(request.url).pathname !== '/') {
       return new Response('Not found', { status: 404 });
     }
-    const res = await TASSYIR.fetch(
-      'https://api.tassyir.io/apps/2026-10/orders?limit=5',
-    );
-    const page = (await res.json()) as { data: { id: string }[] };
+    const { data: orders } = await hostedAdmin(props).get('/orders', {
+      query: { limit: 5 },
+    });
     return new Response(
-      `${installation.handle}: ${String(page.data.length)} recent orders`,
+      `${props.installation.handle}: ${String(orders.length)} recent orders`,
     );
   },
 };
@@ -140,6 +148,29 @@ able to set a cookie for the whole `tassyir-apps.com` domain.
 call to `STORAGE` or `TASSYIR`). Past either, the request fails, and the
 merchant's frame shows an error.
 
+**In tests**, pass stand-in props of the same shape: the template's specs run
+the Worker in workerd with a real SQLite database as `STORAGE` and a fake
+Admin API as `TASSYIR`.
+
+## The page
+
+`admin.page` is a path your Worker serves like any other, inside the
+dashboard's frame, and the page is an [embedded page](embedded-pages.md) like
+an external app's: App Bridge drives the title bar, the save bar, toasts,
+modals and pickers. In React, use the entry point
+[`@tassyir/app-bridge/react`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge#react):
+`AppBridgeProvider` holds the page's bridge, and the hooks call it from your
+components (`useBridgeContext`, `useTitleBar`, `useSaveBar`, `useToast`,
+`useModal`, `useResourcePicker`, `useNavigate`).
+
+The page needs no token and no ID token: it calls its own Worker on the same
+origin, and the Worker knows who is looking from `ctx.props.viewer` and calls
+the Admin API with `hostedAdmin`. Refuse a page's API request whose `viewer`
+is `null`: only a webhook delivery runs without one. The template's page
+works this way: it lists the pending orders its Worker reads with
+`hostedAdmin`, and edits settings its Worker keeps in `STORAGE`, with the
+save bar.
+
 ## Deploy with the CLI
 
 [`tassyir deploy`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli#tassyir-hosting)
@@ -164,11 +195,22 @@ tassyir deploy
 4. **Follow the scan** until the version is released or refused, then exit
    by the verdict.
 
-The `hosted` template of `create-tassyir-app` (Hono and React) starts a
-project that deploys as it is. With `--json`, `deploy` prints one line when
-the version is uploaded (its number, and the command to follow it) and one
-with the verdict, so a tool whose own call times out still knows which
-version to check:
+To run steps 1 and 2 only, before you sign in or while you change the code:
+
+```bash
+tassyir deploy --dry-run
+```
+
+It builds and checks exactly as `deploy` does, signs in to nothing and sends
+nothing: exit 0 when `deploy` would upload the bundle, 4 when it would refuse
+it (`BUNDLE_INVALID` or `BUNDLE_BUILD_FAILED`, each problem at its place in
+your source). With `--json` it prints one document with `"dryRun": true`,
+the `entry`, `main`, `bytes`, `lockfile` and `warnings`. The template's
+`npm run deploy:check` is the page's build, then this.
+
+With `--json`, `deploy` prints one line when the version is uploaded (its
+number, and the command to follow it) and one with the verdict, so a tool
+whose own call times out still knows which version to check:
 
 ```bash
 tassyir app version 3 --follow --app review-requests
@@ -249,36 +291,50 @@ a host or a path built at run time is left to the limits at run time
 
 ## Call the Admin API
 
-`ctx.props.TASSYIR.fetch` calls the Admin API as the installation, with no
-token: the same routes, scopes, store access and answers as an access token
-of the installation, from the [Admin API](admin-api.md) and its reference.
+`ctx.props.TASSYIR` calls the Admin API as the installation, with no token:
+the same routes, scopes, store access and answers as an access token of the
+installation, from the [Admin API](admin-api.md) and its reference.
+`hostedAdmin(props, { retries, timeoutMs, onResponse })` from `@tassyir/app`
+is the typed client over it: the same `AdminClient` an app on your server
+uses, its requests sent through `ctx.props.TASSYIR.fetch` with no
+`Authorization` header, and no token to hold or refresh.
 
 ```ts
-async function confirm(
-  TASSYIR: { fetch(url: string, init?: RequestInit): Promise<Response> },
+import {
+  HOSTED_BINDING_ERRORS,
+  hostedAdmin,
+  isTassyirError,
+} from '@tassyir/app';
+import type { HostedProps } from '@tassyir/app';
+
+export async function confirm(
+  props: HostedProps,
   orderId: string,
 ): Promise<void> {
-  const res = await TASSYIR.fetch(
-    `https://api.tassyir.io/apps/2026-10/orders/${orderId}/confirm`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'idempotency-key': `confirm-${orderId}`,
-      },
-      body: JSON.stringify({}),
-    },
-  );
-  if (!res.ok) {
-    const problem = (await res.json()) as { code: string; fix?: string };
-    throw new Error(`${problem.code}: ${problem.fix ?? ''}`);
+  const client = hostedAdmin(props, { retries: 2, timeoutMs: 10_000 });
+  try {
+    await client.post('/orders/{id}/confirm', {
+      path: { id: orderId },
+      idempotencyKey: `confirm-${orderId}`,
+    });
+  } catch (error) {
+    // The binding's own refusals never reached the API: no requestId.
+    if (isTassyirError(error) && error.code in HOSTED_BINDING_ERRORS) {
+      console.warn(`TASSYIR refused the call: ${error.code}`);
+    }
+    throw error;
   }
 }
 ```
 
+Each call is one of the request's 50 subrequests, and so is each retry. What
+the binding sends:
+
 - **Only Admin API paths:** `/apps/<version>/` and segments of letters,
   digits, `_` and `-`; no other path, no `//`, trailing `/`, `%` or `;`. The
-  URL's host does not matter: the call always goes to Tassyir's API.
+  URL's host does not matter: the call always goes to Tassyir's API. The one
+  exception is a `GET` of Tassyir's two public key documents
+  ([below](#webhooks)).
 - **Only GET, POST, PUT, PATCH and DELETE, and only a JSON body** of at most
   100 KB. It is re-serialised before it is sent, so **send ids as strings**: a
   number past 2^53 would be rounded (the Admin API's ids always are strings).
@@ -292,19 +348,22 @@ async function confirm(
   app. Rate limits are the installation's, as for any app.
 
 Some refusals come from the binding itself, before the call reaches the API,
-in the same problem shape without a `requestId`:
+in the same problem shape without a `requestId` (`HOSTED_BINDING_ERRORS`
+lists them with their status and meaning, and `hostedAdmin` throws them as
+`TassyirApiError`s, like the API's):
 [`HOSTED_PATH_NOT_ALLOWED`](errors.md#hosted_path_not_allowed),
 [`RESPONSE_TOO_LARGE`](errors.md#response_too_large),
 [`TASSYIR_BINDING_NOT_AVAILABLE`](errors.md#tassyir_binding_not_available),
 and `METHOD_NOT_ALLOWED`, `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`,
 `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `SERVICE_UNAVAILABLE` (the API
-did not answer in 30 seconds). The API answers `HOSTED_CALL_REFUSED` (401)
-when the installation can no longer call it: uninstalled, suspended, or no
-longer on a released version.
+did not answer in 30 seconds). `hostedAdmin` never retries
+`RESPONSE_TOO_LARGE` or `TASSYIR_BINDING_NOT_AVAILABLE`. The API answers
+`HOSTED_CALL_REFUSED` (401) when the installation can no longer call it:
+uninstalled, suspended, or no longer on a released version.
 
-`@tassyir/app`'s typed Admin API client can send its requests through the
-binding too: its `fetch` is `ctx.props.TASSYIR.fetch`, and it needs no
-access token.
+`ctx.props.TASSYIR.fetch` can also be called as it is, with the Admin API's
+full URLs (`https://api.tassyir.io/apps/2026-10/orders`); the rules above are
+the same.
 
 ## Storage
 
@@ -317,21 +376,24 @@ Each installation has its own SQLite database, `ctx.props.STORAGE`:
 | `usage()`                          | `{ bytes, limitBytes }`                                      |
 
 ```ts
-async function remember(
-  STORAGE: {
-    sql(query: string, ...bindings: unknown[]): Promise<unknown>;
-  },
+import type { HostedStorage } from '@tassyir/app';
+
+export async function remember(
+  STORAGE: HostedStorage,
   orderId: string,
   stars: number,
 ): Promise<void> {
-  await STORAGE.sql(
-    'CREATE TABLE IF NOT EXISTS reviews (order_id TEXT PRIMARY KEY, stars INTEGER)',
-  );
-  await STORAGE.sql(
-    'INSERT OR REPLACE INTO reviews (order_id, stars) VALUES (?, ?)',
-    orderId,
-    stars,
-  );
+  // One call: one transaction and one subrequest, the schema included.
+  await STORAGE.batch([
+    {
+      query:
+        'CREATE TABLE IF NOT EXISTS reviews (order_id TEXT PRIMARY KEY, stars INTEGER)',
+    },
+    {
+      query: 'INSERT OR REPLACE INTO reviews (order_id, stars) VALUES (?, ?)',
+      bindings: [orderId, stars],
+    },
+  ]);
 }
 ```
 
@@ -358,7 +420,7 @@ on port 443, with no user or password in the URL. Everything else is refused
 with a `403` whose `tassyir-egress-refused` header says why (`not_allowed`,
 `tassyir_host`, `not_https`, `port`, `credentials_in_url`, `ip_literal`,
 `private_name`); the request is never sent. Tassyir's own domains are always
-refused: call Tassyir through `TASSYIR`. A redirect is not followed: your code
+refused: call Tassyir through `ctx.props.TASSYIR`. A redirect is not followed: your code
 gets the `3xx`, and following it is a new request, checked again. Sockets are
 not available.
 
@@ -375,48 +437,93 @@ Answer within 10 seconds; only your status and `Retry-After` are read. An
 exception, or a request past its limits, counts as a failed attempt and is
 retried.
 
-Verify each delivery with `verifyWebhook`. Your code cannot fetch the key
-document (`GET https://api.tassyir.io/apps/webhook-keys`: Tassyir's hosts are
-refused, and `TASSYIR` calls only Admin API paths), so give it the keys that
-document lists:
+Verify each delivery with `verifyHostedWebhook(request, ctx.props)` from
+`@tassyir/app`:
 
 ```ts
-import { WebhookKeys, verifyWebhook } from '@tassyir/app';
+import {
+  isTassyirError,
+  TassyirVerificationError,
+  verifyHostedWebhook,
+} from '@tassyir/app';
+import type { HostedProps } from '@tassyir/app';
 
-// The whpk_… keys of GET https://api.tassyir.io/apps/webhook-keys.
-const keys = WebhookKeys.fromPublicKeys([
-  'whpk_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-]);
-
-async function onWebhook(
+export async function onWebhook(
   request: Request,
-  installation: { id: string; appId: string },
+  props: HostedProps,
 ): Promise<Response> {
-  const body = await request.text();
-  const delivery = await verifyWebhook(
-    { headers: request.headers, body },
-    { keys, appId: installation.appId, installationId: installation.id },
-  );
-  console.log(delivery.event.type);
-  return new Response(null, { status: 200 });
+  try {
+    const delivery = await verifyHostedWebhook(request, props);
+    // At least once: deduplicate on delivery.id, or keep handlers idempotent.
+    console.info(delivery.event.type);
+    return new Response(null, { status: 200 });
+  } catch (error) {
+    if (
+      isTassyirError(error, 'KEYS_UNAVAILABLE') ||
+      isTassyirError(error, 'KEYS_NOT_CONFIGURED')
+    ) {
+      // Never process a delivery unverified: Tassyir delivers it again.
+      return new Response(null, { status: 503 });
+    }
+    if (error instanceof TassyirVerificationError) {
+      return new Response(null, { status: 400 });
+    }
+    throw error;
+  }
 }
 ```
+
+It is `verifyWebhook`, every rule of it ([Webhooks](webhooks.md#verify-every-delivery)),
+with your app, the installation and its business taken from `ctx.props`:
+
+- **The signature is always verified**, by default with Tassyir's published
+  keys read through the binding: `hostedWebhookKeys(props)`, a key source
+  whose `fetch` is `ctx.props.TASSYIR.fetch`, reading
+  `GET https://api.tassyir.io/apps/webhook-keys`. Make it per request, from
+  that request's `ctx.props` (`verifyHostedWebhook` does): the binding
+  belongs to its request, and a key source kept in a module variable would
+  fetch through a dead one. Each delivery reads the document as Tassyir
+  publishes it (one subrequest), so a key rotation needs no new version of
+  your app.
+- **It never skips the signature.** When the keys cannot be read it throws
+  `KEYS_UNAVAILABLE` or `KEYS_NOT_CONFIGURED` (a `TassyirError`): answer 503,
+  and Tassyir delivers the event again later.
+- **A request with a viewer is refused** with `WEBHOOK_NOT_A_DELIVERY`: it
+  came from a page of your app, not from Tassyir. Answer 400.
+- **Never pin Tassyir's keys in your bundle.** Keys rotate, and a pinned key
+  would stop verifying deliveries for every installation still on that
+  version until its merchant accepts an update. The `keys` option is for
+  tests: pass `WebhookKeys.fromPublicKeys([...])` with your own test keys.
+
+The binding reads two public documents, and only with `GET`, at exactly these
+paths (no query, no trailing `/`): `/apps/webhook-keys` (the webhook keys)
+and `/apps/.well-known/jwks.json` (the ID token keys). Another method is
+`METHOD_NOT_ALLOWED` (405, `Allow: GET`). They are the documents the API
+publishes, read with no credential and served from a copy Tassyir Hosting
+keeps for every app: read again after 5 minutes, and never served past the
+API's own `max-age`, which the answer's `Cache-Control` carries.
 
 **`app/uninstalled` and `business/redact` reach an uninstalled
 installation too**, as they reach an app on your server. During those two
 deliveries `TASSYIR` answers `HOSTED_CALL_REFUSED` (the installation is no
-longer active). `STORAGE` still holds everything for `app/uninstalled` (it is
-deleted 48 hours later) and nothing for `business/redact`. Clean up what you
-keep elsewhere, through `fetch()` to your `allowed_hosts`.
+longer active) to Admin API calls; the key documents still read, so the
+deliveries verify as usual. `STORAGE` still holds everything for
+`app/uninstalled` (it is deleted 48 hours later) and nothing for
+`business/redact`. Clean up what you keep elsewhere, through `fetch()` to
+your `allowed_hosts`.
 
 ## Checklist
 
 - Every host the code calls is in `allowed_hosts`; nothing calls Tassyir but
   `ctx.props.TASSYIR`.
+- `ctx.props` read with `readHostedProps`, the Admin API called with
+  `hostedAdmin`.
+- Every delivery verified with `verifyHostedWebhook`, keys never pinned; 503
+  on `KEYS_UNAVAILABLE` and `KEYS_NOT_CONFIGURED`.
 - No `node:` import, and the entry exports a `fetch` handler.
 - No page, webhook or link under `/.tassyir/`.
 - No merchant data in module-level variables.
 - Nothing changes on a `GET`.
 - Ids are strings in every body.
-- `tassyir deploy` passes its checks before it uploads; the scan's findings
+- `tassyir deploy --dry-run` passes before you deploy; the scan's findings
   are fixed, not silenced.

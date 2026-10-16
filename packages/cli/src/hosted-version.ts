@@ -275,7 +275,7 @@ const CHECK_FIXES: Readonly<Record<string, string>> = {
   manifest_scopes:
     'Request the scope the call needs in access.scopes (or optional_scopes) of tassyir.app.toml, or remove the call.',
   manifest_hosts:
-    'Add the host to hosting.allowed_hosts, call Tassyir through env.TASSYIR, and use https.',
+    'Add the host to hosting.allowed_hosts, call Tassyir through ctx.props.TASSYIR, and use https.',
   semgrep: 'Change the code the rule names.',
   gitleaks:
     'Remove the secret from the code, and revoke it where it was issued.',

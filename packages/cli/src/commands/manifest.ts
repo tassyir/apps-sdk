@@ -6,6 +6,7 @@ import {
   buildHostedBundle,
   DEFAULT_ENTRIES,
 } from '../bundle-build.js';
+import type { BuiltBundle } from '../bundle-build.js';
 import { checkBundleCode } from '../bundle-code.js';
 import { validateHostedBundle } from '../bundle-rules.js';
 import { lines, resolveApp, stringValue } from '../command.js';
@@ -34,8 +35,9 @@ import type { LoadedManifest } from '../manifest.js';
 // validate (offline, @tassyir/app-manifest); deploy (an external app's
 // manifest as a new version, current at once; a hosted app's manifest with
 // the bundle built here, checked by the API's rules before the upload, then
-// its scan followed to the verdict); app version (one version, followed on
-// demand: what deploy says to run when it stops waiting).
+// its scan followed to the verdict; --dry-run stops before signing in);
+// app version (one version, followed on demand: what deploy says to run
+// when it stops waiting).
 
 /** Things that pass the validator but are almost certainly not meant. */
 function warningsOf(manifest: AppManifest): string[] {
@@ -183,14 +185,18 @@ function hostedUploadError(error: unknown, apiOrigin: string): unknown {
 }
 
 /** The bundle does not pass: one CliError (exit 4) listing every problem. Nothing was uploaded. */
-function bundleInvalid(entry: string, errors: readonly CliProblem[]): CliError {
+function bundleInvalid(
+  entry: string,
+  errors: readonly CliProblem[],
+  rerun: string,
+): CliError {
   const first = errors[0];
   return new CliError({
     code: 'BUNDLE_INVALID',
     message: `The bundle built from ${entry} has ${String(errors.length)} problem${errors.length === 1 ? '' : 's'}${first ? `; the first: ${first.path ? `${first.path}: ` : ''}${first.message}` : ''}. Nothing was uploaded`,
     fix: first
-      ? `${first.fix} Then fix the others listed and run \`tassyir deploy\` again.`
-      : 'Run `tassyir deploy` again for the list.',
+      ? `${first.fix} Then fix the others listed and run \`${rerun}\` again.`
+      : `Run \`${rerun}\` again for the list.`,
     exitCode: EXIT_CODES.MANIFEST,
     errors,
   });
@@ -200,15 +206,31 @@ function kilobytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-/** deploy, for `hosting.mode = "tassyir"`: build, check, upload, follow. */
-async function deployHosted(
+type OptionValues = Readonly<Record<string, string | boolean | undefined>>;
+
+/** A hosted bundle that was built and passed every local check. */
+interface CheckedBundle {
+  built: BuiltBundle;
+  bytes: number;
+  /** The manifest's, esbuild's and the code checks' warnings. */
+  warnings: string[];
+  /** One line for people: what was built, and that it passes. */
+  summary: string;
+}
+
+/**
+ * Builds the Worker and holds it to the API's upload rules and the scan's
+ * code checks: what deploy does before it signs in, and all --dry-run does.
+ * BUNDLE_INVALID (exit 4) lists every problem.
+ */
+async function buildAndCheck(
   context: Context,
-  values: Readonly<Record<string, string | boolean | undefined>>,
+  values: OptionValues,
   loaded: LoadedManifest,
   manifest: AppManifest,
   manifestWarnings: readonly string[],
-): Promise<CommandResult> {
-  const timeout = timeoutSeconds(values['timeout'], 'deploy');
+  rerun: string,
+): Promise<CheckedBundle> {
   const allowedHosts =
     manifest.hosting.mode === 'tassyir' ? manifest.hosting.allowed_hosts : [];
   const built = await buildHostedBundle({
@@ -224,12 +246,85 @@ async function deployHosted(
     (file, line, column) => built.locate(file, line, column),
   );
   const problems = [...(rules.ok ? [] : rules.errors), ...code.errors];
-  if (problems.length > 0) throw bundleInvalid(built.entry, problems);
-  const warnings = [...manifestWarnings, ...built.warnings, ...code.warnings];
+  if (problems.length > 0) throw bundleInvalid(built.entry, problems, rerun);
   const bytes = rules.ok ? rules.bytes : 0;
-  context.progress(
-    `✓ Built ${built.entry} into ${BUNDLE_MAIN} (${kilobytes(bytes)}${built.bundle.lockfile ? `, with ${built.bundle.lockfile.name}` : ', no lockfile'}); it passes the API's bundle rules and the scan's code checks.`,
+  return {
+    built,
+    bytes,
+    warnings: [...manifestWarnings, ...built.warnings, ...code.warnings],
+    summary: `Built ${built.entry} into ${BUNDLE_MAIN} (${kilobytes(bytes)}${built.bundle.lockfile ? `, with ${built.bundle.lockfile.name}` : ', no lockfile'}); it passes the API's bundle rules and the scan's code checks`,
+  };
+}
+
+/** Options that only matter once something is sent; ignored by --dry-run. */
+function dryRunIgnored(values: OptionValues, warnings: string[]): void {
+  for (const option of ['app', 'timeout']) {
+    if (values[option] !== undefined) {
+      warnings.push(
+        `--${option} is not used by --dry-run (nothing is sent to Tassyir); ignored.`,
+      );
+    }
+  }
+}
+
+/** deploy --dry-run, hosted: build and check, no sign-in, nothing sent. */
+async function dryRunHosted(
+  context: Context,
+  values: OptionValues,
+  loaded: LoadedManifest,
+  manifest: AppManifest,
+  manifestWarnings: readonly string[],
+): Promise<CommandResult> {
+  const checked = await buildAndCheck(
+    context,
+    values,
+    loaded,
+    manifest,
+    manifestWarnings,
+    'tassyir deploy --dry-run',
   );
+  const { built, bytes, warnings } = checked;
+  dryRunIgnored(values, warnings);
+  return {
+    data: {
+      dryRun: true,
+      uploaded: false,
+      app: { handle: manifest.handle },
+      hosting: 'tassyir',
+      entry: built.entry,
+      main: built.bundle.main,
+      bytes,
+      lockfile: built.bundle.lockfile?.name ?? null,
+      warnings,
+      next: 'tassyir deploy',
+    },
+    text: lines(
+      `✓ ${checked.summary}.`,
+      "  Nothing was uploaded (--dry-run). The scan's other checks run on Tassyir's side once `tassyir deploy` uploads it.",
+      ...warnings.map((warning) => `  ! ${warning}`),
+    ),
+  };
+}
+
+/** deploy, for `hosting.mode = "tassyir"`: build, check, upload, follow. */
+async function deployHosted(
+  context: Context,
+  values: OptionValues,
+  loaded: LoadedManifest,
+  manifest: AppManifest,
+  manifestWarnings: readonly string[],
+): Promise<CommandResult> {
+  const timeout = timeoutSeconds(values['timeout'], 'deploy');
+  const checked = await buildAndCheck(
+    context,
+    values,
+    loaded,
+    manifest,
+    manifestWarnings,
+    'tassyir deploy',
+  );
+  const { built, warnings } = checked;
+  context.progress(`✓ ${checked.summary}.`);
 
   const { api } = await context.api();
   const app = await resolveApp(
@@ -329,6 +424,10 @@ export const deployCommand: Command = {
     'Installations stay on their version until a member of the business accepts the update',
     '(with a consent screen when it adds scopes or hosts). The same manifest (and bundle) twice',
     "is not a new version: deploy answers `unchanged` and that version's state.",
+    '',
+    '--dry-run stops before signing in: the manifest checked and, for a hosted app, the bundle',
+    'built and checked as above. Nothing is sent to Tassyir. Exit 0 when deploy would upload it,',
+    '4 when it would refuse.',
   ].join('\n'),
   options: {
     manifest: {
@@ -347,15 +446,23 @@ export const deployCommand: Command = {
       description: `Hosted: the module exporting the Worker's fetch handler. Default the first of ${DEFAULT_ENTRIES.join(', ')}.`,
     },
     timeout: TIMEOUT_OPTION,
+    'dry-run': {
+      type: 'boolean',
+      description:
+        'Check what would be uploaded (the manifest, and a hosted bundle built and checked), with no sign-in and nothing sent.',
+    },
   },
   async run(context, { values }) {
+    const dryRun = values['dry-run'] === true;
     const manifestFile = stringValue(values['manifest']);
     const loaded = await loadManifest(context.io.cwd, manifestFile);
     const check = checkManifest(loaded.parsed);
     if (!check.ok) throw manifestInvalid(loaded.display, check.errors);
     const warnings = warningsOf(check.manifest);
     if (check.manifest.hosting.mode === 'tassyir') {
-      return deployHosted(context, values, loaded, check.manifest, warnings);
+      return dryRun
+        ? dryRunHosted(context, values, loaded, check.manifest, warnings)
+        : deployHosted(context, values, loaded, check.manifest, warnings);
     }
     for (const option of ['entry', 'timeout']) {
       if (values[option] !== undefined) {
@@ -363,6 +470,29 @@ export const deployCommand: Command = {
           `--${option} is for an app on Tassyir Hosting (hosting.mode = "tassyir"); ignored.`,
         );
       }
+    }
+    if (dryRun) {
+      if (values['app'] !== undefined) {
+        warnings.push(
+          '--app is not used by --dry-run (nothing is sent to Tassyir); ignored.',
+        );
+      }
+      return {
+        data: {
+          dryRun: true,
+          uploaded: false,
+          app: { handle: check.manifest.handle },
+          hosting: 'external',
+          manifest: check.manifest,
+          warnings,
+          next: 'tassyir deploy',
+        },
+        text: lines(
+          `✓ ${loaded.display} is valid: ${summary(check.manifest)}.`,
+          '  Nothing was uploaded (--dry-run): `tassyir deploy` uploads it as the new version.',
+          ...warnings.map((warning) => `  ! ${warning}`),
+        ),
+      };
     }
 
     const { api } = await context.api();

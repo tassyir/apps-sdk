@@ -34,9 +34,10 @@ npm run check
 
 `check` validates the manifest, typechecks, runs the specs (the Worker in
 workerd, the Workers runtime, with stand-ins for what Tassyir passes it), and
-runs `deploy:check`: the page is built, the Worker bundled the way Tassyir
-Hosting runs it, and held to the same rules `tassyir deploy` checks before it
-uploads. Nothing leaves your machine.
+runs `deploy:check`: the page is built, then `tassyir deploy --dry-run`
+bundles the Worker the way Tassyir Hosting runs it and holds it to the same
+rules `tassyir deploy` checks before it uploads. It needs no sign-in, and
+nothing leaves your machine.
 
 ## Run it on a dev store
 

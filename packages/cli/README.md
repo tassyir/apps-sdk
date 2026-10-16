@@ -91,6 +91,7 @@ tassyir deploy --json   # the same manifest again
 | `tassyir app list`                | Your apps                                                      |
 | `tassyir validate [path]`         | Check `tassyir.app.toml` with the API's own validator, offline |
 | `tassyir deploy`                  | Validate the manifest, then upload it as the app's new version |
+| `tassyir deploy --dry-run`        | Every check `deploy` runs before it uploads; no sign-in        |
 | `tassyir app version [n]`         | One version (default the latest), a hosted one with its scan   |
 | `tassyir secrets list`            | An app's client secrets (never the secrets)                    |
 | `tassyir secrets create`          | Mint the app's first client secret, shown once                 |
@@ -286,7 +287,14 @@ section.
 ## Tassyir Hosting
 
 For `hosting.mode = "tassyir"`, `deploy` does four things, and stops at the
-first that fails.
+first that fails. `deploy --dry-run` does the first two only (below).
+
+`tassyir app init --template hosted` starts such a project (a Worker on Hono
+and a React page, `create-tassyir-app`'s `hosted` template), and prints its
+own next steps: `npm run check`, `tassyir app create`, `npm run deploy` (the
+page's build, then `deploy`) and `tassyir store create`. A hosted app needs
+no client secret: `tassyir app create` says so by leaving
+`tassyir secrets create` out of its next steps.
 
 **1. Build.** esbuild (0.28.2, a dependency of the CLI) bundles the Worker's
 entry into one ES module, `worker.js`: `--entry <file>`, or the first of
@@ -329,6 +337,34 @@ about (`eval("…")` of a literal, a host built at run time, WebAssembly) is
 printed and does not stop the deploy. The scan's other checks (invisible
 Unicode, Admin API calls against the requested scopes, Semgrep, Gitleaks,
 OSV on the lockfile, the AI review) run on Tassyir's side only.
+
+**`--dry-run` stops here.** It builds and checks exactly as above, with no
+sign-in and nothing sent: exit 0 when `deploy` would upload the bundle, 4
+when it would refuse it (`BUNDLE_INVALID`, `BUNDLE_BUILD_FAILED`, or the
+manifest's own `MANIFEST_INVALID`). `--app` and `--timeout` are not used
+(a warning says so). The hosted template's `npm run deploy:check` is the
+page's build, then `tassyir deploy --dry-run`. For an app on your own server,
+`--dry-run` checks the manifest only.
+
+```bash
+tassyir deploy --dry-run --json
+```
+
+```json
+{
+  "ok": true,
+  "dryRun": true,
+  "uploaded": false,
+  "app": { "handle": "review-requests" },
+  "hosting": "tassyir",
+  "entry": "src/worker.ts",
+  "main": "worker.js",
+  "bytes": 398412,
+  "lockfile": "package-lock.json",
+  "warnings": [],
+  "next": "tassyir deploy"
+}
+```
 
 **3. Upload** `{ manifest, bundle: { main, files, lockfile } }` to
 `POST developer/apps/{appId}/versions`. The lockfile is the project's
