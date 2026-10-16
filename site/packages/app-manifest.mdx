@@ -121,10 +121,12 @@ the code.
 
 The **normalised manifest** is what the API stores for a version: the file's
 keys in a fixed order (`name`, `handle`, `api_version`, `access`, `hosting`,
-`auth`, `admin`, `webhooks`, `data`, `storefront`); every list present (empty
-when absent); `auth` and `admin` only when they hold a value; scopes, their
-reasons and each webhook's topics in catalogue order, `allowed_hosts` sorted;
-lists of tables in file order. Validating a normalised manifest returns it
+`auth`, `admin`, `webhooks`, `data`, `storefront`, `app_proxy`); every list
+present (empty when absent); `auth`, `admin`, `admin.actions` and `app_proxy`
+only when they hold a value; scopes, their reasons and each webhook's topics in
+catalogue order, `allowed_hosts` and a block's `data` sorted; lists of tables in
+file order; a storefront block's `target` (`"any"` when absent), `data` and
+`settings` always present. Validating a normalised manifest returns it
 unchanged.
 
 An **error** looks like this:
@@ -144,65 +146,112 @@ document always gives the same errors in the same order, whatever the order of
 its keys. One error per field. At most 50 errors, then
 `MANIFEST_TOO_MANY_ERRORS`. A code is never renamed or reused:
 
-| Code                                   | When                                                                                                            |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `MANIFEST_NOT_A_TABLE`                 | The document is not a table (an array, a string, null, a date, a Map).                                          |
-| `MANIFEST_NOT_DATA`                    | The document holds a cycle or a value JSON cannot carry.                                                        |
-| `MANIFEST_TOO_LARGE`                   | Larger than 64 KB as JSON. Nothing else is checked.                                                             |
-| `MANIFEST_TOO_MANY_ERRORS`             | Last entry when more than 50 errors were found.                                                                 |
-| `MANIFEST_FIELD_REQUIRED`              | A required field is missing (`hosting.url` for an external app, `hosting.allowed_hosts` for a hosted one).      |
-| `MANIFEST_FIELD_UNKNOWN`               | A key that is not a manifest field. The fix names the near key or lists the accepted ones.                      |
-| `MANIFEST_FIELD_TYPE`                  | A value of the wrong type (a string where an array is expected, a TOML date).                                   |
-| `MANIFEST_FIELD_NOT_FOR_MODE`          | `hosting.url`, `auth.callback_url` or an absolute webhook `uri` on a hosted app; `allowed_hosts` on external.   |
-| `MANIFEST_LIST_TOO_LONG`               | A list over its limit.                                                                                          |
-| `MANIFEST_LIST_EMPTY`                  | A webhook entry with no topic.                                                                                  |
-| `MANIFEST_VALUE_NOT_ALLOWED`           | A value outside a fixed list (`hosting.mode`, a data definition's `owner`, `type`, `visibility`).               |
-| `MANIFEST_NAME_INVALID`                | `name` empty, too long, on two lines, with an invisible character or surrounding spaces.                        |
-| `MANIFEST_HANDLE_INVALID`              | `handle` is not 3-40 lowercase letters and digits joined by single hyphens.                                     |
-| `MANIFEST_HANDLE_RESERVED`             | `handle` is reserved by Tassyir (`www`, `api`, `tassyir`, `google-sheets`, …).                                  |
-| `MANIFEST_API_VERSION_UNSUPPORTED`     | `api_version` is not a supported version.                                                                       |
-| `MANIFEST_SCOPE_UNKNOWN`               | Not a scope. The fix names the near scope or lists them.                                                        |
-| `MANIFEST_SCOPE_NOT_AVAILABLE`         | A scope apps cannot request yet (`write_storefront`).                                                           |
-| `MANIFEST_SCOPE_DUPLICATE`             | A scope listed twice in one list.                                                                               |
-| `MANIFEST_SCOPE_REQUIRED_AND_OPTIONAL` | A scope in both `scopes` and `optional_scopes`.                                                                 |
-| `MANIFEST_SCOPE_ALREADY_IMPLIED`       | An optional scope a required one already implies.                                                               |
-| `MANIFEST_SCOPE_NEEDS_ANOTHER`         | A scope that opens nothing alone (`read_customer_contact` without `read_orders`).                               |
-| `MANIFEST_SCOPE_REASON_MISSING`        | A requested scope without a reason.                                                                             |
-| `MANIFEST_SCOPE_REASON_UNUSED`         | A reason for a scope the manifest does not request, or for a name that is not a scope.                          |
-| `MANIFEST_SCOPE_REASON_INVALID`        | A reason too short, too long, on two lines or with an invisible character.                                      |
-| `MANIFEST_URL_INVALID`                 | An absolute URL breaks a URL rule (http, port, credentials, query, fragment, capitals, a bad path).             |
-| `MANIFEST_URL_HOST_NOT_ALLOWED`        | Such a URL points at an IP address, a private name or a Tassyir domain.                                         |
-| `MANIFEST_PATH_INVALID`                | `admin.page` or a relative webhook `uri` breaks the path rules.                                                 |
-| `MANIFEST_PATH_RESERVED`               | A hosted app's `admin.page` or webhook `uri` is `/.tassyir` or below it, which Tassyir keeps on hosted origins. |
-| `MANIFEST_HOST_INVALID`                | An `allowed_hosts` entry is not a hostname (a URL, a port, a path, capitals, a misplaced wildcard).             |
-| `MANIFEST_HOST_NOT_ALLOWED`            | An `allowed_hosts` entry is an IP address, a private name or a Tassyir domain.                                  |
-| `MANIFEST_HOST_DUPLICATE`              | An `allowed_hosts` entry listed twice.                                                                          |
-| `MANIFEST_TOPIC_UNKNOWN`               | Not a webhook topic. The fix names the near topic (`orders/create` → `orders/created`).                         |
-| `MANIFEST_TOPIC_DUPLICATE`             | A topic subscribed twice in the manifest.                                                                       |
-| `MANIFEST_TOPIC_SCOPE_MISSING`         | A topic whose resource needs a scope the manifest does not request.                                             |
-| `MANIFEST_DATA_KEY_INVALID`            | A data definition's `key` is not `[a-z][a-z0-9_]{0,63}`.                                                        |
-| `MANIFEST_DATA_KEY_DUPLICATE`          | Two data definitions with the same `owner` and `key`.                                                           |
-| `MANIFEST_BLOCKS_NOT_AVAILABLE`        | `[[storefront.blocks]]` before they are available (Phase 2).                                                    |
-| `MANIFEST_BLOCKS_SCOPE_MISSING`        | Storefront blocks without `write_storefront` (once available).                                                  |
-| `MANIFEST_BLOCK_SCRIPT_NOT_ALLOWED`    | A block key that would put code on the storefront (`script`, `js`, `html`, `src`, `on…`).                       |
-| `MANIFEST_BLOCK_HANDLE_INVALID`        | A block `handle` breaks the handle rules.                                                                       |
-| `MANIFEST_BLOCK_HANDLE_DUPLICATE`      | Two blocks with the same handle.                                                                                |
-| `MANIFEST_BLOCK_TEMPLATE_INVALID`      | A block `template` is not a lowercase relative `.liquid` path of the bundle.                                    |
+| Code                                        | When                                                                                                                                                                  |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MANIFEST_NOT_A_TABLE`                      | The document is not a table (an array, a string, null, a date, a Map).                                                                                                |
+| `MANIFEST_NOT_DATA`                         | The document holds a cycle or a value JSON cannot carry.                                                                                                              |
+| `MANIFEST_TOO_LARGE`                        | Larger than 64 KB as JSON. Nothing else is checked.                                                                                                                   |
+| `MANIFEST_TOO_MANY_ERRORS`                  | Last entry when more than 50 errors were found.                                                                                                                       |
+| `MANIFEST_FIELD_REQUIRED`                   | A required field is missing (`hosting.url` for an external app, `hosting.allowed_hosts` for a hosted one, a select setting's `options`).                              |
+| `MANIFEST_FIELD_UNKNOWN`                    | A key that is not a manifest field. The fix names the near key or lists the accepted ones.                                                                            |
+| `MANIFEST_FIELD_TYPE`                       | A value of the wrong type (a string where an array is expected, a TOML date).                                                                                         |
+| `MANIFEST_FIELD_NOT_FOR_MODE`               | `hosting.url`, `auth.callback_url` or an absolute webhook `uri` on a hosted app; `allowed_hosts` on external.                                                         |
+| `MANIFEST_LIST_TOO_LONG`                    | A list over its limit.                                                                                                                                                |
+| `MANIFEST_LIST_EMPTY`                       | A webhook entry with no topic.                                                                                                                                        |
+| `MANIFEST_LIST_TOO_SHORT`                   | A list under its minimum (a select setting's `options`: 2).                                                                                                           |
+| `MANIFEST_VALUE_NOT_ALLOWED`                | A value outside a fixed list (`hosting.mode`, a data definition's `owner`, `type`, `visibility`, a block's `target`, a setting's `type`, an admin action's `target`). |
+| `MANIFEST_NAME_INVALID`                     | `name` empty, too long, on two lines, with an invisible character or surrounding spaces.                                                                              |
+| `MANIFEST_HANDLE_INVALID`                   | `handle` is not 3-40 lowercase letters and digits joined by single hyphens.                                                                                           |
+| `MANIFEST_HANDLE_RESERVED`                  | `handle` is reserved by Tassyir (`www`, `api`, `tassyir`, `google-sheets`, …).                                                                                        |
+| `MANIFEST_API_VERSION_UNSUPPORTED`          | `api_version` is not a supported version.                                                                                                                             |
+| `MANIFEST_SCOPE_UNKNOWN`                    | Not a scope. The fix names the near scope or lists them.                                                                                                              |
+| `MANIFEST_SCOPE_NOT_AVAILABLE`              | A scope the platform does not offer to apps yet (none in this release).                                                                                               |
+| `MANIFEST_SCOPE_DUPLICATE`                  | A scope listed twice in one list.                                                                                                                                     |
+| `MANIFEST_SCOPE_REQUIRED_AND_OPTIONAL`      | A scope in both `scopes` and `optional_scopes`.                                                                                                                       |
+| `MANIFEST_SCOPE_ALREADY_IMPLIED`            | An optional scope a required one already implies.                                                                                                                     |
+| `MANIFEST_SCOPE_NEEDS_ANOTHER`              | A scope that opens nothing alone (`read_customer_contact` without `read_orders`).                                                                                     |
+| `MANIFEST_SCOPE_REASON_MISSING`             | A requested scope without a reason.                                                                                                                                   |
+| `MANIFEST_SCOPE_REASON_UNUSED`              | A reason for a scope the manifest does not request, or for a name that is not a scope.                                                                                |
+| `MANIFEST_SCOPE_REASON_INVALID`             | A reason too short, too long, on two lines or with an invisible character.                                                                                            |
+| `MANIFEST_URL_INVALID`                      | An absolute URL breaks a URL rule (http, port, credentials, query, fragment, capitals, a bad path).                                                                   |
+| `MANIFEST_URL_HOST_NOT_ALLOWED`             | Such a URL points at an IP address, a private name or a Tassyir domain.                                                                                               |
+| `MANIFEST_PATH_INVALID`                     | `admin.page`, an admin action's `path`, a relative webhook `uri` or `app_proxy.path` breaks the path rules.                                                           |
+| `MANIFEST_PATH_RESERVED`                    | A hosted app's page, action, webhook or proxy path is `/.tassyir` or below it, which Tassyir keeps on hosted origins.                                                 |
+| `MANIFEST_HOST_INVALID`                     | An `allowed_hosts` entry is not a hostname (a URL, a port, a path, capitals, a misplaced wildcard).                                                                   |
+| `MANIFEST_HOST_NOT_ALLOWED`                 | An `allowed_hosts` entry is an IP address, a private name or a Tassyir domain.                                                                                        |
+| `MANIFEST_HOST_DUPLICATE`                   | An `allowed_hosts` entry listed twice.                                                                                                                                |
+| `MANIFEST_TOPIC_UNKNOWN`                    | Not a webhook topic. The fix names the near topic (`orders/create` → `orders/created`).                                                                               |
+| `MANIFEST_TOPIC_DUPLICATE`                  | A topic subscribed twice in the manifest.                                                                                                                             |
+| `MANIFEST_TOPIC_SCOPE_MISSING`              | A topic whose resource needs a scope the manifest does not request.                                                                                                   |
+| `MANIFEST_DATA_KEY_INVALID`                 | A data definition's `key` is not `[a-z][a-z0-9_]{0,63}`.                                                                                                              |
+| `MANIFEST_DATA_KEY_DUPLICATE`               | Two data definitions with the same `owner` and `key`.                                                                                                                 |
+| `MANIFEST_DATA_LABEL_INVALID`               | One language of a data definition's `label` breaks the `name` text rules.                                                                                             |
+| `MANIFEST_BLOCKS_NOT_AVAILABLE`             | `[[storefront.blocks]]` while the platform does not offer them (it does in this release).                                                                             |
+| `MANIFEST_BLOCKS_SCOPE_MISSING`             | Storefront blocks without `write_storefront`.                                                                                                                         |
+| `MANIFEST_BLOCK_SCRIPT_NOT_ALLOWED`         | A block key that would put code on the storefront (`script`, `js`, `html`, `src`, `on…`).                                                                             |
+| `MANIFEST_BLOCK_HANDLE_INVALID`             | A block `handle` breaks the handle rules.                                                                                                                             |
+| `MANIFEST_BLOCK_HANDLE_DUPLICATE`           | Two blocks with the same handle.                                                                                                                                      |
+| `MANIFEST_BLOCK_TEMPLATE_INVALID`           | A block `template` is not a lowercase relative `.liquid` path of the bundle.                                                                                          |
+| `MANIFEST_BLOCK_STYLESHEET_INVALID`         | A block `stylesheet` is not a lowercase relative `.css` path of the bundle.                                                                                           |
+| `MANIFEST_BLOCK_NAME_INVALID`               | One language of a block's `name` breaks the `name` text rules.                                                                                                        |
+| `MANIFEST_BLOCK_DATA_INVALID`               | A block `data` entry is not `<owner>.<key>` with the owner `business`, `store` or `product`.                                                                          |
+| `MANIFEST_BLOCK_DATA_DUPLICATE`             | A block lists the same data key twice.                                                                                                                                |
+| `MANIFEST_BLOCK_DATA_NOT_DECLARED`          | A block reads a key no `[[data.definitions]]` entry declares.                                                                                                         |
+| `MANIFEST_BLOCK_DATA_NOT_STOREFRONT`        | A block reads a key declared without `storefront` visibility.                                                                                                         |
+| `MANIFEST_BLOCK_DATA_TARGET_MISMATCH`       | A block reads product data but is not placed on the product page (`target = "product"`).                                                                              |
+| `MANIFEST_BLOCK_SETTING_KEY_INVALID`        | A setting's `key` is not `[a-z][a-z0-9_]{0,39}`.                                                                                                                      |
+| `MANIFEST_BLOCK_SETTING_KEY_DUPLICATE`      | Two settings of one block with the same `key`.                                                                                                                        |
+| `MANIFEST_BLOCK_SETTING_LABEL_INVALID`      | One language of a setting's or an option's `label` breaks the `name` text rules.                                                                                      |
+| `MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE` | `options` on a type other than `select`, `min` or `max` on a non-number, `max_length` on a non-text type.                                                             |
+| `MANIFEST_BLOCK_SETTING_OPTION_INVALID`     | An option's `value` is not 1-40 lowercase letters, digits, `_` and `-`.                                                                                               |
+| `MANIFEST_BLOCK_SETTING_OPTION_DUPLICATE`   | Two options of one select with the same `value`.                                                                                                                      |
+| `MANIFEST_BLOCK_SETTING_RANGE_INVALID`      | `min` above `max`, a non-whole bound on an integer, a non-finite number, `max_length` outside 1-1000.                                                                 |
+| `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID`    | A setting's `default` is not a value of its type (or the type takes none).                                                                                            |
+| `MANIFEST_PROXY_NOT_AVAILABLE`              | `[app_proxy]` while the platform does not forward to apps yet (this release).                                                                                         |
+| `MANIFEST_PROXY_SCOPE_MISSING`              | `[app_proxy]` without `write_storefront`.                                                                                                                             |
+| `MANIFEST_ACTION_HANDLE_INVALID`            | An admin action's `handle` breaks the handle rules.                                                                                                                   |
+| `MANIFEST_ACTION_HANDLE_DUPLICATE`          | Two admin actions with the same handle.                                                                                                                               |
+| `MANIFEST_ACTION_LABEL_INVALID`             | One language of an admin action's `label` breaks the `name` text rules.                                                                                               |
+| `MANIFEST_ACTION_SCOPE_MISSING`             | An admin action whose target needs a read scope the manifest does not request.                                                                                        |
 
 ## API
 
-| Export                                                    | What it does                                                                                                          |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `validateManifest(input, vocabulary?)`                    | Validates a parsed manifest. The vocabulary defaults to `MANIFEST_VOCABULARY`.                                        |
-| `validateManifestField('handle' \| 'name', value, path?)` | Checks one field with its manifest rule, code and fix (a form or a CLI prompt, before a manifest exists).             |
-| `manifestJsonSchema(vocabulary?, apiVersion?)`            | The JSON Schema (draft 2020-12) of one API version, as an object.                                                     |
-| `buildManifestSchema(vocabulary?, apiVersion?)`           | The zod 4 schema the JSON Schema is generated from.                                                                   |
-| `manifestVersionColumns(manifest, vocabulary?)`           | From a normalised manifest: `{ apiVersion, scopes, optionalScopes, webhookTopics, allowedHosts }`.                    |
-| `resolveManifestUri(manifest, uri)`                       | The absolute URL of `admin.page` or a webhook `uri`, and whether Tassyir reaches it as `hosted` or `external`.        |
-| `hostedAppOrigin(handle)`                                 | `https://{handle}.tassyir-apps.com`.                                                                                  |
-| `formatManifestPath(segments)`                            | `['webhooks', 0, 'uri']` → `webhooks[0].uri`, as error paths are written.                                             |
-| `MANIFEST_VOCABULARY`                                     | The API versions, scopes (with what each implies) and webhook topics (with the scope each needs) of this release.     |
-| `MANIFEST_ERROR_CODES`, `MANIFEST_LIMITS`, …              | The error codes, the limits, the reserved handles, domains and hosted path prefix, and the fixed lists, as constants. |
+| Export                                                      | What it does                                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `validateManifest(input, vocabulary?)`                      | Validates a parsed manifest. The vocabulary defaults to `MANIFEST_VOCABULARY`.                                        |
+| `validateManifestField('handle' \| 'name', value, path?)`   | Checks one field with its manifest rule, code and fix (a form or a CLI prompt, before a manifest exists).             |
+| `manifestJsonSchema(vocabulary?, apiVersion?)`              | The JSON Schema (draft 2020-12) of one API version, as an object.                                                     |
+| `buildManifestSchema(vocabulary?, apiVersion?)`             | The zod 4 schema the JSON Schema is generated from.                                                                   |
+| `manifestVersionColumns(manifest, vocabulary?)`             | From a normalised manifest: `{ apiVersion, scopes, optionalScopes, webhookTopics, allowedHosts }`.                    |
+| `resolveManifestUri(manifest, uri)`                         | The absolute URL of `admin.page` or a webhook `uri`, and whether Tassyir reaches it as `hosted` or `external`.        |
+| `hostedAppOrigin(handle)`                                   | `https://{handle}.tassyir-apps.com`.                                                                                  |
+| `formatManifestPath(segments)`                              | `['webhooks', 0, 'uri']` → `webhooks[0].uri`, as error paths are written.                                             |
+| `MANIFEST_VOCABULARY`                                       | The API versions, scopes (with what each implies) and webhook topics (with the scope each needs) of this release.     |
+| `MANIFEST_ERROR_CODES`, `MANIFEST_LIMITS`, …                | The error codes, the limits, the reserved handles, domains and hosted path prefix, and the fixed lists, as constants. |
+| `SETTING_TYPES`, `BLOCK_TARGETS`, `ADMIN_ACTION_TARGETS`, … | The Phase 2 lists: setting types, block targets and data owners, admin action targets and the scope each needs.       |
+
+## Storefront blocks, the app proxy and admin actions
+
+This release validates the marketplace's manifest fields. They are **not
+live yet**: until the marketplace opens, a manifest that uses them passes here
+and is refused on upload.
+
+- `write_storefront` is requestable, and `[[storefront.blocks]]` takes
+  `stylesheet`, `name` (`{ ar, en }`), `target` (`product` or `any`), `data`
+  (the app data keys the template reads, `<owner>.<key>`, declared with
+  `storefront` visibility) and `[[storefront.blocks.settings]]`;
+- a setting is `key`, `type` (`SETTING_TYPES`: `string`, `text`, `boolean`,
+  `integer`, `number`, `select`, `color`, `image`, `url`, `product`,
+  `collection`), `label` (`{ ar, en }`) and, by type, `default`, `options`
+  (`{ value, label }`, 2 to 20), `min` / `max`, `max_length`;
+- `[[data.definitions]]` takes a `label` (`{ ar, en }`);
+- `[[admin.actions]]`: `handle`, `target` (`ADMIN_ACTION_TARGETS`), `label`
+  and `path`, at most 10;
+- `[app_proxy]` (`path`) is part of the shape, refused until the platform
+  forwards store requests to apps (`MANIFEST_PROXY_NOT_AVAILABLE`).
+
+The developer guide has an example of each:
+[The manifest](https://developers.tassyir.io/guides/manifest#marketplace-fields-not-live-yet).
 
 ## JSON Schema
 

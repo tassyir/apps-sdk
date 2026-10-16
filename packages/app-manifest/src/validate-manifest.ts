@@ -2,18 +2,28 @@ import type { z } from 'zod';
 import type { Problem } from './manifest-format.js';
 import {
   allowedHostProblem,
+  blockDataProblem,
   closestMatch,
   dataKeyProblem,
   describeType,
   handleProblem,
   httpsUrlProblem,
+  labelProblem,
   nameProblem,
+  optionValueProblem,
   quote,
   relativePathProblem,
   scopeReasonProblem,
+  settingDefaultProblem,
+  settingKeyProblem,
+  stylesheetProblem,
   templateProblem,
 } from './manifest-format.js';
 import {
+  ADMIN_ACTION_TARGETS,
+  ADMIN_ACTION_TARGET_SCOPES,
+  BLOCK_DATA_PATTERN,
+  BLOCK_TARGETS,
   DATA_OWNERS,
   DATA_TYPES,
   DATA_VISIBILITIES,
@@ -21,12 +31,20 @@ import {
   HOSTING_MODES,
   MANIFEST_FILE_NAME,
   MANIFEST_LIMITS,
+  SETTING_KEY_PATTERN,
+  SETTING_OPTION_VALUE_PATTERN,
+  SETTING_TYPES,
 } from './manifest-limits.js';
 import { buildManifestSchema } from './manifest-schema.js';
 import type {
   AppManifest,
+  ManifestAdminAction,
+  ManifestDataDefinition,
   ManifestError,
   ManifestErrorCode,
+  ManifestLabel,
+  ManifestSetting,
+  ManifestStorefrontBlock,
   ManifestValidationResult,
   ManifestVocabulary,
 } from './manifest-types.js';
@@ -47,7 +65,8 @@ import { MANIFEST_VOCABULARY } from './vocabulary.js';
  *  2. one check per value (`manifest-format.ts`): what a field may hold, with
  *     the most specific message;
  *  3. rules across fields: hosting mode, scope reasons, implied scopes,
- *     topics needing a scope, duplicates, storefront blocks.
+ *     topics needing a scope, duplicates, storefront blocks and their
+ *     settings, the app proxy, admin actions.
  *
  * Deterministic: errors are sorted by field (manifest order, then array
  * index), then code, so the same document always gives the same list, in the
@@ -119,6 +138,7 @@ const KEY_ORDER = [
   'callback_url',
   'admin',
   'page',
+  'actions',
   'webhooks',
   'topics',
   'uri',
@@ -131,6 +151,20 @@ const KEY_ORDER = [
   'storefront',
   'blocks',
   'template',
+  'stylesheet',
+  'target',
+  'settings',
+  'value',
+  'label',
+  'default',
+  'options',
+  'min',
+  'max',
+  'max_length',
+  'path',
+  'app_proxy',
+  'ar',
+  'en',
 ];
 const KEY_RANK = new Map(KEY_ORDER.map((key, rank) => [key, rank]));
 
@@ -308,7 +342,28 @@ const ENUMS: Record<string, readonly string[]> = {
   'data.definitions[].owner': DATA_OWNERS,
   'data.definitions[].type': DATA_TYPES,
   'data.definitions[].visibility': DATA_VISIBILITIES,
+  'storefront.blocks[].target': BLOCK_TARGETS,
+  'storefront.blocks[].settings[].type': SETTING_TYPES,
+  'admin.actions[].target': ADMIN_ACTION_TARGETS,
 };
+
+/** The `{ ar, en }` labels, by the shape of the table that holds them. */
+const LABEL_CODES: Record<string, ManifestErrorCode> = {
+  'data.definitions[].label': 'MANIFEST_DATA_LABEL_INVALID',
+  'storefront.blocks[].name': 'MANIFEST_BLOCK_NAME_INVALID',
+  'storefront.blocks[].settings[].label':
+    'MANIFEST_BLOCK_SETTING_LABEL_INVALID',
+  'storefront.blocks[].settings[].options[].label':
+    'MANIFEST_BLOCK_SETTING_LABEL_INVALID',
+  'admin.actions[].label': 'MANIFEST_ACTION_LABEL_INVALID',
+};
+
+/** The numeric fields of a setting, checked by {@link numberProblem}. */
+const SETTING_NUMBERS = new Set([
+  'storefront.blocks[].settings[].min',
+  'storefront.blocks[].settings[].max',
+  'storefront.blocks[].settings[].max_length',
+]);
 
 function enumProblem(
   value: string,
@@ -433,14 +488,54 @@ function leafProblem(lookup: Lookup, path: Path, value: string): LeafVerdict {
       return handleProblem(value, at, 'block');
     case 'storefront.blocks[].template':
       return templateProblem(value, at);
+    case 'storefront.blocks[].stylesheet':
+      return stylesheetProblem(value, at);
+    case 'storefront.blocks[].data[]':
+      return blockDataProblem(value, at);
+    case 'storefront.blocks[].settings[].key':
+      return settingKeyProblem(value, at);
+    case 'storefront.blocks[].settings[].options[].value':
+      return optionValueProblem(value, at);
+    case 'admin.actions[].handle':
+      return handleProblem(value, at, 'action');
+    case 'admin.actions[].path':
+      return relativePathProblem(value, at, '/actions/print');
+    case 'app_proxy.path':
+      return relativePathProblem(value, at, '/proxy');
   }
   const allowed = ENUMS[shape];
   if (allowed) return enumProblem(value, at, allowed);
+  const labelCode = /\.(?:ar|en)$/.test(shape)
+    ? LABEL_CODES[shape.slice(0, -3)]
+    : undefined;
+  if (labelCode) return labelProblem(value, at, labelCode);
   if (shape.startsWith('access.scope_reasons.') && path.length === 3) {
     const scope = String(path[2]);
     return lookup.scopes.has(scope)
       ? scopeReasonProblem(value, at, scope)
       : null;
+  }
+  return null;
+}
+
+/** A setting's `min`, `max` or `max_length` that zod refused as a number. */
+function numberProblem(path: Path, value: number | bigint): Problem | null {
+  const at = formatManifestPath(path);
+  const field = path[path.length - 1];
+  const shown = typeof value === 'bigint' ? `${String(value)}n` : String(value);
+  if (field === 'max_length') {
+    return {
+      code: 'MANIFEST_BLOCK_SETTING_RANGE_INVALID',
+      message: `\`${at}\` is ${shown}; \`max_length\` is a whole number from 1 to ${L.settingTextMaxLength}.`,
+      fix: `Set \`${at}\` to a whole number from 1 to ${L.settingTextMaxLength}.`,
+    };
+  }
+  if (typeof value === 'bigint' || !Number.isFinite(value)) {
+    return {
+      code: 'MANIFEST_BLOCK_SETTING_RANGE_INVALID',
+      message: `\`${at}\` is ${shown}, not a number a setting can hold.`,
+      fix: `Set \`${at}\` to a finite number, or remove it.`,
+    };
   }
   return null;
 }
@@ -529,6 +624,37 @@ const EXAMPLES: Record<string, string> = {
   'storefront.blocks[]': '[[storefront.blocks]] table',
   'storefront.blocks[].handle': 'handle = "star-rating"',
   'storefront.blocks[].template': 'template = "blocks/star-rating.liquid"',
+  'data.definitions[].label': 'label = { ar = "التقييم", en = "Rating" }',
+  'storefront.blocks[].stylesheet': 'stylesheet = "blocks/star-rating.css"',
+  'storefront.blocks[].name':
+    'name = { ar = "تقييم المنتج", en = "Product rating" }',
+  'storefront.blocks[].target': 'target = "product"',
+  'storefront.blocks[].data': 'data = ["product.rating"]',
+  'storefront.blocks[].settings': '[[storefront.blocks.settings]] table',
+  'storefront.blocks[].settings[]': '[[storefront.blocks.settings]] table',
+  'storefront.blocks[].settings[].key': 'key = "show_count"',
+  'storefront.blocks[].settings[].type': 'type = "boolean"',
+  'storefront.blocks[].settings[].label':
+    'label = { ar = "عرض العدد", en = "Show the count" }',
+  'storefront.blocks[].settings[].options':
+    'options = [{ value = "grid", label = { ar = "شبكة", en = "Grid" } }, { value = "list", label = { ar = "قائمة", en = "List" } }]',
+  'storefront.blocks[].settings[].options[]':
+    '{ value = "grid", label = { ar = "شبكة", en = "Grid" } }',
+  'storefront.blocks[].settings[].options[].value': 'value = "grid"',
+  'storefront.blocks[].settings[].options[].label':
+    'label = { ar = "شبكة", en = "Grid" }',
+  'storefront.blocks[].settings[].min': 'min = 0',
+  'storefront.blocks[].settings[].max': 'max = 5',
+  'storefront.blocks[].settings[].max_length': 'max_length = 120',
+  'admin.actions': '[[admin.actions]] table',
+  'admin.actions[]': '[[admin.actions]] table',
+  'admin.actions[].handle': 'handle = "print-labels"',
+  'admin.actions[].target': 'target = "orders.selection"',
+  'admin.actions[].label':
+    'label = { ar = "طباعة الملصقات", en = "Print labels" }',
+  'admin.actions[].path': 'path = "/actions/print"',
+  app_proxy: '[app_proxy] table',
+  'app_proxy.path': 'path = "/proxy"',
 };
 
 function exampleFor(lookup: Lookup, path: Path): string | undefined {
@@ -537,6 +663,8 @@ function exampleFor(lookup: Lookup, path: Path): string | undefined {
     const versions = lookup.vocabulary.apiVersions;
     return `api_version = "${versions[versions.length - 1]}"`;
   }
+  if (shape.endsWith('.ar')) return 'ar = "<the Arabic text>"';
+  if (shape.endsWith('.en')) return 'en = "<the English text>"';
   return EXAMPLES[shape];
 }
 
@@ -657,6 +785,15 @@ function issueErrors(
     ];
   }
 
+  // A setting's number: zod says "invalid" or "too big", the check says why.
+  if (
+    (typeof actual === 'number' || typeof actual === 'bigint') &&
+    SETTING_NUMBERS.has(shapeOf(path))
+  ) {
+    const found = numberProblem(path, actual);
+    if (found) return [{ path, error: fromProblem(at, found) }];
+  }
+
   if (issue.code === 'invalid_type') {
     const example = exampleFor(lookup, path);
     const expected = EXPECTED[issue.expected] ?? issue.expected;
@@ -680,6 +817,19 @@ function issueErrors(
     issue.origin === 'array'
   ) {
     const length = Array.isArray(actual) ? actual.length : 0;
+    if (issue.code === 'too_small' && Number(issue.minimum) > 1) {
+      return [
+        {
+          path,
+          error: {
+            code: 'MANIFEST_LIST_TOO_SHORT',
+            path: at,
+            message: `\`${at}\` has ${length} ${length === 1 ? 'entry' : 'entries'}; it needs at least ${String(issue.minimum)}.`,
+            fix: `List at least ${String(issue.minimum)} entries in \`${at}\`.`,
+          },
+        },
+      ];
+    }
     if (issue.code === 'too_small') {
       return [
         {
@@ -1014,7 +1164,8 @@ function isHostedReservedPath(path: string): boolean {
 }
 
 /**
- * A hosted app's page and webhook paths outside `/.tassyir/`, which the
+ * A hosted app's page, action, webhook and proxy paths outside
+ * `/.tassyir/`, which the
  * dispatcher answers itself on every hosted origin: a page there never loads
  * and a delivery there is never made. Only for hosted apps: an external app's
  * origin is its own, Tassyir serves nothing there. A path that breaks the
@@ -1033,10 +1184,23 @@ function checkHostedReservedPaths(root: unknown, report: Report): void {
     );
   };
   reserved(['admin', 'page'], valueAt(root, ['admin', 'page']), '/');
+  (listAt(root, ['admin', 'actions']) ?? []).forEach((entry, index) => {
+    if (!isTable(entry)) return;
+    reserved(
+      ['admin', 'actions', index, 'path'],
+      own(entry, 'path'),
+      '/actions/print',
+    );
+  });
   (listAt(root, ['webhooks']) ?? []).forEach((entry, index) => {
     if (!isTable(entry)) return;
     reserved(['webhooks', index, 'uri'], own(entry, 'uri'), '/webhooks');
   });
+  reserved(
+    ['app_proxy', 'path'],
+    valueAt(root, ['app_proxy', 'path']),
+    '/proxy',
+  );
 }
 
 function checkTopics(lookup: Lookup, root: unknown, report: Report): void {
@@ -1142,6 +1306,371 @@ function checkBlocks(lookup: Lookup, root: unknown, report: Report): void {
     }
     seen.set(handle, index);
   });
+
+  const definitions = storefrontDefinitions(root);
+  blocks.forEach((block, index) => {
+    if (!isTable(block)) return;
+    checkBlockData(block, index, definitions, report);
+    checkSettings(
+      own(block, 'settings'),
+      ['storefront', 'blocks', index, 'settings'],
+      report,
+    );
+  });
+}
+
+/** A declared key whose visibility is not a known value: judged there. */
+const UNKNOWN_VISIBILITY = '';
+
+/**
+ * Every declared app data key (`owner\0key` → visibility), or null when the
+ * definitions cannot be read (their own error says why).
+ */
+function storefrontDefinitions(root: unknown): Map<string, string> | null {
+  const data = valueAt(root, ['data']);
+  if (data === undefined) return new Map();
+  if (!isTable(data)) {
+    // A date or a Map passes the schema as an empty table (the known gap,
+    // docs/APP_MANIFEST.md): it declares nothing, as its normalised form.
+    return typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? new Map()
+      : null;
+  }
+  const list = own(data, 'definitions');
+  if (list === undefined) return new Map();
+  if (!Array.isArray(list)) return null;
+  const found = new Map<string, string>();
+  for (const entry of list) {
+    if (!isTable(entry)) continue;
+    const owner = own(entry, 'owner');
+    const key = own(entry, 'key');
+    const visibility = own(entry, 'visibility');
+    if (typeof owner !== 'string' || typeof key !== 'string') continue;
+    const id = `${owner}\u0000${key}`;
+    if (found.has(id)) continue;
+    found.set(
+      id,
+      typeof visibility === 'string' &&
+        (DATA_VISIBILITIES as readonly string[]).includes(visibility)
+        ? visibility
+        : UNKNOWN_VISIBILITY,
+    );
+  }
+  return found;
+}
+
+/**
+ * A block's `data`: each `<owner>.<key>` once, declared in
+ * `[[data.definitions]]` with storefront visibility, and product data only on
+ * a block placed on the product page.
+ */
+function checkBlockData(
+  block: Record<string, unknown>,
+  index: number,
+  definitions: Map<string, string> | null,
+  report: Report,
+): void {
+  const data = own(block, 'data');
+  if (!Array.isArray(data)) return;
+  const target = own(block, 'target');
+  const placed =
+    target === undefined
+      ? 'any'
+      : typeof target === 'string' &&
+          (BLOCK_TARGETS as readonly string[]).includes(target)
+        ? target
+        : null;
+  const seen = new Map<string, number>();
+  data.forEach((ref, position) => {
+    if (typeof ref !== 'string' || !BLOCK_DATA_PATTERN.test(ref)) return;
+    const path = ['storefront', 'blocks', index, 'data', position];
+    const at = formatManifestPath(path);
+    const first = seen.get(ref);
+    if (first !== undefined) {
+      report.error(
+        path,
+        'MANIFEST_BLOCK_DATA_DUPLICATE',
+        `"${ref}" is already listed at \`storefront.blocks[${index}].data[${first}]\`.`,
+        `Remove the second "${ref}" from \`storefront.blocks[${index}].data\`.`,
+      );
+      return;
+    }
+    seen.set(ref, position);
+    const dot = ref.indexOf('.');
+    const owner = ref.slice(0, dot);
+    const key = ref.slice(dot + 1);
+    const visibility = definitions?.get(`${owner}\u0000${key}`);
+    if (definitions && visibility === undefined) {
+      report.error(
+        path,
+        'MANIFEST_BLOCK_DATA_NOT_DECLARED',
+        `\`${at}\` reads "${ref}", which no [[data.definitions]] entry declares.`,
+        `Declare it: add a [[data.definitions]] entry with owner = "${owner}", key = "${key}" and visibility = "storefront", or remove "${ref}".`,
+      );
+      return;
+    }
+    if (
+      visibility !== undefined &&
+      visibility !== UNKNOWN_VISIBILITY &&
+      visibility !== 'storefront'
+    ) {
+      report.error(
+        path,
+        'MANIFEST_BLOCK_DATA_NOT_STOREFRONT',
+        `\`${at}\` reads "${ref}", declared with visibility "${visibility}": only storefront values reach a store page.`,
+        `Set visibility = "storefront" on the "${ref}" definition, or remove "${ref}" from the block.`,
+      );
+      return;
+    }
+    if (owner === 'product' && placed !== null && placed !== 'product') {
+      report.error(
+        path,
+        'MANIFEST_BLOCK_DATA_TARGET_MISMATCH',
+        `\`${at}\` reads product data, but the block's target is "${placed}": only the product page has a product.`,
+        `Set target = "product" on \`storefront.blocks[${index}]\`, or read business or store data instead.`,
+      );
+    }
+  });
+}
+
+const NUMERIC_SETTINGS = new Set(['integer', 'number']);
+const TEXT_SETTINGS = new Set(['string', 'text']);
+
+/** Which optional fields a setting type takes. */
+const FIELD_TYPES: Record<string, (type: string) => boolean> = {
+  options: (type) => type === 'select',
+  min: (type) => NUMERIC_SETTINGS.has(type),
+  max: (type) => NUMERIC_SETTINGS.has(type),
+  max_length: (type) => TEXT_SETTINGS.has(type),
+};
+
+const FIELD_TYPE_NAMES: Record<string, string> = {
+  options: 'select',
+  min: 'integer and number',
+  max: 'integer and number',
+  max_length: 'string and text',
+};
+
+/**
+ * Merchant settings across their fields: keys once, each field on the types
+ * that take it, a select's options, a range, the default of the type. Shared
+ * by every kind of extension that takes settings.
+ */
+function checkSettings(list: unknown, base: Path, report: Report): void {
+  if (!Array.isArray(list)) return;
+  const keys = new Map<string, number>();
+  list.forEach((setting, index) => {
+    if (!isTable(setting)) return;
+    const at = [...base, index];
+    const key = own(setting, 'key');
+    if (typeof key === 'string' && SETTING_KEY_PATTERN.test(key)) {
+      const first = keys.get(key);
+      if (first !== undefined) {
+        report.error(
+          [...at, 'key'],
+          'MANIFEST_BLOCK_SETTING_KEY_DUPLICATE',
+          `"${key}" is already the key of \`${formatManifestPath([...base, first])}\`.`,
+          `Give \`${formatManifestPath(at)}\` another key.`,
+        );
+      } else {
+        keys.set(key, index);
+      }
+    }
+    const type = own(setting, 'type');
+    if (
+      typeof type !== 'string' ||
+      !(SETTING_TYPES as readonly string[]).includes(type)
+    ) {
+      return;
+    }
+
+    let fieldsFit = true;
+    for (const field of Object.keys(FIELD_TYPES)) {
+      if (!hasOwn(setting, field) || FIELD_TYPES[field]?.(type)) continue;
+      fieldsFit = false;
+      report.error(
+        [...at, field],
+        'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE',
+        `\`${formatManifestPath([...at, field])}\` applies to ${FIELD_TYPE_NAMES[field] ?? ''} settings; this one is "${type}".`,
+        `Remove \`${field}\` from \`${formatManifestPath(at)}\`, or change its type.`,
+      );
+    }
+
+    const values: string[] = [];
+    if (type === 'select') {
+      const options = own(setting, 'options');
+      if (options === undefined) {
+        report.error(
+          [...at, 'options'],
+          'MANIFEST_FIELD_REQUIRED',
+          `\`${formatManifestPath([...at, 'options'])}\` is required for a select setting.`,
+          `Add ${String(EXAMPLES['storefront.blocks[].settings[].options'])} to \`${formatManifestPath(at)}\`.`,
+        );
+      }
+      const seen = new Map<string, number>();
+      (Array.isArray(options) ? options : []).forEach((option, position) => {
+        const value = isTable(option) ? own(option, 'value') : undefined;
+        if (
+          typeof value !== 'string' ||
+          !SETTING_OPTION_VALUE_PATTERN.test(value)
+        ) {
+          return;
+        }
+        const first = seen.get(value);
+        if (first !== undefined) {
+          report.error(
+            [...at, 'options', position, 'value'],
+            'MANIFEST_BLOCK_SETTING_OPTION_DUPLICATE',
+            `"${value}" is already the value of \`${formatManifestPath([...at, 'options', first])}\`.`,
+            `Give \`${formatManifestPath([...at, 'options', position])}\` another value.`,
+          );
+          return;
+        }
+        seen.set(value, position);
+        values.push(value);
+      });
+    }
+
+    let min: number | undefined;
+    let max: number | undefined;
+    if (NUMERIC_SETTINGS.has(type)) {
+      const whole = type === 'integer';
+      for (const field of ['min', 'max'] as const) {
+        const value = own(setting, field);
+        if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+        if (whole && !Number.isSafeInteger(value)) {
+          report.error(
+            [...at, field],
+            'MANIFEST_BLOCK_SETTING_RANGE_INVALID',
+            `\`${formatManifestPath([...at, field])}\` is ${String(value)}; an integer setting's ${field} is a whole number.`,
+            `Set \`${formatManifestPath([...at, field])}\` to a whole number.`,
+          );
+          continue;
+        }
+        if (field === 'min') min = value;
+        else max = value;
+      }
+      if (min !== undefined && max !== undefined && min > max) {
+        report.error(
+          [...at, 'max'],
+          'MANIFEST_BLOCK_SETTING_RANGE_INVALID',
+          `\`${formatManifestPath([...at, 'max'])}\` is ${String(max)}, below \`min\` (${String(min)}).`,
+          `Set \`max\` to a number at least ${String(min)}, or lower \`min\`.`,
+        );
+        min = max = undefined;
+      }
+    }
+
+    // A default is judged once the setting's own fields are sound: against
+    // a wrong type, or a select without valid options, it would be noise.
+    if (!hasOwn(setting, 'default') || !fieldsFit) return;
+    if (type === 'select' && values.length === 0) return;
+    const maxLength = own(setting, 'max_length');
+    const where = [...at, 'default'];
+    const found = settingDefaultProblem(
+      own(setting, 'default'),
+      formatManifestPath(where),
+      {
+        type,
+        options: values,
+        ...(min !== undefined ? { min } : {}),
+        ...(max !== undefined ? { max } : {}),
+        ...(typeof maxLength === 'number' &&
+        Number.isSafeInteger(maxLength) &&
+        maxLength >= 1 &&
+        maxLength <= L.settingTextMaxLength
+          ? { maxLength }
+          : {}),
+      },
+    );
+    if (found) {
+      report.problem(
+        found.language ? [...where, found.language] : where,
+        found.problem,
+      );
+    }
+  });
+}
+
+/** `[app_proxy]`: open on the platform, and the storefront scope requested. */
+function checkProxy(lookup: Lookup, root: unknown, report: Report): void {
+  if (!isTable(valueAt(root, ['app_proxy']))) return;
+  const scope = lookup.vocabulary.storefrontBlocksScope;
+  const term = lookup.scopes.get(scope);
+  // A vocabulary from before the proxy (a JavaScript caller) keeps it closed.
+  const gate = lookup.vocabulary.appProxy as
+    ManifestVocabulary['appProxy'] | undefined;
+  if (gate?.available !== true || !term?.available) {
+    const reason = gate?.available
+      ? term?.unavailableReason
+      : gate?.unavailableReason;
+    report.error(
+      ['app_proxy'],
+      'MANIFEST_PROXY_NOT_AVAILABLE',
+      'The app proxy cannot be declared yet.',
+      reason
+        ? `Remove the [app_proxy] table; ${reason}.`
+        : 'Remove the [app_proxy] table.',
+    );
+  } else if (!closeScopes(lookup, requestedScopes(root)).has(scope)) {
+    report.error(
+      ['app_proxy'],
+      'MANIFEST_PROXY_SCOPE_MISSING',
+      `The app proxy needs the "${scope}" scope, which the manifest does not request.`,
+      `Add "${scope}" to \`access.scopes\`, or remove the [app_proxy] table.`,
+    );
+  }
+}
+
+/** `[[admin.actions]]`: handles once, and the read scope of each target. */
+function checkActions(lookup: Lookup, root: unknown, report: Report): void {
+  const actions = listAt(root, ['admin', 'actions']);
+  if (!actions) return;
+  const access = valueAt(root, ['access']);
+  const listsReadable =
+    (access === undefined || isTable(access)) &&
+    ['scopes', 'optional_scopes'].every((key) => {
+      const list = valueAt(root, ['access', key]);
+      return list === undefined || Array.isArray(list);
+    });
+  const held = closeScopes(lookup, requestedScopes(root));
+  const seen = new Map<string, number>();
+  actions.forEach((action, index) => {
+    if (!isTable(action)) return;
+    const handle = own(action, 'handle');
+    if (typeof handle === 'string') {
+      const first = seen.get(handle);
+      if (first !== undefined) {
+        report.error(
+          ['admin', 'actions', index, 'handle'],
+          'MANIFEST_ACTION_HANDLE_DUPLICATE',
+          `"${handle}" is already the handle of \`admin.actions[${first}]\`.`,
+          `Give \`admin.actions[${index}]\` another handle.`,
+        );
+      } else {
+        seen.set(handle, index);
+      }
+    }
+    const target = own(action, 'target');
+    if (
+      !listsReadable ||
+      typeof target !== 'string' ||
+      !hasOwn(ADMIN_ACTION_TARGET_SCOPES, target)
+    ) {
+      return;
+    }
+    const scope =
+      ADMIN_ACTION_TARGET_SCOPES[
+        target as keyof typeof ADMIN_ACTION_TARGET_SCOPES
+      ];
+    if (held.has(scope)) return;
+    report.error(
+      ['admin', 'actions', index, 'target'],
+      'MANIFEST_ACTION_SCOPE_MISSING',
+      `An action on "${target}" needs the "${scope}" scope, which the manifest does not request.`,
+      `Add "${scope}" to \`access.scopes\` (or \`access.optional_scopes\`), or remove \`admin.actions[${index}]\`.`,
+    );
+  });
 }
 
 // ── Normalisation ───────────────────────────────────────────────────────────
@@ -1154,6 +1683,63 @@ function strings(value: unknown): string[] {
 
 function tables(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isTable) : [];
+}
+
+/** A `{ ar, en }` label, as a new table in that key order. */
+function labelOf(value: unknown): ManifestLabel {
+  const table = isTable(value) ? value : {};
+  return { ar: own(table, 'ar') as string, en: own(table, 'en') as string };
+}
+
+function normaliseSetting(entry: Record<string, unknown>): ManifestSetting {
+  const setting: ManifestSetting = {
+    key: entry['key'] as string,
+    type: entry['type'] as ManifestSetting['type'],
+    label: labelOf(entry['label']),
+  };
+  if (hasOwn(entry, 'default')) {
+    const value = entry['default'];
+    setting.default = isTable(value)
+      ? labelOf(value)
+      : (value as Exclude<ManifestSetting['default'], ManifestLabel>);
+  }
+  if (Array.isArray(entry['options'])) {
+    setting.options = tables(entry['options']).map((option) => ({
+      value: option['value'] as string,
+      label: labelOf(option['label']),
+    }));
+  }
+  for (const field of ['min', 'max', 'max_length'] as const) {
+    const value = entry[field];
+    if (typeof value === 'number') setting[field] = value;
+  }
+  return setting;
+}
+
+function normaliseBlock(
+  entry: Record<string, unknown>,
+): ManifestStorefrontBlock {
+  const block: Partial<ManifestStorefrontBlock> = {
+    handle: entry['handle'] as string,
+    template: entry['template'] as string,
+  };
+  if (typeof entry['stylesheet'] === 'string') {
+    block.stylesheet = entry['stylesheet'];
+  }
+  if (isTable(entry['name'])) block.name = labelOf(entry['name']);
+  block.target = entry['target'] === 'product' ? 'product' : ('any' as const);
+  block.data = [...strings(entry['data'])].sort();
+  block.settings = tables(entry['settings']).map(normaliseSetting);
+  return block as ManifestStorefrontBlock;
+}
+
+function normaliseAction(entry: Record<string, unknown>): ManifestAdminAction {
+  return {
+    handle: entry['handle'] as string,
+    target: entry['target'] as ManifestAdminAction['target'],
+    label: labelOf(entry['label']),
+    path: entry['path'] as string,
+  };
 }
 
 /** The stored form of a manifest that passed every check. */
@@ -1200,29 +1786,37 @@ function normalise(lookup: Lookup, root: Record<string, unknown>): AppManifest {
   if (typeof callbackUrl === 'string') {
     manifest.auth = { callback_url: callbackUrl };
   }
-  if (typeof page === 'string') manifest.admin = { page };
+  const actions = tables(valueAt(root, ['admin', 'actions'])).map(
+    normaliseAction,
+  );
+  if (typeof page === 'string' || actions.length > 0) {
+    manifest.admin = {};
+    if (typeof page === 'string') manifest.admin.page = page;
+    if (actions.length > 0) manifest.admin.actions = actions;
+  }
   manifest.webhooks = tables(root['webhooks']).map((entry) => ({
     topics: inOrder(strings(entry['topics']), lookup.topicOrder),
     uri: entry['uri'] as string,
   }));
   manifest.data.definitions = tables(
     valueAt(root, ['data', 'definitions']),
-  ).map((entry) => ({
-    owner: entry[
-      'owner'
-    ] as AppManifest['data']['definitions'][number]['owner'],
-    key: entry['key'] as string,
-    type: entry['type'] as AppManifest['data']['definitions'][number]['type'],
-    visibility: entry[
-      'visibility'
-    ] as AppManifest['data']['definitions'][number]['visibility'],
-  }));
+  ).map((entry) => {
+    const definition: ManifestDataDefinition = {
+      owner: entry['owner'] as ManifestDataDefinition['owner'],
+      key: entry['key'] as string,
+      type: entry['type'] as ManifestDataDefinition['type'],
+      visibility: entry['visibility'] as ManifestDataDefinition['visibility'],
+    };
+    if (isTable(entry['label'])) definition.label = labelOf(entry['label']);
+    return definition;
+  });
   manifest.storefront.blocks = tables(
     valueAt(root, ['storefront', 'blocks']),
-  ).map((entry) => ({
-    handle: entry['handle'] as string,
-    template: entry['template'] as string,
-  }));
+  ).map(normaliseBlock);
+  const proxyPath = valueAt(root, ['app_proxy', 'path']);
+  if (typeof proxyPath === 'string') {
+    manifest.app_proxy = { path: proxyPath };
+  }
   // Key order is part of the stored form: rebuild in manifest order.
   const ordered: Record<string, unknown> = {};
   for (const key of [
@@ -1236,6 +1830,7 @@ function normalise(lookup: Lookup, root: Record<string, unknown>): AppManifest {
     'webhooks',
     'data',
     'storefront',
+    'app_proxy',
   ]) {
     if (key in manifest) ordered[key] = manifest[key as keyof AppManifest];
   }
@@ -1311,6 +1906,8 @@ export function validateManifest(
   checkTopics(lookup, input, report);
   checkData(input, report);
   checkBlocks(lookup, input, report);
+  checkProxy(lookup, input, report);
+  checkActions(lookup, input, report);
 
   if (report.collected.length === 0) {
     return { ok: true, manifest: normalise(lookup, input) };

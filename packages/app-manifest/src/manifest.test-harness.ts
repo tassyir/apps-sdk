@@ -8,7 +8,8 @@ import type { ManifestError, ManifestVocabulary } from './manifest-types.js';
 /**
  * A small vocabulary with the shapes the real one has: an implying scope, a
  * scope that needs another, an unavailable scope, topics with and without a
- * scope. The shipped vocabulary is tested in `vocabulary.test.ts`.
+ * scope, the app proxy closed. The shipped vocabulary is tested in
+ * `vocabulary.test.ts`.
  */
 export const FIXTURE_VOCABULARY: ManifestVocabulary = {
   apiVersions: ['2026-07', '2026-10'],
@@ -38,6 +39,24 @@ export const FIXTURE_VOCABULARY: ManifestVocabulary = {
     { name: 'customers/redact', scope: null },
   ],
   storefrontBlocksScope: 'write_storefront',
+  appProxy: {
+    available: false,
+    unavailableReason: 'the app proxy opens later',
+  },
+};
+
+/**
+ * The Phase 2 shape of {@link FIXTURE_VOCABULARY}: `write_storefront`
+ * requestable and the app proxy open.
+ */
+export const STOREFRONT_VOCABULARY: ManifestVocabulary = {
+  ...FIXTURE_VOCABULARY,
+  scopes: FIXTURE_VOCABULARY.scopes.map((scope) =>
+    scope.name === FIXTURE_VOCABULARY.storefrontBlocksScope
+      ? { name: scope.name, implies: [], available: true }
+      : scope,
+  ),
+  appProxy: { available: true },
 };
 
 /** A valid hosted manifest, as parsed from TOML. */
@@ -71,6 +90,79 @@ export function hostedManifest(): Record<string, unknown> {
       ],
     },
   };
+}
+
+/**
+ * A valid hosted manifest with every marketplace field (storefront blocks and
+ * their settings, a data label, an admin action, the app proxy), valid for
+ * {@link STOREFRONT_VOCABULARY}.
+ */
+export function storefrontManifest(): Record<string, unknown> {
+  const doc = hostedManifest();
+  const access = doc['access'] as {
+    scopes: string[];
+    scope_reasons: Record<string, string>;
+  };
+  access.scopes.push('write_storefront');
+  access.scope_reasons['write_storefront'] = 'Show the stars on product pages';
+  (doc['admin'] as Record<string, unknown>)['actions'] = [
+    {
+      handle: 'ask-for-reviews',
+      target: 'orders.selection',
+      label: { ar: 'اطلب التقييمات', en: 'Ask for reviews' },
+      path: '/actions/ask',
+    },
+  ];
+  const [rating] = (doc['data'] as { definitions: Record<string, unknown>[] })
+    .definitions;
+  if (rating) rating['label'] = { ar: 'التقييم', en: 'Rating' };
+  doc['storefront'] = {
+    blocks: [
+      {
+        handle: 'product-rating',
+        template: 'blocks/product-rating.liquid',
+        stylesheet: 'blocks/product-rating.css',
+        name: { ar: 'تقييم المنتج', en: 'Product rating' },
+        target: 'product',
+        data: ['product.rating'],
+        settings: [
+          {
+            key: 'show_count',
+            type: 'boolean',
+            label: { ar: 'عرض العدد', en: 'Show the count' },
+            default: true,
+          },
+          {
+            key: 'layout',
+            type: 'select',
+            label: { ar: 'الشكل', en: 'Layout' },
+            default: 'grid',
+            options: [
+              { value: 'grid', label: { ar: 'شبكة', en: 'Grid' } },
+              { value: 'list', label: { ar: 'قائمة', en: 'List' } },
+            ],
+          },
+          {
+            key: 'stars',
+            type: 'integer',
+            label: { ar: 'عدد النجوم', en: 'Stars' },
+            default: 5,
+            min: 1,
+            max: 10,
+          },
+          {
+            key: 'heading',
+            type: 'string',
+            label: { ar: 'العنوان', en: 'Heading' },
+            default: { ar: 'آراء الزبائن', en: 'What buyers say' },
+            max_length: 60,
+          },
+        ],
+      },
+    ],
+  };
+  doc['app_proxy'] = { path: '/proxy' };
+  return doc;
 }
 
 /** A valid external manifest. */
@@ -123,6 +215,8 @@ export const CHECKED_KEYWORDS = new Set([
   'minItems',
   'maxItems',
   'uniqueItems',
+  'minimum',
+  'maximum',
 ]);
 
 /** Every keyword the schema uses, at any depth. */
@@ -162,6 +256,27 @@ export function schemaViolations(
   if (type === 'array' && !Array.isArray(value)) return [`${path}: not array`];
   if (type === 'string' && typeof value !== 'string') {
     return [`${path}: not string`];
+  }
+  if (type === 'boolean' && typeof value !== 'boolean') {
+    return [`${path}: not boolean`];
+  }
+  if (type === 'number' && typeof value !== 'number') {
+    return [`${path}: not number`];
+  }
+  if (
+    type === 'integer' &&
+    (typeof value !== 'number' || !Number.isInteger(value))
+  ) {
+    return [`${path}: not integer`];
+  }
+  const { minimum, maximum } = schema;
+  if (typeof value === 'number') {
+    if (typeof minimum === 'number' && value < minimum) {
+      errors.push(`${path}: below ${minimum}`);
+    }
+    if (typeof maximum === 'number' && value > maximum) {
+      errors.push(`${path}: above ${maximum}`);
+    }
   }
   const constant = schema['const'];
   if ('const' in schema && value !== constant) {

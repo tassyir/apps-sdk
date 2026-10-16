@@ -1,10 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- manifests are edited as loose JSON to build invalid documents */
 import { describe, expect, it } from 'vitest';
+import { manifestJsonSchema } from './manifest-schema.js';
 import {
   FIXTURE_VOCABULARY,
+  STOREFRONT_VOCABULARY,
   codes,
   externalManifest,
   hostedManifest,
+  schemaViolations,
 } from './manifest.test-harness.js';
 import {
   DASHBOARD_APP_ROUTE_HANDLES,
@@ -343,7 +346,7 @@ describe('validateManifest', () => {
       );
       expect(errors[0]?.fix).toBe('Rename `scope` to `scopes`, or remove it.');
       expect(errors[2]?.fix).toBe(
-        'Remove `version` from the top level of tassyir.app.toml; it accepts: name, handle, api_version, access, hosting, auth, admin, webhooks, data, storefront.',
+        'Remove `version` from the top level of tassyir.app.toml; it accepts: name, handle, api_version, access, hosting, auth, admin, webhooks, data, storefront, app_proxy.',
       );
     });
 
@@ -1169,6 +1172,856 @@ describe('validateManifest', () => {
     });
   });
 
+  describe('Phase 2: storefront blocks, settings, the app proxy, admin actions', () => {
+    const V = STOREFRONT_VOCABULARY;
+    const at = (doc: Doc) => codes(errorsOf(doc, V));
+
+    const ratingBlock = (): Doc => ({
+      handle: 'product-rating',
+      template: 'blocks/product-rating.liquid',
+      stylesheet: 'blocks/product-rating.css',
+      name: { ar: 'تقييم المنتج', en: 'Product rating' },
+      target: 'product',
+      data: ['store.theme', 'product.rating'],
+      settings: [
+        {
+          key: 'show_count',
+          type: 'boolean',
+          label: { ar: 'عرض العدد', en: 'Show the count' },
+          default: true,
+        },
+        {
+          key: 'layout',
+          type: 'select',
+          label: { ar: 'الشكل', en: 'Layout' },
+          options: [
+            { value: 'grid', label: { ar: 'شبكة', en: 'Grid' } },
+            { value: 'list', label: { ar: 'قائمة', en: 'List' } },
+          ],
+          default: 'grid',
+        },
+        {
+          key: 'stars',
+          type: 'integer',
+          label: { ar: 'عدد النجوم', en: 'Stars' },
+          min: 1,
+          max: 10,
+          default: 5,
+        },
+        {
+          key: 'threshold',
+          type: 'number',
+          label: { ar: 'الحد الأدنى', en: 'Lowest rating shown' },
+          min: 0,
+          max: 5,
+          default: 4.5,
+        },
+        {
+          key: 'heading',
+          type: 'string',
+          label: { ar: 'العنوان', en: 'Heading' },
+          max_length: 60,
+          default: { ar: 'آراء الزبائن', en: 'What buyers say' },
+        },
+        {
+          key: 'note',
+          type: 'text',
+          label: { ar: 'ملاحظة', en: 'Note' },
+          default: 'Line one\nLine two',
+        },
+        {
+          key: 'accent',
+          type: 'color',
+          label: { ar: 'اللون', en: 'Accent' },
+          default: '#1A7F5A',
+        },
+        {
+          key: 'more',
+          type: 'url',
+          label: { ar: 'المزيد', en: 'More link' },
+          default: '/collections/new',
+        },
+        {
+          key: 'badge',
+          type: 'image',
+          label: { ar: 'الشارة', en: 'Badge' },
+        },
+        {
+          key: 'pick',
+          type: 'product',
+          label: { ar: 'منتج', en: 'Product' },
+        },
+        {
+          key: 'shelf',
+          type: 'collection',
+          label: { ar: 'تصنيف', en: 'Collection' },
+        },
+      ],
+    });
+
+    const printAction = (): Doc => ({
+      handle: 'print-labels',
+      target: 'orders.selection',
+      label: { ar: 'طباعة الملصقات', en: 'Print labels' },
+      path: '/actions/print',
+    });
+
+    /** A hosted app with every Phase 2 field, valid for {@link V}. */
+    const app = (change: (doc: Doc) => void = () => undefined): Doc =>
+      hosted((doc) => {
+        doc.access.scopes.push('write_storefront');
+        doc.access.scope_reasons.write_storefront =
+          'Show the stars on product pages';
+        doc.data.definitions[0].label = { ar: 'التقييم', en: 'Rating' };
+        doc.data.definitions.push({
+          owner: 'store',
+          key: 'theme',
+          type: 'json',
+          visibility: 'storefront',
+        });
+        doc.storefront = { blocks: [ratingBlock()] };
+        doc.admin.actions = [printAction()];
+        doc.app_proxy = { path: '/proxy' };
+        change(doc);
+      });
+    const setting = (doc: Doc, key: string): Doc =>
+      doc.storefront.blocks[0].settings.find((s: Doc) => s.key === key);
+
+    it('accepts every new field and normalises them', () => {
+      const result = validateManifest(app(), V);
+      expect(result.ok ? [] : codes(result.errors)).toEqual([]);
+      if (!result.ok) return;
+      const manifest: Doc = result.manifest;
+      expect(Object.keys(manifest).slice(-4)).toEqual([
+        'webhooks',
+        'data',
+        'storefront',
+        'app_proxy',
+      ]);
+      expect(manifest.admin).toEqual({
+        page: '/',
+        actions: [printAction()],
+      });
+      expect(manifest.app_proxy).toEqual({ path: '/proxy' });
+      expect(manifest.data.definitions).toEqual([
+        {
+          owner: 'product',
+          key: 'rating',
+          type: 'json',
+          visibility: 'storefront',
+          label: { ar: 'التقييم', en: 'Rating' },
+        },
+        {
+          owner: 'store',
+          key: 'theme',
+          type: 'json',
+          visibility: 'storefront',
+        },
+      ]);
+      const [block] = manifest.storefront.blocks;
+      expect(Object.keys(block)).toEqual([
+        'handle',
+        'template',
+        'stylesheet',
+        'name',
+        'target',
+        'data',
+        'settings',
+      ]);
+      // `data` is a set: sorted, like allowed_hosts.
+      expect(block.data).toEqual(['product.rating', 'store.theme']);
+      expect(block.settings).toEqual(ratingBlock().settings);
+      expect(block.settings.map((s: Doc) => Object.keys(s))).toEqual([
+        ['key', 'type', 'label', 'default'],
+        ['key', 'type', 'label', 'default', 'options'],
+        ['key', 'type', 'label', 'default', 'min', 'max'],
+        ['key', 'type', 'label', 'default', 'min', 'max'],
+        ['key', 'type', 'label', 'default', 'max_length'],
+        ['key', 'type', 'label', 'default'],
+        ['key', 'type', 'label', 'default'],
+        ['key', 'type', 'label', 'default'],
+        ['key', 'type', 'label'],
+        ['key', 'type', 'label'],
+        ['key', 'type', 'label'],
+      ]);
+      const again = validateManifest(JSON.parse(JSON.stringify(manifest)), V);
+      expect(again).toEqual(result);
+    });
+
+    it('fills a block\'s defaults: target "any", no data, no settings', () => {
+      const result = validateManifest(
+        app((doc) => {
+          doc.storefront.blocks = [
+            { handle: 'banner', template: 'blocks/banner.liquid' },
+          ];
+        }),
+        V,
+      );
+      expect(result.ok && result.manifest.storefront.blocks).toEqual([
+        {
+          handle: 'banner',
+          template: 'blocks/banner.liquid',
+          target: 'any',
+          data: [],
+          settings: [],
+        },
+      ]);
+    });
+
+    it('keeps a manifest without the new fields exactly as before', () => {
+      const result = validateManifest(hostedManifest(), V);
+      expect(result.ok && Object.keys(result.manifest)).toEqual([
+        'name',
+        'handle',
+        'api_version',
+        'access',
+        'hosting',
+        'admin',
+        'webhooks',
+        'data',
+        'storefront',
+      ]);
+      expect(result.ok && result.manifest.admin).toEqual({ page: '/' });
+    });
+
+    describe('labels ({ ar, en })', () => {
+      it.each([
+        ['', 'is empty'],
+        ['x'.repeat(51), 'the limit is 50'],
+        ['Rat​ing', 'U+200B'],
+        [' Rating', 'starts or ends with a space'],
+      ])('refuses %j, with the code of the field', (text, words) => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.data.definitions[0].label.en = text;
+            doc.storefront.blocks[0].name.ar = text;
+            setting(doc, 'layout').label.en = text;
+            setting(doc, 'layout').options[1].label.ar = text;
+            doc.admin.actions[0].label.en = text;
+          }),
+          [
+            'MANIFEST_ACTION_LABEL_INVALID admin.actions[0].label.en',
+            'MANIFEST_DATA_LABEL_INVALID data.definitions[0].label.en',
+            'MANIFEST_BLOCK_NAME_INVALID storefront.blocks[0].name.ar',
+            'MANIFEST_BLOCK_SETTING_LABEL_INVALID storefront.blocks[0].settings[1].label.en',
+            'MANIFEST_BLOCK_SETTING_LABEL_INVALID storefront.blocks[0].settings[1].options[1].label.ar',
+          ],
+          V,
+        );
+        for (const error of errors) expect(error.message).toContain(words);
+        if (text === '') {
+          expect(errors[1]?.fix).toBe(
+            'Write the English text merchants read, 50 characters at most.',
+          );
+          expect(errors[2]?.fix).toMatch(/^Write the Arabic text/);
+        }
+      });
+
+      it('needs both languages, and only them', () => {
+        expectErrors(
+          app((doc) => {
+            doc.data.definitions[0].label = { ar: 'التقييم' };
+            doc.storefront.blocks[0].name = {
+              ar: 'تقييم',
+              en: 'Rating',
+              fr: 'Note',
+            };
+            doc.admin.actions[0].label = 'Print labels';
+          }),
+          [
+            'MANIFEST_FIELD_TYPE admin.actions[0].label',
+            'MANIFEST_FIELD_REQUIRED data.definitions[0].label.en',
+            'MANIFEST_FIELD_UNKNOWN storefront.blocks[0].name.fr',
+          ],
+          V,
+        );
+      });
+    });
+
+    describe('a block', () => {
+      it('checks its stylesheet and its target', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.storefront.blocks[0].stylesheet = 'blocks/rating.scss';
+            doc.storefront.blocks[0].target = 'products';
+          }),
+          [
+            'MANIFEST_BLOCK_STYLESHEET_INVALID storefront.blocks[0].stylesheet',
+            'MANIFEST_VALUE_NOT_ALLOWED storefront.blocks[0].target',
+          ],
+          V,
+        );
+        expect(errors[1]?.fix).toBe(
+          'Set `storefront.blocks[0].target` to "product".',
+        );
+      });
+
+      it('still refuses code, whatever else it holds', () => {
+        expectErrors(
+          app((doc) => {
+            doc.storefront.blocks[0].script = 'alert(1)';
+          }),
+          ['MANIFEST_BLOCK_SCRIPT_NOT_ALLOWED storefront.blocks[0].script'],
+          V,
+        );
+      });
+
+      it('takes at most 20 settings and 20 data keys', () => {
+        expectErrors(
+          app((doc) => {
+            const block = doc.storefront.blocks[0];
+            block.settings = Array.from({ length: 21 }, (_, i) => ({
+              key: `s${i}`,
+              type: 'boolean',
+              label: { ar: 'خيار', en: 'Option' },
+            }));
+            block.data = Array.from({ length: 21 }, (_, i) => `store.k${i}`);
+          }),
+          [
+            'MANIFEST_LIST_TOO_LONG storefront.blocks[0].data',
+            ...Array.from(
+              { length: 21 },
+              (_, i) =>
+                `MANIFEST_BLOCK_DATA_NOT_DECLARED storefront.blocks[0].data[${i}]`,
+            ),
+            'MANIFEST_LIST_TOO_LONG storefront.blocks[0].settings',
+          ],
+          V,
+        );
+      });
+    });
+
+    describe("a block's data", () => {
+      it('is "<owner>.<key>", never order or customer data', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.storefront.blocks[0].data = [
+              'rating',
+              'order.notes',
+              'Product.rating',
+            ];
+          }),
+          [
+            'MANIFEST_BLOCK_DATA_INVALID storefront.blocks[0].data[0]',
+            'MANIFEST_BLOCK_DATA_INVALID storefront.blocks[0].data[1]',
+            'MANIFEST_BLOCK_DATA_INVALID storefront.blocks[0].data[2]',
+          ],
+          V,
+        );
+        expect(errors[1]?.message).toBe(
+          '`storefront.blocks[0].data[1]` is "order.notes"; order data holds buyer data, which never reaches a store page.',
+        );
+        expect(errors[1]?.fix).toBe(
+          'Remove "order.notes" from the block\'s `data`; a block reads "business", "store", "product" data only.',
+        );
+      });
+
+      it('is declared with storefront visibility, once', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.data.definitions[1].visibility = 'merchant';
+            doc.storefront.blocks[0].data = [
+              'product.rating',
+              'business.plan',
+              'store.theme',
+              'product.rating',
+            ];
+          }),
+          [
+            'MANIFEST_BLOCK_DATA_NOT_DECLARED storefront.blocks[0].data[1]',
+            'MANIFEST_BLOCK_DATA_NOT_STOREFRONT storefront.blocks[0].data[2]',
+            'MANIFEST_BLOCK_DATA_DUPLICATE storefront.blocks[0].data[3]',
+          ],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Declare it: add a [[data.definitions]] entry with owner = "business", key = "plan" and visibility = "storefront", or remove "business.plan".',
+        );
+        expect(errors[1]?.fix).toBe(
+          'Set visibility = "storefront" on the "store.theme" definition, or remove "store.theme" from the block.',
+        );
+      });
+
+      it('reads product data only on the product page; store data anywhere', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            delete doc.storefront.blocks[0].target;
+          }),
+          ['MANIFEST_BLOCK_DATA_TARGET_MISMATCH storefront.blocks[0].data[1]'],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Set target = "product" on `storefront.blocks[0]`, or read business or store data instead.',
+        );
+        expect(
+          at(
+            app((doc) => {
+              doc.storefront.blocks[0].target = 'any';
+              doc.storefront.blocks[0].data = ['store.theme'];
+            }),
+          ),
+        ).toEqual([]);
+      });
+
+      it('is not judged against definitions that cannot be read', () => {
+        expectErrors(
+          app((doc) => {
+            doc.data = { definitions: 'rating' };
+          }),
+          ['MANIFEST_FIELD_TYPE data.definitions'],
+          V,
+        );
+      });
+    });
+
+    describe("a block's settings", () => {
+      it('need a key, a type and a label; keys are unique', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            const settings = doc.storefront.blocks[0].settings;
+            settings[0].key = 'Show Count';
+            settings[1].key = 'stars';
+            settings[3].type = 'float';
+            delete settings[4].label;
+            settings[5].hint = 'x';
+          }),
+          [
+            'MANIFEST_BLOCK_SETTING_KEY_INVALID storefront.blocks[0].settings[0].key',
+            'MANIFEST_BLOCK_SETTING_KEY_DUPLICATE storefront.blocks[0].settings[2].key',
+            'MANIFEST_VALUE_NOT_ALLOWED storefront.blocks[0].settings[3].type',
+            'MANIFEST_FIELD_REQUIRED storefront.blocks[0].settings[4].label',
+            'MANIFEST_FIELD_UNKNOWN storefront.blocks[0].settings[5].hint',
+          ],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Set `storefront.blocks[0].settings[0].key` to a key of that form, e.g. "show_count".',
+        );
+        expect(errors[3]?.fix).toBe(
+          'Add label = { ar = "عرض العدد", en = "Show the count" } to the [[storefront.blocks.settings]] entry `storefront.blocks[0].settings[4]`.',
+        );
+      });
+
+      it('take each field only on the types that use it', () => {
+        expectErrors(
+          app((doc) => {
+            setting(doc, 'show_count').options = setting(doc, 'layout').options;
+            setting(doc, 'heading').min = 1;
+            setting(doc, 'stars').max_length = 10;
+          }),
+          [
+            'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE storefront.blocks[0].settings[0].options',
+            'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE storefront.blocks[0].settings[2].max_length',
+            'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE storefront.blocks[0].settings[4].min',
+          ],
+          V,
+        );
+      });
+
+      it('a select needs 2 to 20 options, each value once', () => {
+        expectErrors(
+          app((doc) => {
+            delete setting(doc, 'layout').options;
+          }),
+          ['MANIFEST_FIELD_REQUIRED storefront.blocks[0].settings[1].options'],
+          V,
+        );
+        const errors = expectErrors(
+          app((doc) => {
+            setting(doc, 'layout').options.length = 1;
+          }),
+          ['MANIFEST_LIST_TOO_SHORT storefront.blocks[0].settings[1].options'],
+          V,
+        );
+        expect(errors[0]).toMatchObject({
+          message:
+            '`storefront.blocks[0].settings[1].options` has 1 entry; it needs at least 2.',
+          fix: 'List at least 2 entries in `storefront.blocks[0].settings[1].options`.',
+        });
+        expectErrors(
+          app((doc) => {
+            const options = setting(doc, 'layout').options;
+            options[1].value = 'grid';
+            options.push({
+              value: 'Big Cards',
+              label: { ar: 'بطاقات', en: 'Cards' },
+            });
+            options.push(
+              ...Array.from({ length: 18 }, (_, i) => ({
+                value: `o${i}`,
+                label: { ar: 'خيار', en: 'Option' },
+              })),
+            );
+          }),
+          [
+            'MANIFEST_LIST_TOO_LONG storefront.blocks[0].settings[1].options',
+            'MANIFEST_BLOCK_SETTING_OPTION_DUPLICATE storefront.blocks[0].settings[1].options[1].value',
+            'MANIFEST_BLOCK_SETTING_OPTION_INVALID storefront.blocks[0].settings[1].options[2].value',
+            // The default is judged against the valid options only.
+          ],
+          V,
+        );
+      });
+
+      it('check their range: whole numbers for an integer, min at most max', () => {
+        expectErrors(
+          app((doc) => {
+            setting(doc, 'stars').min = 1.5;
+            setting(doc, 'threshold').min = 4;
+            setting(doc, 'threshold').max = 3;
+            setting(doc, 'heading').max_length = 0;
+          }),
+          [
+            'MANIFEST_BLOCK_SETTING_RANGE_INVALID storefront.blocks[0].settings[2].min',
+            'MANIFEST_BLOCK_SETTING_RANGE_INVALID storefront.blocks[0].settings[3].max',
+            'MANIFEST_BLOCK_SETTING_RANGE_INVALID storefront.blocks[0].settings[4].max_length',
+          ],
+          V,
+        );
+      });
+
+      it.each([
+        ['max_length', 2000],
+        ['max_length', 1.5],
+        ['max_length', Infinity],
+        ['min', Infinity],
+        ['min', Number.NaN],
+        ['min', BigInt(1)],
+      ])('explain a refused number: %s = %s', (field, value) => {
+        const key = field === 'min' ? 'stars' : 'heading';
+        const index = key === 'stars' ? 2 : 4;
+        const errors = expectErrors(
+          app((doc) => {
+            setting(doc, key)[field] = value;
+          }),
+          [
+            `MANIFEST_BLOCK_SETTING_RANGE_INVALID storefront.blocks[0].settings[${index}].${field}`,
+          ],
+          V,
+        );
+        expect(errors[0]?.fix).toMatch(/^Set `/);
+      });
+
+      it('refuse a number written as a string', () => {
+        expectErrors(
+          app((doc) => {
+            setting(doc, 'stars').max = '10';
+            setting(doc, 'heading').max_length = '60';
+          }),
+          [
+            'MANIFEST_FIELD_TYPE storefront.blocks[0].settings[2].max',
+            'MANIFEST_FIELD_TYPE storefront.blocks[0].settings[4].max_length',
+          ],
+          V,
+        );
+      });
+    });
+
+    describe("a setting's default", () => {
+      const refused = (key: string, value: unknown, expected: string[]) => {
+        const errors = expectErrors(
+          app((doc) => {
+            setting(doc, key).default = value;
+          }),
+          expected,
+          V,
+        );
+        return errors[0];
+      };
+      const index = (key: string) =>
+        ratingBlock().settings.findIndex((s: Doc) => s.key === key);
+      const path = (key: string) =>
+        `storefront.blocks[0].settings[${index(key)}].default`;
+
+      it.each([
+        ['show_count', 'yes'],
+        ['stars', 2.5],
+        ['stars', 11],
+        ['stars', '5'],
+        ['threshold', -1],
+        ['threshold', Number.NaN],
+        ['layout', 'cards'],
+        ['accent', 'red'],
+        ['accent', '#12345'],
+        ['more', 'javascript:alert(1)'],
+        ['more', '//evil.example.com'],
+        ['more', 'http://example.com'],
+        ['more', 'https://example.com/a b'],
+        ['heading', 'a\nb'],
+        ['heading', 'x'.repeat(61)],
+        ['heading', { ar: 'عنوان' }],
+        ['heading', ['x']],
+        ['note', 'x'.repeat(1001)],
+        ['note', 'a‮b'],
+        ['badge', 'https://cdn.tassyir.io/x.png'],
+        ['pick', '123'],
+        ['shelf', '123'],
+      ])('refuses %s = %j', (key, value) => {
+        const error = refused(key, value, [
+          `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID ${path(key)}`,
+        ]);
+        expect(error?.fix).toMatch(/^(Set|Remove|Shorten) /);
+      });
+
+      it('names the language of a { ar, en } default that fails', () => {
+        refused('heading', { ar: 'a‮b', en: 'Reviews' }, [
+          `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID ${path('heading')}.ar`,
+        ]);
+        const error = refused('heading', { ar: 'آراء', en: 7 }, [
+          `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID ${path('heading')}.en`,
+        ]);
+        expect(error?.fix).toBe(
+          `Write \`${path('heading')}.en\` as a quoted string.`,
+        );
+      });
+
+      it('lists the options of a select', () => {
+        const error = refused('layout', 'cards', [
+          `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID ${path('layout')}`,
+        ]);
+        expect(error?.fix).toBe(
+          `Set \`${path('layout')}\` to one of "grid", "list".`,
+        );
+      });
+
+      it('says why an image, product or collection takes none', () => {
+        const error = refused('badge', 'x', [
+          `MANIFEST_BLOCK_SETTING_DEFAULT_INVALID ${path('badge')}`,
+        ]);
+        expect(error?.message).toBe(
+          `\`${path('badge')}\` is set, but an image setting takes no default: the merchant picks one from their own store.`,
+        );
+      });
+
+      it.each([
+        ['show_count', false],
+        ['stars', 1],
+        ['threshold', 0],
+        ['layout', 'list'],
+        ['accent', '#abcdef'],
+        ['more', 'https://example.com/help?topic=reviews#top'],
+        ['more', '/'],
+        ['heading', ''],
+        ['heading', 'x'.repeat(60)],
+        ['note', 'x'.repeat(1000)],
+        ['note', { ar: 'سطر\nسطر', en: 'Line\nline' }],
+      ])('accepts %s = %j', (key, value) => {
+        expect(
+          at(
+            app((doc) => {
+              setting(doc, key).default = value;
+            }),
+          ),
+        ).toEqual([]);
+      });
+
+      it('is judged by its type only when its fields fit the type', () => {
+        expectErrors(
+          app((doc) => {
+            setting(doc, 'show_count').max_length = 5;
+            setting(doc, 'show_count').default = 'x';
+          }),
+          [
+            'MANIFEST_BLOCK_SETTING_FIELD_NOT_FOR_TYPE storefront.blocks[0].settings[0].max_length',
+          ],
+          V,
+        );
+      });
+    });
+
+    describe('the app proxy', () => {
+      it('is refused while the platform has not opened it', () => {
+        const errors = expectErrors(
+          hosted((doc) => {
+            doc.app_proxy = { path: '/proxy' };
+          }),
+          ['MANIFEST_PROXY_NOT_AVAILABLE app_proxy'],
+        );
+        expect(errors[0]?.fix).toBe(
+          'Remove the [app_proxy] table; the app proxy opens later.',
+        );
+      });
+
+      it('needs the storefront scope once it is open', () => {
+        const errors = expectErrors(
+          hosted((doc) => {
+            doc.app_proxy = { path: '/proxy' };
+          }),
+          ['MANIFEST_PROXY_SCOPE_MISSING app_proxy'],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Add "write_storefront" to `access.scopes`, or remove the [app_proxy] table.',
+        );
+        expect(
+          at(
+            hosted((doc) => {
+              doc.access.optional_scopes.push('write_storefront');
+              doc.access.scope_reasons.write_storefront =
+                'Answer the review form on the store';
+              doc.app_proxy = { path: '/proxy' };
+            }),
+          ),
+        ).toEqual([]);
+      });
+
+      it("takes a path on the app's origin, outside /.tassyir/ when hosted", () => {
+        expectErrors(
+          app((doc) => {
+            doc.app_proxy = { path: 'proxy' };
+          }),
+          ['MANIFEST_PATH_INVALID app_proxy.path'],
+          V,
+        );
+        expectErrors(
+          app((doc) => {
+            doc.app_proxy = {};
+          }),
+          ['MANIFEST_FIELD_REQUIRED app_proxy.path'],
+          V,
+        );
+        expectErrors(
+          app((doc) => {
+            doc.app_proxy = { path: '/.tassyir/proxy' };
+          }),
+          ['MANIFEST_PATH_RESERVED app_proxy.path'],
+          V,
+        );
+        expect(
+          at(
+            external((doc) => {
+              doc.access.scopes.push('write_storefront');
+              doc.access.scope_reasons.write_storefront =
+                'Answer the review form on the store';
+              doc.app_proxy = { path: '/.tassyir/proxy' };
+            }),
+          ),
+        ).toEqual([]);
+      });
+    });
+
+    describe('admin actions', () => {
+      it('check their handle, target, path, and handles once', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.admin.actions = [
+              { ...printAction(), handle: 'Print Labels' },
+              { ...printAction(), target: 'order' },
+              { ...printAction(), handle: 'export', path: 'actions/export' },
+              { ...printAction(), handle: 'export' },
+            ];
+          }),
+          [
+            'MANIFEST_ACTION_HANDLE_INVALID admin.actions[0].handle',
+            'MANIFEST_VALUE_NOT_ALLOWED admin.actions[1].target',
+            'MANIFEST_PATH_INVALID admin.actions[2].path',
+            'MANIFEST_ACTION_HANDLE_DUPLICATE admin.actions[3].handle',
+          ],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Set `admin.actions[0].handle` to a handle of that form, e.g. "print-labels".',
+        );
+      });
+
+      it('need the read scope of their resource (optional and implied count)', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.admin.actions = [
+              { ...printAction(), handle: 'a', target: 'customer.details' },
+            ];
+            doc.admin.actions[0].handle = 'customer-card';
+          }),
+          ['MANIFEST_ACTION_SCOPE_MISSING admin.actions[0].target'],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Add "read_customers" to `access.scopes` (or `access.optional_scopes`), or remove `admin.actions[0]`.',
+        );
+        expect(
+          at(
+            app((doc) => {
+              doc.access.optional_scopes = ['read_customers'];
+              doc.access.scope_reasons.read_customers =
+                "Show the buyer's review history";
+              delete doc.access.scope_reasons.read_customer_contact;
+              doc.admin.actions[0].target = 'customer.details';
+            }),
+          ),
+        ).toEqual([]);
+        expect(
+          at(
+            app((doc) => {
+              doc.access.scopes = [
+                'write_orders',
+                'read_products',
+                'write_storefront',
+              ];
+              doc.access.scope_reasons.write_orders = 'Mark the orders printed';
+              delete doc.access.scope_reasons.read_orders;
+              doc.admin.actions[0].target = 'order.details';
+            }),
+          ),
+        ).toEqual([]);
+      });
+
+      it('may stand without a page, and at most 10', () => {
+        const result = validateManifest(
+          app((doc) => {
+            delete doc.admin.page;
+          }),
+          V,
+        );
+        expect(result.ok && result.manifest.admin).toEqual({
+          actions: [printAction()],
+        });
+        expectErrors(
+          app((doc) => {
+            doc.admin.actions = Array.from({ length: 11 }, (_, i) => ({
+              ...printAction(),
+              handle: `action-${i}`,
+            }));
+          }),
+          ['MANIFEST_LIST_TOO_LONG admin.actions'],
+          V,
+        );
+      });
+
+      it("keep a hosted app's paths out of /.tassyir/", () => {
+        expectErrors(
+          app((doc) => {
+            doc.admin.actions[0].path = '/.tassyir/print';
+          }),
+          ['MANIFEST_PATH_RESERVED admin.actions[0].path'],
+          V,
+        );
+      });
+    });
+
+    it('the new fields are in the published shape', () => {
+      const schema = manifestJsonSchema(V);
+      const doc = app();
+      expect(schemaViolations(doc, schema)).toEqual([]);
+      const result = validateManifest(doc, V);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(
+          schemaViolations(JSON.parse(JSON.stringify(result.manifest)), schema),
+        ).toEqual([]);
+      }
+      const broken = app((d) => {
+        setting(d, 'stars').max_length = 0;
+        setting(d, 'layout').options.length = 1;
+        d.admin.actions[0].target = 'order';
+      });
+      expect(schemaViolations(broken, schema)).toEqual([
+        '$.admin.actions[0].target: "order" not in enum',
+        '$.storefront.blocks[0].settings[1].options: fewer than 2 items',
+        '$.storefront.blocks[0].settings[2].max_length: below 1',
+      ]);
+    });
+  });
+
   describe('the error list', () => {
     const broken = () =>
       hosted((doc) => {
@@ -1297,6 +2150,36 @@ describe('validateManifest', () => {
       (d, v) => (d.data.definitions[0].type = v),
       (d, v) => (d.data.definitions[0].visibility = v),
       (d, v) => (d.storefront = { blocks: [{ handle: v, template: v }] }),
+      (d, v) => (d.data.definitions[0].label = { ar: v, en: v }),
+      (d, v) =>
+        (d.storefront = {
+          blocks: [
+            {
+              handle: 'block-1',
+              template: 'blocks/b.liquid',
+              stylesheet: v,
+              name: { ar: v, en: v },
+              target: v,
+              data: [v],
+              settings: [
+                {
+                  key: v,
+                  type: v,
+                  label: { ar: v, en: v },
+                  options: [
+                    { value: v, label: { ar: v, en: v } },
+                    { value: 'x', label: { ar: 'x', en: 'x' } },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      (d, v) =>
+        (d.admin.actions = [
+          { handle: v, target: v, label: { ar: v, en: v }, path: v },
+        ]),
+      (d, v) => (d.app_proxy = { path: v }),
     ];
     const externalLeaves: Array<(doc: Doc, value: string) => void> = [
       (d, v) => (d.hosting.url = v),

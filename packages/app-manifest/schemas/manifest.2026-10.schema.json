@@ -25,7 +25,7 @@
       "type": "object",
       "properties": {
         "scopes": {
-          "maxItems": 16,
+          "maxItems": 17,
           "type": "array",
           "items": {
             "type": "string",
@@ -45,14 +45,15 @@
               "read_analytics",
               "read_finance",
               "read_stores",
-              "read_delivery"
+              "read_delivery",
+              "write_storefront"
             ]
           },
           "uniqueItems": true,
           "description": "Scopes the merchant must grant to install the app."
         },
         "optional_scopes": {
-          "maxItems": 16,
+          "maxItems": 17,
           "type": "array",
           "items": {
             "type": "string",
@@ -72,7 +73,8 @@
               "read_analytics",
               "read_finance",
               "read_stores",
-              "read_delivery"
+              "read_delivery",
+              "write_storefront"
             ]
           },
           "uniqueItems": true,
@@ -98,7 +100,8 @@
               "read_analytics",
               "read_finance",
               "read_stores",
-              "read_delivery"
+              "read_delivery",
+              "write_storefront"
             ]
           },
           "additionalProperties": {
@@ -168,6 +171,70 @@
           "maxLength": 256,
           "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$",
           "description": "The embedded dashboard page: a path on the app's origin. Omit for a headless app."
+        },
+        "actions": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "handle": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 40,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                "description": "Unique among the actions."
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "order.details",
+                  "orders.selection",
+                  "product.details",
+                  "products.selection",
+                  "customer.details"
+                ],
+                "description": "Where the menu entry appears. Needs the read scope of its resource."
+              },
+              "label": {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  }
+                },
+                "required": [
+                  "ar",
+                  "en"
+                ],
+                "additionalProperties": false,
+                "description": "The menu entry as the merchant reads it."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$",
+                "description": "The app's page the entry opens in the dashboard's app window, with ?id= or ?ids= added."
+              }
+            },
+            "required": [
+              "handle",
+              "target",
+              "label",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Menu entries on the order, product and customer pages and lists."
         }
       },
       "additionalProperties": false
@@ -269,6 +336,29 @@
                   "storefront"
                 ],
                 "description": "\"app\": the app only. \"merchant\": also shown in the dashboard. \"storefront\": also readable by the app's storefront blocks."
+              },
+              "label": {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  }
+                },
+                "required": [
+                  "ar",
+                  "en"
+                ],
+                "additionalProperties": false,
+                "description": "Optional: the name the dashboard shows next to a merchant or storefront value."
               }
             },
             "required": [
@@ -304,6 +394,175 @@
                 "maxLength": 200,
                 "pattern": "^[a-z0-9_-]+(?:\\/[a-z0-9_-]+)*\\.liquid$",
                 "description": "A .liquid file of the app bundle. Declarative only: no scripts."
+              },
+              "stylesheet": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[a-z0-9_-]+(?:\\/[a-z0-9_-]+)*\\.css$",
+                "description": "Optional: a .css file of the app bundle."
+              },
+              "name": {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  }
+                },
+                "required": [
+                  "ar",
+                  "en"
+                ],
+                "additionalProperties": false,
+                "description": "The block as the merchant reads it in the store builder."
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "any"
+                ],
+                "description": "\"product\": the product page (the template reads `product`). \"any\" (the default): any page but the order form's."
+              },
+              "data": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:business|store|product)\\.[a-z][a-z0-9_]{0,63}$"
+                },
+                "uniqueItems": true,
+                "description": "App data the template reads: \"<owner>.<key>\" of a [[data.definitions]] entry with storefront visibility."
+              },
+              "settings": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                      "description": "Unique in the block; the template reads block.settings.<key>."
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "text",
+                        "boolean",
+                        "integer",
+                        "number",
+                        "select",
+                        "color",
+                        "image",
+                        "url",
+                        "product",
+                        "collection"
+                      ]
+                    },
+                    "label": {
+                      "type": "object",
+                      "properties": {
+                        "ar": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 50,
+                          "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                        },
+                        "en": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 50,
+                          "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                        }
+                      },
+                      "required": [
+                        "ar",
+                        "en"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The field label the merchant reads in the builder."
+                    },
+                    "default": {
+                      "description": "Optional: a value of the type. string and text: a string or { ar, en }; select: an option value; color: \"#rrggbb\"; url: https or a path of the store. image, product and collection take none."
+                    },
+                    "options": {
+                      "minItems": 2,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "maxLength": 40,
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$"
+                          },
+                          "label": {
+                            "type": "object",
+                            "properties": {
+                              "ar": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 50,
+                                "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                              },
+                              "en": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 50,
+                                "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                              }
+                            },
+                            "required": [
+                              "ar",
+                              "en"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The choice as the merchant reads it."
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "select only (required there): the choices."
+                    },
+                    "min": {
+                      "type": "number",
+                      "description": "integer and number only."
+                    },
+                    "max": {
+                      "type": "number",
+                      "description": "integer and number only."
+                    },
+                    "max_length": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000,
+                      "description": "string and text only."
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "type",
+                    "label"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "What the merchant sets for the block in the store builder."
               }
             },
             "required": [
@@ -312,10 +571,26 @@
             ],
             "additionalProperties": false
           },
-          "description": "Storefront blocks (Phase 2: refused until then)."
+          "description": "Declarative storefront blocks: they need the write_storefront scope."
         }
       },
       "additionalProperties": false
+    },
+    "app_proxy": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$",
+          "description": "Where Tassyir forwards https://{store}/apps/{handle}/…: a path on the app's origin."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "The app proxy: needs the write_storefront scope. Answers are JSON, text, XML or images, never HTML."
     }
   },
   "required": [

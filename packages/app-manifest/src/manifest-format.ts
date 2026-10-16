@@ -1,6 +1,9 @@
 import {
   ALLOWED_HOST_PATTERN,
+  BLOCK_DATA_OWNERS,
+  BLOCK_DATA_PATTERN,
   DATA_KEY_PATTERN,
+  DATA_OWNERS,
   HANDLE_PATTERN,
   HOSTNAME_PATTERN,
   INVISIBLE_CHARACTER,
@@ -8,6 +11,10 @@ import {
   PRIVATE_TLDS,
   RESERVED_DOMAINS,
   RESERVED_HANDLES,
+  SETTING_COLOR_PATTERN,
+  SETTING_KEY_PATTERN,
+  SETTING_OPTION_VALUE_PATTERN,
+  STYLESHEET_PATTERN,
   TEMPLATE_PATTERN,
 } from './manifest-limits.js';
 import type { ManifestError, ManifestErrorCode } from './manifest-types.js';
@@ -173,6 +180,25 @@ export function nameProblem(value: string, path: string): Problem | null {
   });
 }
 
+/**
+ * One language of a `{ ar, en }` label shown to merchants (a data
+ * definition's, a block's name, a setting's or an option's, an admin
+ * action's): the `name` text rules.
+ */
+export function labelProblem(
+  value: string,
+  path: string,
+  code: ManifestErrorCode,
+): Problem | null {
+  const language = path.endsWith('.ar') ? 'Arabic' : 'English';
+  return textProblem(value, path, {
+    code,
+    min: 1,
+    max: L.labelMaxLength,
+    purpose: `the ${language} text merchants read, ${L.labelMaxLength} characters at most`,
+  });
+}
+
 export function scopeReasonProblem(
   value: string,
   path: string,
@@ -206,18 +232,20 @@ function isHandle(value: string): boolean {
 }
 
 /**
- * The app's handle (also a DNS label: `{handle}.tassyir-apps.com`) or a
- * storefront block's handle.
+ * The app's handle (also a DNS label: `{handle}.tassyir-apps.com`), a
+ * storefront block's or an admin action's.
  */
 export function handleProblem(
   value: string,
   path: string,
-  kind: 'app' | 'block',
+  kind: 'app' | 'block' | 'action',
 ): Problem | null {
   const code: ManifestErrorCode =
     kind === 'app'
       ? 'MANIFEST_HANDLE_INVALID'
-      : 'MANIFEST_BLOCK_HANDLE_INVALID';
+      : kind === 'block'
+        ? 'MANIFEST_BLOCK_HANDLE_INVALID'
+        : 'MANIFEST_ACTION_HANDLE_INVALID';
   if (!isHandle(value)) {
     const slug = slugOf(value);
     const suggestion = isHandle(slug)
@@ -364,7 +392,7 @@ export function allowedHostProblem(
       'MANIFEST_HOST_NOT_ALLOWED',
       `\`${path}\` is ${quote(value)}, ${reason}.`,
       tassyir
-        ? `Remove \`${path}\`; a hosted app calls Tassyir through env.TASSYIR (the Admin API), not through the network.`
+        ? `Remove \`${path}\`; a hosted app calls Tassyir through ctx.props.TASSYIR (the Admin API), not through the network.`
         : `Remove \`${path}\`; list only public hostnames the app calls.`,
     );
   }
@@ -565,4 +593,273 @@ export function templateProblem(value: string, path: string): Problem | null {
     `\`${path}\` is ${quote(value)}; a template is a \`.liquid\` file of the app bundle, a relative path of lowercase letters, digits, "_" and "-", ${L.templateMaxLength} characters at most.`,
     `Set \`${path}\` to the template's path in the bundle, e.g. "blocks/star-rating.liquid".`,
   );
+}
+
+export function stylesheetProblem(value: string, path: string): Problem | null {
+  if (value.length <= L.templateMaxLength && STYLESHEET_PATTERN.test(value)) {
+    return null;
+  }
+  return problem(
+    'MANIFEST_BLOCK_STYLESHEET_INVALID',
+    `\`${path}\` is ${quote(value)}; a stylesheet is a \`.css\` file of the app bundle, a relative path of lowercase letters, digits, "_" and "-", ${L.templateMaxLength} characters at most.`,
+    `Set \`${path}\` to the stylesheet's path in the bundle, e.g. "blocks/star-rating.css".`,
+  );
+}
+
+/** One entry of a block's `data`: `<owner>.<key>`. */
+export function blockDataProblem(value: string, path: string): Problem | null {
+  if (BLOCK_DATA_PATTERN.test(value)) return null;
+  const owner = value.split('.')[0] ?? '';
+  const owners = BLOCK_DATA_OWNERS.map((name) => `"${name}"`).join(', ');
+  if (
+    value.includes('.') &&
+    (DATA_OWNERS as readonly string[]).includes(owner) &&
+    !(BLOCK_DATA_OWNERS as readonly string[]).includes(owner)
+  ) {
+    return problem(
+      'MANIFEST_BLOCK_DATA_INVALID',
+      `\`${path}\` is ${quote(value)}; ${owner} data holds buyer data, which never reaches a store page.`,
+      `Remove ${quote(value)} from the block's \`data\`; a block reads ${owners} data only.`,
+    );
+  }
+  return problem(
+    'MANIFEST_BLOCK_DATA_INVALID',
+    `\`${path}\` is ${quote(value)}; a block reads app data as "<owner>.<key>", the owner one of ${owners}.`,
+    `Write \`${path}\` as the owner and key of a [[data.definitions]] entry, e.g. "product.rating".`,
+  );
+}
+
+export function settingKeyProblem(value: string, path: string): Problem | null {
+  if (SETTING_KEY_PATTERN.test(value)) return null;
+  const suggestion = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^[^a-z]+/, '')
+    .slice(0, L.settingKeyMaxLength);
+  return problem(
+    'MANIFEST_BLOCK_SETTING_KEY_INVALID',
+    `\`${path}\` is ${quote(value)}; a setting key is 1 to ${L.settingKeyMaxLength} lowercase letters, digits and underscores, starting with a letter.`,
+    `Set \`${path}\` to a key of that form, e.g. "${suggestion || 'show_count'}".`,
+  );
+}
+
+export function optionValueProblem(
+  value: string,
+  path: string,
+): Problem | null {
+  if (SETTING_OPTION_VALUE_PATTERN.test(value)) return null;
+  const suggestion = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .slice(0, L.settingOptionValueMaxLength);
+  return problem(
+    'MANIFEST_BLOCK_SETTING_OPTION_INVALID',
+    `\`${path}\` is ${quote(value)}; an option value is 1 to ${L.settingOptionValueMaxLength} lowercase letters, digits, "_" and "-", starting with a letter or digit.`,
+    `Set \`${path}\` to a value of that form, e.g. "${suggestion || 'grid'}".`,
+  );
+}
+
+// ── Setting values ─────────────────────────────────────────────────────────
+
+/** What a setting's `default` must be, ending a sentence. */
+export interface SettingRule {
+  type: string;
+  /** A `select`'s option values, valid ones only. */
+  options: readonly string[];
+  min?: number;
+  max?: number;
+  maxLength?: number;
+}
+
+/** Control and invisible characters; `allowNewline` lets "\n" through. */
+function strayCharacter(value: string, allowNewline: boolean): string | null {
+  for (const char of value) {
+    if (allowNewline && char === '\n') continue;
+    if (INVISIBLE_CHARACTER.test(char)) {
+      return `U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`;
+    }
+  }
+  return null;
+}
+
+/** A `string` or `text` default, one language of it, or the whole string. */
+function textDefaultProblem(
+  value: string,
+  path: string,
+  rule: SettingRule,
+): Problem | null {
+  const multiline = rule.type === 'text';
+  const limit = rule.maxLength ?? L.settingTextMaxLength;
+  const stray = strayCharacter(value, multiline);
+  if (stray) {
+    return problem(
+      'MANIFEST_BLOCK_SETTING_DEFAULT_INVALID',
+      `\`${path}\` holds an invisible, control${multiline ? '' : ' or line-break'} character (${stray}).`,
+      `Remove the ${stray} character from \`${path}\`${multiline ? '' : ' and keep the text on one line'}.`,
+    );
+  }
+  if (value.length > limit) {
+    return problem(
+      'MANIFEST_BLOCK_SETTING_DEFAULT_INVALID',
+      `\`${path}\` is ${value.length} characters long; the setting holds at most ${limit}.`,
+      `Shorten \`${path}\` to ${limit} characters or fewer.`,
+    );
+  }
+  return null;
+}
+
+/** Whether a value is a table with exactly the keys `ar` and `en`. */
+function isLabelTable(value: unknown): value is Record<'ar' | 'en', unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  if (Object.prototype.toString.call(value) !== '[object Object]') return false;
+  const keys = Object.keys(value);
+  return keys.length === 2 && keys.includes('ar') && keys.includes('en');
+}
+
+function rangeText(rule: SettingRule): string {
+  if (rule.min !== undefined && rule.max !== undefined) {
+    return ` from ${rule.min} to ${rule.max}`;
+  }
+  if (rule.min !== undefined) return ` of at least ${rule.min}`;
+  if (rule.max !== undefined) return ` of at most ${rule.max}`;
+  return '';
+}
+
+/** "a boolean setting", "an image setting". */
+function aSetting(type: string): string {
+  return `${/^[aeiou]/.test(type) ? 'an' : 'a'} ${type} setting`;
+}
+
+/** Where a setting's default fails: the field, or one language of it. */
+export interface SettingDefaultProblem {
+  language?: 'ar' | 'en';
+  problem: Problem;
+}
+
+/**
+ * A setting's `default`, judged by its type (`path` names the field): the
+ * first problem, and the language it is in for a `{ ar, en }` default.
+ */
+export function settingDefaultProblem(
+  value: unknown,
+  path: string,
+  rule: SettingRule,
+): SettingDefaultProblem | null {
+  const fail = (
+    message: string,
+    fix: string,
+    language?: 'ar' | 'en',
+  ): SettingDefaultProblem => ({
+    ...(language ? { language } : {}),
+    problem: problem('MANIFEST_BLOCK_SETTING_DEFAULT_INVALID', message, fix),
+  });
+  const shown = typeof value === 'string' ? quote(value) : describeType(value);
+  switch (rule.type) {
+    case 'image':
+    case 'product':
+    case 'collection':
+      return fail(
+        `\`${path}\` is set, but ${aSetting(rule.type)} takes no default: the merchant picks one from their own store.`,
+        `Remove \`${path}\`.`,
+      );
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? null
+        : fail(
+            `\`${path}\` is ${shown}; ${aSetting('boolean')}'s default is true or false.`,
+            `Set \`${path}\` to true or false.`,
+          );
+    case 'integer':
+    case 'number': {
+      const whole = rule.type === 'integer';
+      const ok =
+        typeof value === 'number' &&
+        (whole ? Number.isSafeInteger(value) : Number.isFinite(value));
+      if (!ok) {
+        return fail(
+          `\`${path}\` is ${typeof value === 'number' ? String(value) : shown}; ${aSetting(rule.type)}'s default is ${whole ? 'a whole number' : 'a finite number'}.`,
+          `Set \`${path}\` to ${whole ? 'a whole number' : 'a number'}${rangeText(rule)}.`,
+        );
+      }
+      if (
+        (rule.min !== undefined && value < rule.min) ||
+        (rule.max !== undefined && value > rule.max)
+      ) {
+        return fail(
+          `\`${path}\` is ${String(value)}, outside the setting's range${rangeText(rule)}.`,
+          `Set \`${path}\` to a number${rangeText(rule)}.`,
+        );
+      }
+      return null;
+    }
+    case 'select':
+      if (typeof value === 'string' && rule.options.includes(value)) {
+        return null;
+      }
+      return fail(
+        `\`${path}\` is ${shown}, which is not the value of one of the setting's options.`,
+        rule.options.length > 0
+          ? `Set \`${path}\` to one of ${rule.options.map((option) => `"${option}"`).join(', ')}.`
+          : `Set \`${path}\` to the \`value\` of one of the setting's options.`,
+      );
+    case 'color':
+      return typeof value === 'string' && SETTING_COLOR_PATTERN.test(value)
+        ? null
+        : fail(
+            `\`${path}\` is ${shown}; a color is written "#rrggbb".`,
+            `Set \`${path}\` to a color such as "#1a7f5a".`,
+          );
+    case 'url': {
+      if (typeof value !== 'string') {
+        return fail(
+          `\`${path}\` is ${shown}; ${aSetting('url')}'s default is a string.`,
+          `Set \`${path}\` to an https URL or a path of the store starting with "/".`,
+        );
+      }
+      const shape =
+        value.length <= L.settingUrlMaxLength &&
+        strayCharacter(value, false) === null &&
+        !/[\s\\]/.test(value) &&
+        (/^https:\/\/[^/?#]+(?:[/?#].*)?$/.test(value) ||
+          /^\/(?!\/)/.test(value) ||
+          value === '/');
+      return shape
+        ? null
+        : fail(
+            `\`${path}\` is ${shown}; a link is an https URL or a path of the store starting with "/", ${L.settingUrlMaxLength} characters at most, with no space.`,
+            `Set \`${path}\` to a link such as "https://example.com/help" or "/collections/new".`,
+          );
+    }
+    case 'string':
+    case 'text': {
+      if (typeof value === 'string') {
+        const found = textDefaultProblem(value, path, rule);
+        return found ? { problem: found } : null;
+      }
+      if (isLabelTable(value)) {
+        for (const language of ['ar', 'en'] as const) {
+          const text = value[language];
+          const at = `${path}.${language}`;
+          if (typeof text !== 'string') {
+            return fail(
+              `\`${at}\` is ${describeType(text)}; it must be a string.`,
+              `Write \`${at}\` as a quoted string.`,
+              language,
+            );
+          }
+          const found = textDefaultProblem(text, at, rule);
+          if (found) return { language, problem: found };
+        }
+        return null;
+      }
+      return fail(
+        `\`${path}\` is ${shown}; ${aSetting(rule.type)}'s default is a string, or { ar = "…", en = "…" } for each language.`,
+        `Set \`${path}\` to a string, or to a table with exactly the keys ar and en.`,
+      );
+    }
+  }
+  return null;
 }
