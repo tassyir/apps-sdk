@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/app-manifest",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Schema and validator for tassyir.app.toml, the Tassyir app manifest: the normalised manifest or every error with a code, a path and a fix.",
   "keywords": [
     "tassyir",

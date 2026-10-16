@@ -1,5 +1,13 @@
 # create-tassyir-app
 
+## 0.2.1
+
+### Patch Changes
+
+- 492bb64: New projects name `@tassyir/app-manifest`'s release with the marketplace's manifest fields (storefront blocks and their settings, data labels, admin actions, the app proxy).
+- Updated dependencies [492bb64]
+  - @tassyir/app-manifest@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

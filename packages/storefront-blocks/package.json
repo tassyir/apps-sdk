@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/storefront-blocks",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The language of Tassyir's declarative storefront blocks: a Liquid subset with a validator (coded errors with line, column and fix), a step-counted renderer and an allowlist HTML gate. The same bytes in Node and in browsers.",
   "keywords": [
     "tassyir",

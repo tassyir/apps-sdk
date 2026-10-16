@@ -1,5 +1,17 @@
 # @tassyir/dev-mcp
 
+## 0.1.3
+
+### Patch Changes
+
+- 492bb64: The manifest guide (`fetch_doc manifest`) describes the marketplace's fields, marked not live yet: storefront blocks and their settings, data labels, admin actions and the app proxy. `validate_manifest` checks them with `@tassyir/app-manifest`'s new release.
+- afca14a: The storefront blocks guide (`fetch_doc storefront-blocks`, marked not live yet): the block template language, its objects, tags and filters, the HTML and stylesheet rules, the limits and the error codes.
+- Updated dependencies [492bb64]
+- Updated dependencies [492bb64]
+  - @tassyir/app-manifest@0.3.0
+  - create-tassyir-app@0.2.1
+  - tassyir@0.3.1
+
 ## 0.1.2
 
 ### Patch Changes
