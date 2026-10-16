@@ -3,6 +3,8 @@
 The [Tassyir](https://tassyir.io) developer CLI. It signs you in from a
 terminal, creates your apps, validates and deploys `tassyir.app.toml`,
 manages client secrets, creates seeded dev stores and sends test webhooks.
+For the marketplace, it previews storefront blocks, keeps your listing in a
+file and submits the app to review.
 Every command prints `--json`, and every refusal has a stable `code`, a
 `message` and a one-sentence `fix`, so an AI coding agent can drive it as
 well as you can.
@@ -12,8 +14,8 @@ An app runs on **your own server** (`hosting.mode = "external"`) or on
 code, checks it by the API's rules before uploading it, and follows Tassyir's
 scan of it to the verdict ([below](#tassyir-hosting)). The production API
 keeps Tassyir Hosting switched off until hosted apps can be reached, and
-answers a hosted deploy `APP_HOSTING_NOT_AVAILABLE`. `logs --tail` and
-`submit` come later; their commands already exist and say so.
+answers a hosted deploy `APP_HOSTING_NOT_AVAILABLE`. `logs --tail` comes
+later; its command already exists and says so.
 
 ## Install
 
@@ -92,6 +94,7 @@ tassyir deploy --json   # the same manifest again
 | `tassyir validate [path]`         | Check `tassyir.app.toml` with the API's own validator, offline |
 | `tassyir deploy`                  | Validate the manifest, then upload it as the app's new version |
 | `tassyir deploy --dry-run`        | Every check `deploy` runs before it uploads; no sign-in        |
+| `tassyir block preview [handle]`  | Render a storefront block with sample data, offline            |
 | `tassyir app version [n]`         | One version (default the latest), a hosted one with its scan   |
 | `tassyir secrets list`            | An app's client secrets (never the secrets)                    |
 | `tassyir secrets create`          | Mint the app's first client secret, shown once                 |
@@ -102,9 +105,13 @@ tassyir deploy --json   # the same manifest again
 | `tassyir webhook trigger <topic>` | A test event of one topic, sent to an installation's endpoint  |
 | `tassyir webhook deliveries`      | The app's delivery log (30 days), with filters                 |
 | `tassyir webhook replay <id>`     | Send one delivery again, now                                   |
+| `tassyir listing pull`            | Write the draft marketplace listing to `tassyir.listing.json`  |
+| `tassyir listing push`            | Save that file as the draft listing; what is still missing     |
+| `tassyir submit`                  | Submit to the marketplace review, its checks followed          |
+| `tassyir submit --checks-only`    | The review's checklist as a dry run; nothing submitted         |
+| `tassyir submissions [id]`        | The app's reviews, or one with its checks and decision         |
 | `tassyir dev`                     | The checklist to run your app against a dev store              |
 | `tassyir logs --tail`             | Not available yet: needs Tassyir Hosting                       |
-| `tassyir submit`                  | Not available yet: public listing comes with the marketplace   |
 
 `tassyir <command> --help` explains each one and its options.
 `tassyir --help --json` is the whole catalogue as data. The commands that act
@@ -281,8 +288,61 @@ check comes on top: no field of the manifest takes a TOML date or time, so
 the CLI refuses one wherever it is (the validator would read a date where a
 table goes as an empty table, and the API would see a string there).
 `deploy` uploads only a manifest that passed, and the same manifest twice is
-answered `unchanged` (exit 0). A hosted app also needs its bundle: next
-section.
+answered `unchanged` (exit 0). A hosted app also needs its bundle: see
+[Tassyir Hosting](#tassyir-hosting).
+
+## Storefront blocks
+
+Not live yet: blocks open with the marketplace. For each
+`[[storefront.blocks]]` entry, `validate` and `deploy` read the template and
+the stylesheet (paths from the manifest's folder, never outside it) and hold
+them to [`@tassyir/storefront-blocks`](../storefront-blocks)' `validateBlock`,
+the check the API runs at upload: the template against its declaration, the
+stylesheet, sample renders in Arabic, French and English. Every problem comes
+at once as `BLOCKS_INVALID` (exit 4), each with its `code`, its place
+(`blocks/product-rating.liquid:3:7`) and a `fix`. A version's block files
+weigh 100 KB at most together.
+
+`deploy` then uploads them with the version: an app on your own server sends
+them next to the manifest as the version's `assets`
+(`{ files: [{ path, content }] }`); a hosted app carries them in its bundle as
+text modules, at the manifest's paths. An API that does not take block files
+yet answers `BLOCK_ASSETS_NOT_ACCEPTED`.
+
+`tassyir block preview [handle]` renders one block on your machine with the
+package's sample data: the store "Dar Amina", a product for target
+`product`, each setting at its default. `--lang ar|fr|en` (default `ar`),
+`--settings <file.json>` (values as a merchant saves them), `--data
+<file.json>` (app data by owner: `{ "product": { "rating": … } }`). It prints
+the HTML as the store shows it (stdout holds the HTML alone) and warns about
+values the render drops; `--out preview.html` writes a page with the
+stylesheet, where no script can run.
+
+## The marketplace
+
+Not open yet: these commands drive the API's listing and review routes.
+
+- `tassyir listing pull` writes the draft listing to `./tassyir.listing.json`
+  (`--file`; `--force` to overwrite), and lists what it still needs and the
+  app's images by id. `tassyir listing push` sends the file back as the whole
+  draft: refused with every problem (`LISTING_INVALID`) only for what is never
+  right; what is missing is saved and listed. Images are uploaded in the
+  developer console.
+- `tassyir submit --distribution public|unlisted [--note <text>]` refuses a
+  draft that still misses something (`LISTING_INCOMPLETE`), then submits and
+  follows the review's automated checklist (`--timeout`, default 180 s; 0
+  answers at once). Exit 0 once the review waits for a person, 1 when a hard
+  check failed (`SUBMISSION_CHECKS_FAILED`, each check with its fix), 5 when
+  it stopped waiting (never submit again then: `tassyir submissions <id>
+--follow`). The developer terms are accepted in the console, never by the
+  CLI.
+- `tassyir submit --checks-only` runs the same checklist as a dry run,
+  without submitting (5 runs per app per hour: it sends test webhooks to your
+  endpoints).
+- `tassyir submissions [id] [--follow]` lists the reviews, or shows one: its
+  state, why a person reviews it, the turnaround, each check, the decision.
+
+The guide: [Publishing to the marketplace](https://developers.tassyir.io/guides/publishing).
 
 ## Tassyir Hosting
 
@@ -435,7 +495,8 @@ const exitCode = await runCli(['validate', '--json'], io);
 `fetch`, a clock, how to run a program and, optionally, Ctrl-C
 (`onInterrupt`). The hosted bundle's checks are exported too:
 `validateHostedBundle` (the API's upload rules), `checkBundleCode` (the
-scan's code checks) and `buildHostedBundle`. `DeveloperApi` is the typed
+scan's code checks) and `buildHostedBundle`; and the block files' check,
+`checkBlocks` (what `validate` runs on `[[storefront.blocks]]`). `DeveloperApi` is the typed
 developer-API client the commands use. Its routes, bodies and answers are
 typed from the developer API's OpenAPI document, vendored in `openapi/` at a
 recorded backend commit (`SOURCE.json`); the package exports the types

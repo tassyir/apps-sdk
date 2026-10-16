@@ -19,7 +19,7 @@ const PLANNED = [
   'tail_logs',
   'run_review_checks',
 ];
-const NOT_AVAILABLE = ['validate_block', 'tail_logs', 'run_review_checks'];
+const NOT_AVAILABLE = ['tail_logs'];
 
 describe('the server', () => {
   it('introduces itself with its name, version and instructions', async () => {
@@ -70,10 +70,16 @@ describe('the server', () => {
       'get_event_schema',
       'validate_manifest',
       'list_dev_stores',
+      'validate_block',
     ]) {
       expect([name, hints[name]?.readOnlyHint]).toEqual([name, true]);
     }
-    for (const name of ['scaffold', 'trigger_test_webhook', 'seed_dev_store']) {
+    for (const name of [
+      'scaffold',
+      'trigger_test_webhook',
+      'seed_dev_store',
+      'run_review_checks',
+    ]) {
       expect([name, hints[name]?.readOnlyHint]).toEqual([name, false]);
       expect([name, hints[name]?.destructiveHint]).toEqual([name, false]);
     }
@@ -81,10 +87,12 @@ describe('the server', () => {
       'trigger_test_webhook',
       'seed_dev_store',
       'list_dev_stores',
+      'run_review_checks',
     ]) {
       expect([name, hints[name]?.openWorldHint]).toEqual([name, true]);
     }
     expect(hints['scaffold']?.openWorldHint).toBe(false);
+    expect(hints['validate_block']?.openWorldHint).toBe(false);
     await harness.close();
   });
 

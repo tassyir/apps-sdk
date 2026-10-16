@@ -550,7 +550,7 @@ describe('get_event_schema', () => {
 });
 
 describe('the seams', () => {
-  it.each(['validate_block', 'tail_logs', 'run_review_checks'])(
+  it.each(['tail_logs'])(
     '%s answers TOOL_NOT_AVAILABLE with what to do instead',
     async (name) => {
       for (const args of [{}, { anything: 'goes' }]) {

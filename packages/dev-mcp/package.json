@@ -49,6 +49,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.2.0",
     "@tassyir/app-manifest": "^0.3.1",
+    "@tassyir/storefront-blocks": "^0.1.0",
     "create-tassyir-app": "^0.2.2",
     "smol-toml": "^1.9.0",
     "tassyir": "^0.4.0",

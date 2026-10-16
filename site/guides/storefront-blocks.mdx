@@ -218,7 +218,28 @@ renders nothing: the page shows without it.
 
 ## Test a block on your machine
 
-The package runs the upload check and renders previews with sample data: the
+The `tassyir` CLI reads your manifest's blocks and runs the upload check on
+their files, offline, every problem with its file, line and column:
+
+```bash
+tassyir validate                     # the manifest, then every block's files
+tassyir block preview product-rating --lang en --data data.json
+tassyir block preview product-rating --out preview.html   # a page to open in a browser
+```
+
+`block preview` renders one block with sample data (the store "Dar Amina", a
+product for target `product`, each setting at its default), plus the
+settings values (`--settings`) and app data (`--data`, by owner:
+`{ "product": { "rating": … } }`) you pass. It prints the HTML the store
+would show; `--out` writes a page with your stylesheet, where no script can
+run. Agents use the dev MCP server's `validate_block` tool for the same check.
+
+`tassyir deploy` checks the blocks again and uploads their files with the
+version: an app on Tassyir Hosting carries them in its bundle, at the paths
+the manifest names; an app on your own server sends them next to the
+manifest. Every block file of a version weighs 100 KB at most together.
+
+The package runs the same check and renders previews in your own code: the
 store "Dar Amina", a product with a price, your settings' defaults, and the
 app data you pass.
 

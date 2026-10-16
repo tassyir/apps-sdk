@@ -278,6 +278,70 @@ describe('tassyir deploy, hosted: build, check, upload', () => {
   });
 });
 
+describe('tassyir deploy, hosted: storefront blocks', () => {
+  const WITH_BLOCK = HOSTED.replace(
+    'scopes = ["read_orders"]',
+    'scopes = ["read_orders", "write_storefront"]',
+  ).replace(
+    'read_orders = "Find delivered orders to ask for a review"',
+    'read_orders = "Find delivered orders to ask for a review"\nwrite_storefront = "Show a note on your store pages"',
+  ).concat(`
+[[storefront.blocks]]
+handle     = "store-note"
+template   = "blocks/store-note.liquid"
+stylesheet = "blocks/store-note.css"
+name       = { ar = "ملاحظة", en = "Note" }
+`);
+
+  it("puts the block files in the bundle as text modules at the manifest's paths", async () => {
+    const harness = await ready({
+      script: RELEASE,
+      changes: {
+        'tassyir.app.toml': WITH_BLOCK,
+        'blocks/store-note.liquid': '<p class="note">{{ store.name }}</p>\n',
+        'blocks/store-note.css': '.note { color: var(--st-primary); }\n',
+      },
+    });
+    const result = await harness.run('deploy', '--json');
+    expect(result.code).toBe(0);
+    const files = sent(harness).bundle.files;
+    expect(files.map((file) => file.path)).toEqual([
+      'worker.js',
+      'blocks/store-note.liquid',
+      'blocks/store-note.css',
+    ]);
+    expect(files[1]?.content).toBe('<p class="note">{{ store.name }}</p>\n');
+    const body = JSON.parse(uploads(harness)[0]?.body ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    expect(body['assets']).toBeUndefined();
+  });
+
+  it('refuses an invalid block before building anything (exit 4, nothing sent)', async () => {
+    const harness = await ready({
+      changes: {
+        'tassyir.app.toml': WITH_BLOCK,
+        'blocks/store-note.liquid': '<p>{{ store.name | json }}</p>',
+        'blocks/store-note.css': '.note {}\n',
+      },
+    });
+    const result = await harness.run('deploy', '--dry-run', '--json');
+    expect(result.code).toBe(4);
+    expect(result.json()['error']).toMatchObject({
+      code: 'BLOCKS_INVALID',
+      errors: [
+        expect.objectContaining({
+          path: expect.stringMatching(
+            /^blocks\/store-note\.liquid:1:\d+$/,
+          ) as string,
+        }),
+      ],
+    });
+    expect(harness.fake.requests).toEqual([]);
+  });
+});
+
 describe('tassyir deploy, hosted: refused before the upload (exit 4, nothing sent)', () => {
   it('refuses the scan’s rules at once, each pointing at the source', async () => {
     const harness = await ready({
@@ -462,6 +526,7 @@ describe('tassyir deploy --dry-run: build and check, no sign-in, nothing sent', 
       main: 'worker.js',
       bytes: expect.any(Number) as number,
       lockfile: 'package-lock.json',
+      blocks: [],
       warnings: [],
       next: 'tassyir deploy',
     });

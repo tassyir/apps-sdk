@@ -1,4 +1,5 @@
-// @tassyir/app: the server side of a Tassyir app (plan §3.4–§3.8).
+// @tassyir/app: the server side of a Tassyir app (plan §3.4–§3.8), and the
+// app proxy's request check (Phase 2 §7, `verifyProxyRequest`).
 //
 // It runs on Node 22 and on Workers-like runtimes: the only platform APIs it
 // uses are fetch and WebCrypto. On Tassyir Hosting (AP-B1.14–B1.16) a hosted
@@ -13,6 +14,8 @@ export {
   ADMIN_API_VERSION,
   ID_TOKEN_ISSUER,
   ID_TOKEN_LEEWAY_SECONDS,
+  PROXY_SIGNATURE_LABEL,
+  PROXY_TOLERANCE_SECONDS,
   REFRESH_GRACE_SECONDS,
   TASSYIR_API_ORIGIN,
   WEBHOOK_TOLERANCE_SECONDS,
@@ -57,6 +60,18 @@ export type {
   VerifyWebhookOptions,
   WebhookDelivery,
 } from './webhooks.js';
+
+export {
+  proxySignatureContent,
+  verifyProxy,
+  verifyProxyRequest,
+} from './proxy.js';
+export type {
+  ProxyInstallationCheck,
+  ProxyRequest,
+  VerifiedProxyRequest,
+  VerifyProxyOptions,
+} from './proxy.js';
 
 export { TassyirOAuthClient } from './oauth.js';
 export type { OAuthClientOptions, TokenSet } from './oauth.js';

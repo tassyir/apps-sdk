@@ -8,6 +8,8 @@ import {
 } from '../bundle-build.js';
 import type { BuiltBundle } from '../bundle-build.js';
 import { checkBundleCode } from '../bundle-code.js';
+import { blocksInvalid, checkBlocks } from '../blocks.js';
+import type { CheckedBlock, VersionAssets } from '../blocks.js';
 import { validateHostedBundle } from '../bundle-rules.js';
 import { lines, resolveApp, stringValue } from '../command.js';
 import type {
@@ -32,12 +34,14 @@ import {
 import { checkManifest, loadManifest, manifestInvalid } from '../manifest.js';
 import type { LoadedManifest } from '../manifest.js';
 
-// validate (offline, @tassyir/app-manifest); deploy (an external app's
-// manifest as a new version, current at once; a hosted app's manifest with
-// the bundle built here, checked by the API's rules before the upload, then
-// its scan followed to the verdict; --dry-run stops before signing in);
-// app version (one version, followed on demand: what deploy says to run
-// when it stops waiting).
+// validate (offline, @tassyir/app-manifest, and each storefront block's files
+// through @tassyir/storefront-blocks); deploy (an external app's manifest as
+// a new version, current at once, its block files as `assets`; a hosted
+// app's manifest with the bundle built here, its block files among the
+// modules, checked by the API's rules before the upload, then its scan
+// followed to the verdict; --dry-run stops before signing in); app version
+// (one version, followed on demand: what deploy says to run when it stops
+// waiting).
 
 /** Things that pass the validator but are almost certainly not meant. */
 function warningsOf(manifest: AppManifest): string[] {
@@ -53,6 +57,23 @@ function warningsOf(manifest: AppManifest): string[] {
     }
   }
   return warnings;
+}
+
+/** The manifest's blocks, read and checked: BLOCKS_INVALID (exit 4) lists every problem. */
+async function checkedBlocks(
+  loaded: LoadedManifest,
+  manifest: AppManifest,
+  rerun: string,
+): Promise<{ blocks: CheckedBlock[]; files: VersionAssets['files'] }> {
+  const check = await checkBlocks(dirname(loaded.path), manifest);
+  if (!check.ok) throw blocksInvalid(check.errors, rerun);
+  return { blocks: check.blocks, files: check.files };
+}
+
+/** One line for people: the blocks that pass, or nothing without blocks. */
+function blocksLine(blocks: readonly CheckedBlock[]): string | null {
+  if (blocks.length === 0) return null;
+  return `  ${String(blocks.length)} storefront block${blocks.length === 1 ? '' : 's'} (${blocks.map((block) => block.handle).join(', ')}) pass the upload's check: template, stylesheet, sample renders in ar, fr and en.`;
 }
 
 function summary(manifest: AppManifest): string {
@@ -75,7 +96,10 @@ export const validateCommand: Command = {
   usage: 'tassyir validate [path] [options]',
   description: [
     'Parses the TOML and validates it exactly as the API will: every problem at once, each',
-    'with its code, the field and a fix. Exit code 4 when it does not pass.',
+    'with its code, the field and a fix. Then each [[storefront.blocks]] file: the template',
+    'and stylesheet checked and rendered with sample data by @tassyir/storefront-blocks, the',
+    "upload's own check, each problem with its file, line and column. Exit code 4 when",
+    'anything does not pass.',
   ].join('\n'),
   positionals: { min: 0, max: 1, names: '[path]' },
   options: {},
@@ -83,16 +107,23 @@ export const validateCommand: Command = {
     const loaded = await loadManifest(context.io.cwd, positionals[0]);
     const check = checkManifest(loaded.parsed);
     if (!check.ok) throw manifestInvalid(loaded.display, check.errors);
+    const { blocks } = await checkedBlocks(
+      loaded,
+      check.manifest,
+      'tassyir validate',
+    );
     const warnings = warningsOf(check.manifest);
     return {
       data: {
         file: loaded.display,
         valid: true,
         manifest: check.manifest,
+        blocks,
         warnings,
       },
       text: lines(
         `✓ ${loaded.display} is valid: ${summary(check.manifest)}.`,
+        blocksLine(blocks),
         ...warnings.map((warning) => `  ! ${warning}`),
       ),
     };
@@ -211,6 +242,7 @@ type OptionValues = Readonly<Record<string, string | boolean | undefined>>;
 /** A hosted bundle that was built and passed every local check. */
 interface CheckedBundle {
   built: BuiltBundle;
+  blocks: CheckedBlock[];
   bytes: number;
   /** The manifest's, esbuild's and the code checks' warnings. */
   warnings: string[];
@@ -233,11 +265,15 @@ async function buildAndCheck(
 ): Promise<CheckedBundle> {
   const allowedHosts =
     manifest.hosting.mode === 'tassyir' ? manifest.hosting.allowed_hosts : [];
+  const blocks = await checkedBlocks(loaded, manifest, rerun);
   const built = await buildHostedBundle({
     cwd: context.io.cwd,
     root: dirname(loaded.path),
     entry: stringValue(values['entry']),
   });
+  // A hosted app's block files are text modules of its bundle, at the
+  // manifest's paths (Phase 2 §6.1); the bundle's rules count them too.
+  built.bundle.files.push(...blocks.files);
   const rules = validateHostedBundle(built.bundle);
   const code = checkBundleCode(
     built.bundle.files,
@@ -248,11 +284,16 @@ async function buildAndCheck(
   const problems = [...(rules.ok ? [] : rules.errors), ...code.errors];
   if (problems.length > 0) throw bundleInvalid(built.entry, problems, rerun);
   const bytes = rules.ok ? rules.bytes : 0;
+  const withBlocks =
+    blocks.blocks.length > 0
+      ? ` and ${String(blocks.files.length)} block file${blocks.files.length === 1 ? '' : 's'}`
+      : '';
   return {
     built,
+    blocks: blocks.blocks,
     bytes,
     warnings: [...manifestWarnings, ...built.warnings, ...code.warnings],
-    summary: `Built ${built.entry} into ${BUNDLE_MAIN} (${kilobytes(bytes)}${built.bundle.lockfile ? `, with ${built.bundle.lockfile.name}` : ', no lockfile'}); it passes the API's bundle rules and the scan's code checks`,
+    summary: `Built ${built.entry} into ${BUNDLE_MAIN}${withBlocks} (${kilobytes(bytes)}${built.bundle.lockfile ? `, with ${built.bundle.lockfile.name}` : ', no lockfile'}); it passes the API's bundle rules and the scan's code checks`,
   };
 }
 
@@ -295,11 +336,13 @@ async function dryRunHosted(
       main: built.bundle.main,
       bytes,
       lockfile: built.bundle.lockfile?.name ?? null,
+      blocks: checked.blocks,
       warnings,
       next: 'tassyir deploy',
     },
     text: lines(
       `✓ ${checked.summary}.`,
+      blocksLine(checked.blocks),
       "  Nothing was uploaded (--dry-run). The scan's other checks run on Tassyir's side once `tassyir deploy` uploads it.",
       ...warnings.map((warning) => `  ! ${warning}`),
     ),
@@ -406,18 +449,30 @@ async function followAndAnswer(
   });
 }
 
+/** An API before AP-B2.4 refuses `assets` as an unknown field (400, no code). */
+function isAssetsRefusal(error: unknown): error is CliError {
+  return (
+    isCliError(error, 'BAD_REQUEST') &&
+    error.status === 400 &&
+    /\bassets\b/.test(error.message)
+  );
+}
+
 export const deployCommand: Command = {
   name: 'deploy',
   summary: "Validate tassyir.app.toml and upload it as the app's new version",
   usage: 'tassyir deploy [options]',
   description: [
     'An app on your own server (hosting.mode = "external"): validates the manifest, then',
-    'uploads it as a new version, current at once.',
+    'uploads it as a new version, current at once. The files of its [[storefront.blocks]]',
+    '(templates and stylesheets) are checked as `tassyir validate` checks them and go up with',
+    "it as the version's assets.",
     '',
     'An app on Tassyir Hosting (hosting.mode = "tassyir"): builds the bundle with esbuild',
     `(one ES module from --entry, default ${DEFAULT_ENTRIES.join(', ')}; HTML and CSS`,
     "imported as text), checks it by the API's bundle rules and the scan's code checks, and",
-    "uploads it with the manifest and the project's lockfile. Tassyir then scans it; deploy",
+    "uploads it with the manifest, the block files (text modules at the manifest's paths) and",
+    "the project's lockfile. Tassyir then scans it; deploy",
     'waits for the verdict (--timeout) and prints the findings. Ctrl-C stops waiting, never',
     'the scan: `tassyir app version <n> --follow` picks it up again. Exit 0 once released.',
     '',
@@ -471,6 +526,13 @@ export const deployCommand: Command = {
         );
       }
     }
+    const { blocks, files } = await checkedBlocks(
+      loaded,
+      check.manifest,
+      dryRun ? 'tassyir deploy --dry-run' : 'tassyir deploy',
+    );
+    const assets: VersionAssets | undefined =
+      files.length > 0 ? { files } : undefined;
     if (dryRun) {
       if (values['app'] !== undefined) {
         warnings.push(
@@ -484,11 +546,14 @@ export const deployCommand: Command = {
           app: { handle: check.manifest.handle },
           hosting: 'external',
           manifest: check.manifest,
+          blocks,
+          assets: assets?.files.map((file) => file.path) ?? [],
           warnings,
           next: 'tassyir deploy',
         },
         text: lines(
           `✓ ${loaded.display} is valid: ${summary(check.manifest)}.`,
+          blocksLine(blocks),
           '  Nothing was uploaded (--dry-run): `tassyir deploy` uploads it as the new version.',
           ...warnings.map((warning) => `  ! ${warning}`),
         ),
@@ -503,22 +568,37 @@ export const deployCommand: Command = {
       manifestFile,
     );
     try {
-      const version = (await api.uploadVersion(app.id, loaded.parsed)).data;
+      const version = (
+        await api.uploadVersion(app.id, loaded.parsed, undefined, assets)
+      ).data;
       return {
         data: {
           app: { id: app.id, handle: app.handle },
           unchanged: false,
           version,
+          blocks,
           warnings,
         },
         text: lines(
-          `✓ Deployed ${app.handle} version ${String(version.version)} (current: new installations get it).`,
+          `✓ Deployed ${app.handle} version ${String(version.version)}${blocks.length > 0 ? ` with ${String(blocks.length)} storefront block${blocks.length === 1 ? '' : 's'}` : ''} (current: new installations get it).`,
           '  Installed businesses keep their version until a member accepts the update',
           '  (Apps → Installed apps → Update), with a consent screen when scopes or hosts were added.',
           ...warnings.map((warning) => `  ! ${warning}`),
         ),
       };
     } catch (error) {
+      if (assets && isAssetsRefusal(error)) {
+        throw new CliError({
+          code: 'BLOCK_ASSETS_NOT_ACCEPTED',
+          message: `${context.apiOrigin} does not take block files with a version yet (the "assets" field): storefront blocks are not open there`,
+          fix: 'Deploy without [[storefront.blocks]] for now (the blocks pass `tassyir validate` and render with `tassyir block preview`), or deploy to an API where storefront blocks are open (--api-origin).',
+          exitCode: EXIT_CODES.FAILED,
+          ...(error.status === undefined ? {} : { status: error.status }),
+          ...(error.requestId === undefined
+            ? {}
+            : { requestId: error.requestId }),
+        });
+      }
       if (!isCliError(error, 'APP_VERSION_UNCHANGED')) throw error;
       const current = error.details?.['version'];
       return {

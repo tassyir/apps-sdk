@@ -50,6 +50,7 @@ catalogue of apps comes later.
 | Dev stores               | Test businesses with synthetic data, where nothing reaches the outside world                  | [Dev stores](dev-stores.md)                             |
 | Tassyir Hosting          | Running the app on Tassyir: deploying, the scan, what each request receives                   | [Tassyir Hosting](tassyir-hosting.md)                   |
 | Compliance and uninstall | What happens when a merchant uninstalls, and the buyer data requests an app must honour       | [Compliance and uninstall](compliance-and-uninstall.md) |
+| Publishing               | Listing the app in the marketplace: the listing, the terms, the review checks, ratings        | [Publishing to the marketplace](publishing.md)          |
 | Errors                   | Every error code, and what to do about the common ones                                        | [Errors](errors.md)                                     |
 
 Start with [Getting started](getting-started.md): it creates an app, runs it
@@ -63,7 +64,7 @@ on your machine and installs it on a dev store.
 | [`@tassyir/app`](https://github.com/tassyir/apps-sdk/tree/main/packages/app)                             | Your server: tokens, ID-token and webhook verification, the typed Admin API client       |
 | [`@tassyir/app-bridge`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-bridge)               | Your page in the dashboard: ID tokens, toasts, modals, the save bar, navigation, pickers |
 | [`@tassyir/app-manifest`](https://github.com/tassyir/apps-sdk/tree/main/packages/app-manifest)           | Validating `tassyir.app.toml` with the same code the Tassyir API runs                    |
-| [`tassyir`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli)                                  | The command line: sign in, create apps, validate and deploy, follow a hosted version     |
+| [`tassyir`](https://github.com/tassyir/apps-sdk/tree/main/packages/cli)                                  | The command line: sign in, create apps, validate and deploy, preview blocks, submit      |
 | [`@tassyir/storefront-blocks`](https://github.com/tassyir/apps-sdk/tree/main/packages/storefront-blocks) | Writing and testing storefront blocks with the code the Tassyir API runs (not live yet)  |
 
 ## Addresses

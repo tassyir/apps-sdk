@@ -27,6 +27,15 @@ export const ID_TOKEN_LEEWAY_SECONDS = 30;
 /** How far a webhook's `webhook-timestamp` may be from now (5 minutes). */
 export const WEBHOOK_TOLERANCE_SECONDS = 300;
 
+/** How far an app proxy request's `tassyir-proxy-timestamp` may be from now. */
+export const PROXY_TOLERANCE_SECONDS = 300;
+
+/**
+ * The first field of the text an app proxy request's signature covers
+ * (Phase 2 §7): it keeps a proxy signature from verifying as a webhook.
+ */
+export const PROXY_SIGNATURE_LABEL = 'tassyir-proxy.v1';
+
 /**
  * A rotated refresh token stays usable for 60 seconds after its first
  * rotation; presented later, it revokes its whole family.

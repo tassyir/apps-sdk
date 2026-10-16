@@ -16,6 +16,7 @@ const ROOT = new URL('../../../', import.meta.url);
 /** @type {Readonly<Record<string, string>>} */
 const SOURCES = {
   '@tassyir/app-manifest': 'packages/app-manifest/src/index.ts',
+  '@tassyir/storefront-blocks': 'packages/storefront-blocks/src/index.ts',
   'create-tassyir-app': 'packages/create-tassyir-app/src/index.ts',
   tassyir: 'packages/cli/src/index.ts',
 };

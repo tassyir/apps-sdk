@@ -57,5 +57,20 @@ export type { CodeCheckResult, CodeFinding, Locate } from './bundle-code.js';
 export { buildHostedBundle, DEFAULT_ENTRIES } from './bundle-build.js';
 export type { BuiltBundle } from './bundle-build.js';
 
+export {
+  BLOCK_VERSION_LIMITS,
+  blockDeclaration,
+  blockProblem,
+  checkBlocks,
+  readBlock,
+} from './blocks.js';
+export type {
+  BlockCheck,
+  CheckedBlock,
+  ManifestBlock,
+  VersionAssets,
+} from './blocks.js';
+export { failedChecks, REASON_LABELS, STATE_LABELS } from './review.js';
+
 export { COMMANDS } from './commands/index.js';
 export type { Command, CommandResult, OptionSpec } from './command.js';

@@ -8,7 +8,13 @@ import type {
   DeveloperAccount,
   DeveloperApp,
   Installation,
+  ListingDraft,
+  ListingIssue,
   ReplayOutcome,
+  ReviewCase,
+  ReviewCaseState,
+  ReviewCheck,
+  ReviewChecksRun,
   TestDelivery,
 } from './developer-types.js';
 import {
@@ -42,6 +48,44 @@ export function assertFakesFollowTheDocument(): void {
       `The fake developer API left openapi.developer.json:\n${found.map((line) => `  - ${line}`).join('\n')}`,
     );
   }
+}
+
+/**
+ * Fields the CLI sends that the vendored document does not describe yet,
+ * because the backend ticket that adds them is not merged: each is checked
+ * here by the plan's shape, then left out of the document check. Remove an
+ * entry when `npm run openapi:update -w tassyir` brings the field.
+ *   uploadAppVersion.assets  AP-B2.4 (Phase 2 §6.1): `{ files: [{ path, content }] }`
+ */
+function withoutPendingFields(
+  operationId: string,
+  body: string | undefined,
+): string | undefined {
+  if (operationId !== 'uploadAppVersion' || body === undefined) return body;
+  const parsed = JSON.parse(body) as Record<string, unknown>;
+  if (!('assets' in parsed)) return body;
+  const assets = parsed['assets'] as { files?: unknown } | null;
+  const files = assets?.files;
+  const valid =
+    Array.isArray(files) &&
+    files.length > 0 &&
+    Object.keys(assets ?? {}).length === 1 &&
+    files.every(
+      (file: unknown) =>
+        typeof file === 'object' &&
+        file !== null &&
+        Object.keys(file).sort().join(',') === 'content,path' &&
+        typeof (file as { path: unknown }).path === 'string' &&
+        /\.(liquid|css)$/.test((file as { path: string }).path) &&
+        typeof (file as { content: unknown }).content === 'string',
+    );
+  if (!valid) {
+    VIOLATIONS.push(
+      'uploadAppVersion request: assets is not { files: [{ path, content }] } of .liquid and .css files (Phase 2 §6.1)',
+    );
+  }
+  delete parsed['assets'];
+  return JSON.stringify(parsed);
 }
 
 const BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -211,6 +255,13 @@ export class FakeDeveloperApi {
     verifiedAt: null,
     createdAt: '2026-10-12T10:00:00.000Z',
     updatedAt: '2026-10-12T10:00:00.000Z',
+    emergencyContact: { email: FAKE_EMAIL, phone: '+213555000111' },
+    terms: {
+      acceptedVersion: '2026-10',
+      acceptedAt: '2026-10-16T08:00:00.000Z',
+      currentVersion: '2026-10',
+      current: true,
+    },
   };
   apps: DeveloperApp[] = [];
   versions = new Map<string, AppVersionDetail[]>();
@@ -244,6 +295,36 @@ export class FakeDeveloperApi {
   onVersionRead: (() => void) | undefined;
   /** Every bundle a hosted upload sent, as sent. */
   bundles: unknown[] = [];
+  /** Every `assets` an external upload sent, as sent (AP-B2.4's field). */
+  assets: unknown[] = [];
+  /**
+   * Whether the API takes `assets` (AP-B2.4 deployed). Off, an upload that
+   * carries it is refused like today's API refuses an unknown field.
+   */
+  acceptsAssets = true;
+
+  /** The draft listing of each app; an app without one reads its names. */
+  listings = new Map<string, { draft: ListingDraft; updatedAt: string }>();
+  /** The review cases of each app, oldest first. */
+  cases = new Map<string, ReviewCase[]>();
+  /**
+   * What the next reads of a case in `checking` find, one step per read:
+   * `submitted` (the checks passed) or `checks_failed`, or a decision
+   * (`approved`, `changes_requested`, `rejected`); `stay` keeps it as it is.
+   * Then the case stays as it is.
+   */
+  caseScript: (ReviewCaseState | 'stay')[] = [];
+  /** What the checklist answers, for submissions and dry runs alike. */
+  checkResults: ReviewCheck[] = passingReviewChecks();
+  /** The dry runs, by id. */
+  checkRuns = new Map<
+    string,
+    { run: ReviewChecksRun; readsLeft: number; appId: string }
+  >();
+  /** Reads of a dry run answered `queued` before it is `finished`. */
+  checkRunReads = 1;
+  /** Dry runs left this hour, per app (the API's 5). */
+  checkRunsLeft = new Map<string, number>();
 
   #ids = 100;
 
@@ -351,7 +432,10 @@ export class FakeDeveloperApi {
       ...requestProblems(operation, {
         query: url.searchParams,
         contentType: new Headers(init.headers).get('content-type'),
-        body: typeof init.body === 'string' ? init.body : undefined,
+        body: withoutPendingFields(
+          operation.id,
+          typeof init.body === 'string' ? init.body : undefined,
+        ),
       }),
     );
     const text = await response.clone().text();
@@ -666,8 +750,18 @@ export class FakeDeveloperApi {
     }
     const rest = appMatch[2] ?? '';
     if (method === 'GET' && rest === '') return json(200, { data: app });
-    if (rest === '/versions' && method === 'POST')
+    if (rest === '/versions' && method === 'POST') {
+      if (body['assets'] !== undefined && !this.acceptsAssets) {
+        // Today's API: the ValidationPipe refuses a field it does not know.
+        return json(400, {
+          statusCode: 400,
+          message: ['property assets should not exist'],
+          error: 'Bad Request',
+        });
+      }
+      if (body['assets'] !== undefined) this.assets.push(body['assets']);
       return this.#upload(app, body['manifest'], body['bundle']);
+    }
     if (rest === '/versions' && method === 'GET') {
       const list = [...(this.versions.get(app.id) ?? [])].reverse();
       const limit = Number(query.get('limit') ?? '20');
@@ -680,6 +774,8 @@ export class FakeDeveloperApi {
     if (versionMatch && method === 'GET') {
       return this.#readVersion(app, versionMatch[1] ?? '');
     }
+    const marketplace = this.#marketplace(app, method, rest, query, body);
+    if (marketplace) return marketplace;
     if (rest === '/credentials') {
       const list = this.credentials.get(app.id) ?? [];
       if (method === 'GET') return json(200, { data: [...list].reverse() });
@@ -831,6 +927,304 @@ export class FakeDeveloperApi {
       message: `Cannot ${method} ${path}`,
       error: 'Not Found',
     });
+  }
+
+  // ── Listing and review (AP-B2.1, AP-B2.2) ──────────────────────────────
+
+  /** The app's listing images (`media` of the listing view). */
+  listingMedia = new Map<string, ListingMediaView[]>();
+
+  /** Uploads listing images as the console would, for specs that name them. */
+  seedListingMedia(
+    app: DeveloperApp,
+    kinds: readonly ListingMediaView['kind'][],
+  ): string[] {
+    const list = this.listingMedia.get(app.id) ?? [];
+    const ids = kinds.map((kind) => {
+      const id = this.#id();
+      const [width, height] =
+        kind === 'icon'
+          ? [512, 512]
+          : kind === 'screenshot_desktop'
+            ? [1600, 900]
+            : [900, 1600];
+      list.unshift({
+        id,
+        kind,
+        url: `https://cdn.tassyir.io/images/listing-${id}/public`,
+        contentType: 'image/png',
+        width,
+        height,
+        bytes: 20_480,
+        status: 'draft',
+        createdAt: new Date(this.clock.now()).toISOString(),
+        retiredAt: null,
+      });
+      return id;
+    });
+    this.listingMedia.set(app.id, list);
+    return ids;
+  }
+
+  /** A draft with every field filled, naming images seeded for it. */
+  completeDraft(app: DeveloperApp): ListingDraft {
+    const [icon, ...shots] = this.seedListingMedia(app, [
+      'icon',
+      'screenshot_desktop',
+      'screenshot_desktop',
+      'screenshot_desktop',
+    ]);
+    const draft: ListingDraft = {
+      name: { ar: 'طلبات التقييم', en: app.nameEn },
+      tagline: {
+        ar: 'اطلب من زبائنك تقييما بعد التسليم',
+        en: 'Ask your buyers for a review after delivery',
+      },
+      description: {
+        ar: 'يرسل التطبيق رسالة إلى كل زبون بعد تسليم طلبه، ويجمع التقييمات في لوحة واحدة، ويعرض النجوم في صفحة المنتج. '.repeat(
+          2,
+        ),
+        en: 'Sends each buyer a message once the order is delivered, gathers the reviews in one place and shows the stars on the product page. '.repeat(
+          2,
+        ),
+      },
+      features: [{ ar: 'رسالة بعد التسليم', en: 'A message after delivery' }],
+      category: 'reviews',
+      searchTerms: ['reviews'],
+      iconMediaId: icon ?? null,
+      screenshots: {
+        desktop: shots.map((mediaId) => ({
+          mediaId,
+          alt: { ar: 'لوحة التقييمات', en: 'The reviews dashboard' },
+        })),
+        mobile: [],
+      },
+      supportUrl: 'https://acme-apps.dz/support',
+      privacyPolicyUrl: 'https://acme-apps.dz/privacy',
+      externalService: null,
+      languages: ['ar', 'en'],
+    };
+    this.listings.set(app.id, {
+      draft,
+      updatedAt: new Date(this.clock.now()).toISOString(),
+    });
+    return draft;
+  }
+
+  #listingView(app: DeveloperApp): Record<string, unknown> {
+    const stored = this.listings.get(app.id);
+    const draft = stored?.draft ?? emptyDraft(app);
+    return {
+      appId: app.id,
+      distribution: app.distribution,
+      listedAt: null,
+      delistedAt: null,
+      delistedBy: null,
+      draft,
+      draftUpdatedAt: stored?.updatedAt ?? null,
+      issues: listingIssues(draft),
+      live: null,
+      media: this.listingMedia.get(app.id) ?? [],
+    };
+  }
+
+  #caseView(review: ReviewCase): ReviewCase {
+    return structuredClone(review);
+  }
+
+  /** The next step of a case still `checking`, or a decision, per read. */
+  #advanceCase(review: ReviewCase): void {
+    const step = this.caseScript.shift();
+    if (step === undefined || step === 'stay') return;
+    const now = new Date(this.clock.now()).toISOString();
+    if (step === 'submitted' || step === 'checks_failed') {
+      review.checks = {
+        ranAt: now,
+        passed: !this.checkResults.some(
+          (check) => check.hard && check.status === 'fail',
+        ),
+        results: structuredClone(this.checkResults),
+      };
+    }
+    review.state = step;
+    if (['checks_failed', 'withdrawn', 'superseded'].includes(step)) {
+      review.turnaround = null;
+    }
+    if (['approved', 'changes_requested', 'rejected'].includes(step)) {
+      review.decidedAt = now;
+      review.turnaround = null;
+      review.decision =
+        step === 'approved'
+          ? { message: null, items: [] }
+          : {
+              message: 'The screenshots show another app.',
+              items: [
+                {
+                  key: 'listing.screenshots',
+                  note: 'Show the app as installed on a dev store.',
+                },
+              ],
+            };
+    }
+  }
+
+  #marketplace(
+    app: DeveloperApp,
+    method: string,
+    rest: string,
+    query: URLSearchParams,
+    body: Record<string, unknown>,
+  ): Response | undefined {
+    const route = `${method} ${rest}`;
+    if (route === 'GET /listing')
+      return json(200, { data: this.#listingView(app) });
+    if (route === 'PUT /listing') {
+      const media = this.listingMedia.get(app.id) ?? [];
+      const errors = listingFormatErrors(body, media);
+      if (errors.length > 0) {
+        return this.#refuse(
+          400,
+          'LISTING_INVALID',
+          'The listing is not valid',
+          'Fix each error listed in `errors`, then save again.',
+          { errors },
+        );
+      }
+      this.listings.set(app.id, {
+        draft: draftFrom(body),
+        updatedAt: new Date(this.clock.now()).toISOString(),
+      });
+      return json(200, { data: this.#listingView(app) });
+    }
+    if (route === 'POST /submissions') {
+      const terms = this.account?.terms;
+      if (terms && !terms.current) {
+        return this.#refuse(
+          409,
+          'DEVELOPER_TERMS_REQUIRED',
+          'Accept the current developer terms before submitting',
+          'Read and accept the developer terms in the developer console, then submit again.',
+          { termsVersion: terms.currentVersion },
+        );
+      }
+      const list = this.cases.get(app.id) ?? [];
+      for (const open of list) {
+        if (['checking', 'submitted', 'in_review'].includes(open.state)) {
+          open.state = 'superseded';
+          open.turnaround = null;
+        }
+      }
+      const latest = (this.versions.get(app.id) ?? []).at(-1);
+      const now = this.clock.now();
+      const note = typeof body['note'] === 'string' ? body['note'] : null;
+      const review: ReviewCase = {
+        id: this.#id(),
+        appId: app.id,
+        kind: 'listing',
+        state: 'checking',
+        distribution: String(body['distribution']),
+        versionId: latest?.id ?? null,
+        version: latest?.version ?? null,
+        reasons: ['first_listing'],
+        checks: null,
+        notes: note ? [{ at: new Date(now).toISOString(), text: note }] : [],
+        decision: null,
+        submittedAt: new Date(now).toISOString(),
+        decidedAt: null,
+        previousReviewId: list.at(-1)?.id ?? null,
+        turnaround: {
+          workingDays: 5,
+          dueAt: new Date(now + 7 * 86_400_000).toISOString(),
+        },
+      };
+      this.cases.set(app.id, [...list, review]);
+      return json(201, { data: this.#caseView(review) });
+    }
+    if (route === 'GET /submissions') {
+      const limit = Number(query.get('limit') ?? '20');
+      return json(200, {
+        data: [...(this.cases.get(app.id) ?? [])]
+          .reverse()
+          .slice(0, limit)
+          .map((review) => this.#caseView(review)),
+        nextCursor: null,
+      });
+    }
+    const caseMatch = /^\/submissions\/([^/]+)$/.exec(rest);
+    if (caseMatch && method === 'GET') {
+      const review = (this.cases.get(app.id) ?? []).find(
+        (candidate) => candidate.id === caseMatch[1],
+      );
+      if (!review) {
+        return this.#refuse(
+          404,
+          'REVIEW_CASE_NOT_FOUND',
+          'Review case not found',
+          'List the cases: GET /developer/apps/:appId/submissions.',
+          { reviewId: caseMatch[1] },
+        );
+      }
+      this.#advanceCase(review);
+      return json(200, { data: this.#caseView(review) });
+    }
+    if (route === 'POST /review-checks') {
+      const left = this.checkRunsLeft.get(app.id) ?? 5;
+      if (left <= 0) {
+        return this.#refuse(
+          429,
+          'REVIEW_CHECKS_RATE_LIMITED',
+          'The review checks ran 5 times for this app in the last hour',
+          'Wait retryAfterSeconds, then run them again.',
+          {
+            limit: 5,
+            windowSeconds: 3600,
+            retryAfterSeconds: 1200,
+            'retry-after': '1200',
+          },
+        );
+      }
+      this.checkRunsLeft.set(app.id, left - 1);
+      const run: ReviewChecksRun = {
+        runId: `rcr_${randomBytes(12).toString('hex')}`,
+        appId: app.id,
+        status: 'queued',
+        queuedAt: new Date(this.clock.now()).toISOString(),
+        checks: null,
+      };
+      this.checkRuns.set(run.runId, {
+        run,
+        readsLeft: this.checkRunReads,
+        appId: app.id,
+      });
+      return json(201, { data: run });
+    }
+    const runMatch = /^\/review-checks\/([^/]+)$/.exec(rest);
+    if (runMatch && method === 'GET') {
+      const entry = this.checkRuns.get(runMatch[1] ?? '');
+      if (!entry || entry.appId !== app.id) {
+        return this.#refuse(
+          404,
+          'REVIEW_CHECKS_NOT_FOUND',
+          'Review checks run not found',
+          'Run the checks again: POST /developer/apps/:appId/review-checks (a run is kept 24 hours).',
+          { runId: runMatch[1] },
+        );
+      }
+      if (entry.readsLeft > 0) {
+        entry.readsLeft -= 1;
+      } else if (entry.run.status === 'queued') {
+        entry.run.status = 'finished';
+        entry.run.checks = {
+          ranAt: new Date(this.clock.now()).toISOString(),
+          passed: !this.checkResults.some(
+            (check) => check.hard && check.status === 'fail',
+          ),
+          results: structuredClone(this.checkResults),
+        };
+      }
+      return json(200, { data: structuredClone(entry.run) });
+    }
+    return undefined;
   }
 
   #upload(app: DeveloperApp, manifest: unknown, bundle: unknown): Response {
@@ -1170,6 +1564,245 @@ export class FakeDeveloperApi {
 
   /** Each version's bundle as uploaded (JSON), to tell an unchanged upload. */
   #bundleKeys = new Map<string, string | null>();
+}
+
+type ListingMediaView = {
+  id: string;
+  kind: 'icon' | 'screenshot_desktop' | 'screenshot_mobile';
+  url: string;
+  contentType: string;
+  width: number;
+  height: number;
+  bytes: number;
+  status: string;
+  createdAt: string;
+  retiredAt: string | null;
+};
+
+/** The 13 checks of the review checklist, in the API's order, all passing. */
+export function passingReviewChecks(): ReviewCheck[] {
+  const hard: ReviewCheck['key'][] = [
+    'listing_complete',
+    'privacy_policy_reachable',
+    'support_contact',
+    'terms_accepted',
+    'version_releasable',
+    'compliance_topics',
+    'webhooks_verify_signatures',
+    'admin_page_frames',
+    'blocks_valid',
+    'api_version_current',
+  ];
+  const warnings: ReviewCheck['key'][] = [
+    'sensitive_scopes',
+    'scan_findings',
+    'developer_verified',
+  ];
+  return [
+    ...hard.map((key) => ({
+      key,
+      status: 'pass' as const,
+      hard: true,
+      message: `${key} passed.`,
+      fix: null,
+    })),
+    ...warnings.map((key) => ({
+      key,
+      status:
+        key === 'developer_verified' ? ('warning' as const) : ('pass' as const),
+      hard: false,
+      message:
+        key === 'developer_verified'
+          ? 'The reviewer verifies you in this review.'
+          : `${key} passed.`,
+      fix: null,
+    })),
+  ];
+}
+
+/** An app's draft before it was ever saved: its own names, nothing else. */
+function emptyDraft(app: DeveloperApp): ListingDraft {
+  return {
+    name: { ar: app.nameAr, en: app.nameEn },
+    tagline: { ar: null, en: null },
+    description: { ar: null, en: null },
+    features: [],
+    category: null,
+    searchTerms: [],
+    iconMediaId: null,
+    screenshots: { desktop: [], mobile: [] },
+    supportUrl: null,
+    privacyPolicyUrl: null,
+    externalService: null,
+    languages: [],
+  };
+}
+
+type Pair = { ar?: string | null; en?: string | null } | null | undefined;
+
+function pair(value: unknown): { ar: string | null; en: string | null } {
+  const record = (value ?? {}) as { ar?: unknown; en?: unknown };
+  return {
+    ar: typeof record.ar === 'string' ? record.ar : null,
+    en: typeof record.en === 'string' ? record.en : null,
+  };
+}
+
+/** A PUT body as the draft the API stores (absent or null fields cleared). */
+function draftFrom(body: Record<string, unknown>): ListingDraft {
+  const shots = (value: unknown) =>
+    Array.isArray(value)
+      ? value.map((entry: { mediaId: string; alt?: Pair }) => ({
+          mediaId: entry.mediaId,
+          alt: pair(entry.alt),
+        }))
+      : [];
+  const screenshots = (body['screenshots'] ?? {}) as {
+    desktop?: unknown;
+    mobile?: unknown;
+  };
+  return {
+    name: pair(body['name']),
+    tagline: pair(body['tagline']),
+    description: pair(body['description']),
+    features: Array.isArray(body['features'])
+      ? body['features'].map((feature) => pair(feature))
+      : [],
+    category:
+      (body['category'] as ListingDraft['category'] | undefined) ?? null,
+    searchTerms: Array.isArray(body['searchTerms'])
+      ? (body['searchTerms'] as string[])
+      : [],
+    iconMediaId: (body['iconMediaId'] as string | null | undefined) ?? null,
+    screenshots: {
+      desktop: shots(screenshots.desktop),
+      mobile: shots(screenshots.mobile),
+    },
+    supportUrl: (body['supportUrl'] as string | null | undefined) ?? null,
+    privacyPolicyUrl:
+      (body['privacyPolicyUrl'] as string | null | undefined) ?? null,
+    externalService:
+      (body['externalService'] as
+        ListingDraft['externalService'] | undefined) ?? null,
+    languages: Array.isArray(body['languages'])
+      ? (body['languages'] as ListingDraft['languages'])
+      : [],
+  };
+}
+
+/** The API's format refusals the specs need: plain text, the app's own images. */
+function listingFormatErrors(
+  body: Record<string, unknown>,
+  media: readonly ListingMediaView[],
+): ListingIssue[] {
+  const errors: ListingIssue[] = [];
+  const walk = (value: unknown, path: string) => {
+    if (typeof value === 'string') {
+      if (/<[A-Za-z/!?]|\]\(/.test(value)) {
+        errors.push({
+          code: 'LISTING_TEXT_INVALID',
+          path,
+          message: `\`${path}\` holds HTML or a Markdown link.`,
+          fix: 'Write plain text: no HTML tags and no links.',
+        });
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        walk(item, `${path}[${String(index)}]`);
+      });
+      return;
+    }
+    if (typeof value === 'object' && value !== null) {
+      for (const [key, item] of Object.entries(value)) {
+        walk(item, path ? `${path}.${key}` : key);
+      }
+    }
+  };
+  walk(body, '');
+  const ids = new Set(media.map((item) => item.id));
+  const named: [string, unknown][] = [['iconMediaId', body['iconMediaId']]];
+  const screenshots = (body['screenshots'] ?? {}) as Record<string, unknown>;
+  for (const device of ['desktop', 'mobile']) {
+    const list = screenshots[device];
+    if (!Array.isArray(list)) continue;
+    list.forEach((entry: { mediaId?: unknown }, index) => {
+      named.push([`screenshots.${device}[${String(index)}]`, entry.mediaId]);
+    });
+  }
+  for (const [path, id] of named) {
+    if (typeof id === 'string' && !ids.has(id)) {
+      errors.push({
+        code: 'LISTING_MEDIA_UNKNOWN',
+        path,
+        message: `\`${path}\` names image ${id}, which is not one of this app's.`,
+        fix: "Upload the image first (POST …/listing/media), then name its id; `tassyir listing pull` lists the app's images.",
+      });
+    }
+  }
+  return errors;
+}
+
+/** What a draft still needs before a submission (listings.md, completeness). */
+function listingIssues(draft: ListingDraft): ListingIssue[] {
+  const issues: ListingIssue[] = [];
+  const required = (path: string, fix: string) => {
+    issues.push({
+      code: 'LISTING_REQUIRED',
+      path,
+      message: `\`${path}\` is missing.`,
+      fix,
+    });
+  };
+  for (const language of ['ar', 'en'] as const) {
+    if (!draft.name[language]) required(`name.${language}`, 'Name the app.');
+    const tagline = draft.tagline[language];
+    if (!tagline) required(`tagline.${language}`, 'Write a one-line tagline.');
+    else if (tagline.length < 10) {
+      issues.push({
+        code: 'LISTING_TEXT_TOO_SHORT',
+        path: `tagline.${language}`,
+        message: `\`tagline.${language}\` is shorter than 10 characters.`,
+        fix: 'Write a tagline of 10 to 100 characters.',
+      });
+    }
+    const description = draft.description[language];
+    if (!description)
+      required(`description.${language}`, 'Describe what the app does.');
+    else if (description.length < 100) {
+      issues.push({
+        code: 'LISTING_TEXT_TOO_SHORT',
+        path: `description.${language}`,
+        message: `\`description.${language}\` is shorter than 100 characters.`,
+        fix: 'Write a description of 100 to 1,500 characters.',
+      });
+    }
+  }
+  if (draft.features.length === 0) {
+    issues.push({
+      code: 'LISTING_TOO_FEW',
+      path: 'features',
+      message: '`features` lists no line.',
+      fix: 'List 1 to 6 things the app does.',
+    });
+  }
+  if (draft.category === null) required('category', 'Pick a category.');
+  if (draft.iconMediaId === null)
+    required('iconMediaId', 'Upload a square icon and name it.');
+  if (draft.screenshots.desktop.length < 3) {
+    issues.push({
+      code: 'LISTING_TOO_FEW',
+      path: 'screenshots.desktop',
+      message: '`screenshots.desktop` has fewer than 3 images.',
+      fix: 'Upload 3 to 6 desktop screenshots (16:9) and name them.',
+    });
+  }
+  if (draft.privacyPolicyUrl === null)
+    required('privacyPolicyUrl', 'Link your privacy policy.');
+  if (draft.languages.length === 0)
+    required('languages', "Name the languages your app's pages support.");
+  return issues;
 }
 
 /** A hosted version's record right after its upload: scan pending. */

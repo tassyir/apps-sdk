@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanupHarnesses, createHarness } from './harness.test-helpers.js';
 import type { Harness } from './harness.test-helpers.js';
+import { passingReviewChecks } from '../../cli/src/fake-api.test-helpers.js';
 
 // trigger_test_webhook, seed_dev_store and list_dev_stores against the
 // tassyir CLI's fake developer API (AP-K1.6), signed in as `tassyir login`
@@ -14,6 +15,7 @@ const DEVELOPER_TOOLS: [string, Record<string, unknown>][] = [
   ['trigger_test_webhook', { topic: 'orders/created', app: 'review-requests' }],
   ['seed_dev_store', {}],
   ['list_dev_stores', {}],
+  ['run_review_checks', { app: 'review-requests' }],
 ];
 
 /** The developer API's requests, method and path. */
@@ -266,4 +268,93 @@ describe('trigger_test_webhook', () => {
       });
     },
   );
+});
+
+describe('run_review_checks', () => {
+  async function ready(): Promise<Harness> {
+    const harness = await createHarness();
+    await harness.signIn();
+    harness.fake.seedApp();
+    await writeFile(
+      join(harness.cwd, 'tassyir.app.toml'),
+      'name = "Review Requests"\nhandle = "review-requests"\n',
+    );
+    return harness;
+  }
+
+  it("runs the review's checklist as a dry run and waits for the verdict", async () => {
+    const harness = await ready();
+    harness.fake.checkRunReads = 2;
+    const answer = await harness.ok('run_review_checks');
+    expect(answer).toMatchObject({
+      app: { handle: 'review-requests' },
+      status: 'finished',
+      passed: true,
+      failed: [],
+      next: expect.stringContaining('tassyir submit') as string,
+    });
+    expect((answer['results'] as unknown[]).length).toBe(13);
+    expect(routes(harness).filter((route) => route.startsWith('POST'))).toEqual(
+      [`POST /developer/apps/${harness.fake.apps[0]?.id ?? ''}/review-checks`],
+    );
+    expect(
+      routes(harness).some((route) => route.includes('/submissions')),
+    ).toBe(false);
+  });
+
+  it('answers the failed hard checks with their fix', async () => {
+    const harness = await ready();
+    harness.fake.checkResults = passingReviewChecks().map((check) =>
+      check.key === 'compliance_topics'
+        ? {
+            ...check,
+            status: 'fail',
+            message: 'The version does not subscribe customers/redact.',
+            fix: 'Subscribe customers/data_request, customers/redact and business/redact in [[webhooks]], then deploy.',
+          }
+        : check,
+    );
+    const answer = await harness.ok('run_review_checks');
+    expect(answer).toMatchObject({
+      passed: false,
+      failed: [
+        {
+          key: 'compliance_topics',
+          status: 'fail',
+          hard: true,
+          fix: expect.stringContaining('customers/redact') as string,
+        },
+      ],
+    });
+  });
+
+  it('answers a run still queued with its runId, then reads it on the next call', async () => {
+    const harness = await ready();
+    harness.fake.checkRunReads = 1;
+    const queued = await harness.ok('run_review_checks', { waitSeconds: 0 });
+    expect(queued).toMatchObject({
+      status: 'queued',
+      passed: null,
+      results: [],
+    });
+    const runId = String(queued['runId']);
+    expect(queued['next']).toContain(runId);
+    harness.fake.checkRunReads = 0;
+    const later = await harness.ok('run_review_checks', { runId });
+    expect(later).toMatchObject({ runId, status: 'finished', passed: true });
+    expect(
+      routes(harness).filter((route) => route.endsWith('/review-checks')),
+    ).toHaveLength(1);
+  });
+
+  it("relays the API's hourly limit with its retry time", async () => {
+    const harness = await ready();
+    harness.fake.checkRunsLeft.set(harness.fake.apps[0]?.id ?? '', 0);
+    const error = await harness.refused('run_review_checks');
+    expect(error).toMatchObject({
+      code: 'REVIEW_CHECKS_RATE_LIMITED',
+      status: 429,
+      retryAfterSeconds: 1200,
+    });
+  });
 });

@@ -976,9 +976,9 @@ describe('the commands that wait for the platform', () => {
     expect(harness.fake.requests).toEqual([]);
   });
 
-  it('logs and submit answer COMMAND_NOT_AVAILABLE with a fix', async () => {
+  it('logs answers COMMAND_NOT_AVAILABLE with a fix', async () => {
     const harness = await createHarness();
-    for (const command of [['logs', '--tail'], ['submit']]) {
+    for (const command of [['logs', '--tail']]) {
       const result = await harness.run(...command, '--json');
       expect(result.code).toBe(1);
       expect(result.json()).toMatchObject({
@@ -1013,6 +1013,11 @@ describe('the command line', () => {
       'webhook trigger',
       'webhook deliveries',
       'webhook replay',
+      'block preview',
+      'listing pull',
+      'listing push',
+      'submit',
+      'submissions',
       'dev',
     ]) {
       expect(help.stdout).toContain(`  ${name} `);
@@ -1026,7 +1031,7 @@ describe('the command line', () => {
       ok: true,
       exitCodes: { OK: 0, AUTH: 3, MANIFEST: 4, TRY_LATER: 5 },
     });
-    expect((catalogue['commands'] as unknown[]).length).toBe(21);
+    expect((catalogue['commands'] as unknown[]).length).toBe(25);
     expect((await harness.run('deploy', '--help')).stdout).toMatch(
       /^Usage: tassyir deploy \[options\]/,
     );

@@ -3,7 +3,7 @@
   "info": {
     "title": "Tassyir developer API",
     "version": "1",
-    "summary": "The API a developer calls to build Tassyir apps: their account, apps, client secrets, versions, the webhook console, dev stores and the CLI sign-in.",
+    "summary": "The API a developer calls to build Tassyir apps: their account, apps, client secrets, versions, marketplace listings, the webhook console, dev stores and the CLI sign-in.",
     "description": "The routes under `/developer/` that a DEVELOPER calls: the developer console, the `tassyir` CLI and the dev MCP. Not an app's API: installed apps call the Admin API, which has its own document. Guides: https://developers.tassyir.io.\n\n**Authentication.** `Authorization: Bearer <dashboard JWT>` (the console) or `Authorization: Bearer tsy_dt_…` (a developer token from the CLI sign-in), on every route but the approval routes (the dashboard session only) and the two public RFC 8628 routes. A developer account belongs to a USER, not a business: no route takes a business id, and an id that is not yours answers 404, exactly like one that does not exist.\n\n**Conventions.** JSON fields are camelCase (snake_case on the two OAuth routes, as RFC 8628 has them); ids are strings; times are ISO 8601 UTC. One resource answers `{ data }`, a paged list `{ data, nextCursor }` (pass `nextCursor` back as `cursor`), a short list `{ data }`.\n\n**Errors.** Not problem+json: the dashboard API's shape. A coded refusal is `{ statusCode, code, message, fix?, …subject, requestId }` (`DeveloperError`); act on `code`. Three refusals carry no `code` today: a request that fails validation (400, `message` is a list of sentences), a missing or ended dashboard session (401), and the platform-wide rate limit (429, a bare JSON string). The two OAuth routes answer `{ error, error_description }`. Each operation lists every code it can answer, by status.\n\n**Limits.** Each developer has caps (apps, secrets, versions, dev stores), and the console's replays and tests and the CLI sign-in have rate limits of their own, which apply whether or not the platform-wide rate limit is enforced; each operation says which apply."
   },
   "servers": [
@@ -35,6 +35,14 @@
     {
       "name": "Versions",
       "description": "Manifest uploads."
+    },
+    {
+      "name": "Listing",
+      "description": "Your app's marketplace listing: the draft, its images, what it still needs. Tassyir reviews a listing before the marketplace shows it."
+    },
+    {
+      "name": "Review",
+      "description": "Submitting your app for the marketplace: the review cases, the checklist and its dry run, your notes to the reviewer, delisting."
     },
     {
       "name": "Installations",
@@ -495,7 +503,7 @@
           "Apps"
         ],
         "summary": "Create an app",
-        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused while Tassyir Hosting is switched off; the mode follows the app's current version.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "description": "It has no version and no secret yet. `handle` is permanent (the manifest's `handle` rule, unique on Tassyir); `clientId` is minted here and never changes. `hostingMode: tassyir` is refused while Tassyir Hosting is switched off or not open to your developer account; the mode follows the app's current version.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -769,7 +777,7 @@
           "Apps"
         ],
         "summary": "Change an app",
-        "description": "Its names and `customBusinessId` (`null` clears it). The handle, client id, hosting mode and distribution never change.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "description": "Its names and `customBusinessId` (`null` clears it). The handle, client id, hosting mode and distribution never change. A LISTED app's name changes through its listing (`409 APP_NAME_LOCKED`).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -914,7 +922,7 @@
             }
           },
           "409": {
-            "description": "Conflict: `APP_READ_ONLY`.",
+            "description": "Conflict: `APP_NAME_LOCKED`, `APP_READ_ONLY`.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -931,6 +939,7 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "APP_NAME_LOCKED",
                             "APP_READ_ONLY"
                           ]
                         }
@@ -1313,6 +1322,152 @@
                             "APP_CREDENTIAL_NOT_FOUND",
                             "APP_NOT_FOUND",
                             "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/delist": {
+      "post": {
+        "operationId": "delistApp",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Take your app out of the marketplace",
+        "description": "Out of the catalogue and search, no new installs; existing installations keep working. Undo with relist.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delisted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDelistingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_NOT_LISTABLE`, `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_LISTABLE",
+                            "APP_READ_ONLY"
                           ]
                         }
                       }
@@ -1936,6 +2091,1981 @@
         "x-tassyir-auth": "developer"
       }
     },
+    "/developer/apps/{appId}/listing": {
+      "get": {
+        "operationId": "getAppListing",
+        "tags": [
+          "Listing"
+        ],
+        "summary": "Get your app's listing",
+        "description": "The draft you edit (an app without one reads its names only), what it still needs before you can submit it (`issues`), the live listing the marketplace shows (null until Tassyir approves one) and every listing image.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The listing.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperListingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      },
+      "put": {
+        "operationId": "updateAppListing",
+        "tags": [
+          "Listing"
+        ],
+        "summary": "Replace your app's draft listing",
+        "description": "The whole draft: a field you leave out (or send `null`) is cleared. Every rule is checked at once (`LISTING_INVALID` lists each problem with its `path`); an incomplete draft is saved and its gaps come back as `issues`. Plain text only: no HTML, no Markdown links, no invisible characters. The draft never reaches the marketplace by itself: Tassyir reviews it first.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppListingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The listing as it is now.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `LISTING_INVALID`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST",
+                                "LISTING_INVALID"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/listing/media": {
+      "post": {
+        "operationId": "uploadAppListingMedia",
+        "tags": [
+          "Listing"
+        ],
+        "summary": "Upload a listing image",
+        "description": "One image a call, as `multipart/form-data`: the file in `file`, its `kind`. The BYTES decide what it is: PNG, JPEG or WebP (never SVG or GIF), at most 2 MB. An icon is square, 512 to 1200 px; a desktop screenshot 16:9 from 1600x900 to 3200x1800; a mobile one 9:16 from 900x1600 to 1800x3200. An app holds at most 20 images (drafts included), and a developer uploads at most 30 every 10 minutes. An image no draft names is deleted 7 days after it was uploaded.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "contentMediaType": "application/octet-stream",
+                    "description": "The image file (PNG, JPEG or WebP). At most 2097152 bytes."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "icon",
+                      "screenshot_desktop",
+                      "screenshot_mobile"
+                    ]
+                  }
+                },
+                "required": [
+                  "file",
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The image, `draft`: name its id in your draft listing.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `LISTING_MEDIA_INVALID`, `UPLOAD_ABORTED`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST",
+                                "LISTING_MEDIA_INVALID",
+                                "UPLOAD_ABORTED"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`, `LISTING_MEDIA_LIMIT_REACHED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY",
+                            "LISTING_MEDIA_LIMIT_REACHED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large: `FILE_TOO_LARGE`, `PAYLOAD_TOO_LARGE`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "FILE_TOO_LARGE",
+                            "PAYLOAD_TOO_LARGE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "description": "Rate limited: `DEVELOPER_RATE_LIMITED`, `DEVELOPER_TOKEN_RATE_LIMITED`; the platform-wide rate limit (a string).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "DEVELOPER_RATE_LIMITED",
+                                "DEVELOPER_TOKEN_RATE_LIMITED"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/RateLimitError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Unavailable: `DEVELOPER_RATE_LIMIT_UNAVAILABLE`, `LISTING_MEDIA_STORAGE_FAILED`; a database that cannot be reached.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "DEVELOPER_RATE_LIMIT_UNAVAILABLE",
+                                "LISTING_MEDIA_STORAGE_FAILED"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/listing/media/{mediaId}": {
+      "delete": {
+        "operationId": "deleteAppListingMedia",
+        "tags": [
+          "Listing"
+        ],
+        "summary": "Delete a listing image",
+        "description": "Refused while your draft names it (remove it from the draft first) or the live listing shows it.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "description": "One of this app's listing images. Another app's, or a malformed id, is 404 `LISTING_MEDIA_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingMediaDeletedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `LISTING_MEDIA_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "LISTING_MEDIA_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`, `LISTING_MEDIA_IN_USE`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY",
+                            "LISTING_MEDIA_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/relist": {
+      "post": {
+        "operationId": "relistApp",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Put your app back in the marketplace",
+        "description": "Only after you delisted it: an app Tassyir delisted is relisted by Tassyir (`APP_NOT_LISTABLE` `delisted_by_tassyir`).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listed again.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDelistingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_NOT_LISTABLE`, `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_LISTABLE",
+                            "APP_READ_ONLY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/review-checks": {
+      "post": {
+        "operationId": "runAppReviewChecks",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Run the review checks as a dry run",
+        "description": "What a submission would find now, on your draft listing and latest version, without submitting: every check of the checklist (it fetches your privacy policy and admin page and sends test deliveries, signed and forged, to your webhook endpoints). Queued: read the result with the run id (kept 24 hours). At most 5 per app per hour.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The run, `queued`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewChecksRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited: `DEVELOPER_TOKEN_RATE_LIMITED`, `REVIEW_CHECKS_RATE_LIMITED`; the platform-wide rate limit (a string).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "DEVELOPER_TOKEN_RATE_LIMITED",
+                                "REVIEW_CHECKS_RATE_LIMITED"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/RateLimitError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Unavailable: `REVIEW_CHECKS_UNAVAILABLE`; a database that cannot be reached.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "REVIEW_CHECKS_UNAVAILABLE"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/review-checks/{runId}": {
+      "get": {
+        "operationId": "getAppReviewChecks",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Read a dry run of the review checks",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "description": "The run id `POST …/review-checks` answered. Another app's, an older one (24 hours) or a malformed id is 404 `REVIEW_CHECKS_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^rcr_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run; `checks` once `finished`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewChecksRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `REVIEW_CHECKS_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "REVIEW_CHECKS_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/submissions": {
+      "post": {
+        "operationId": "submitAppListing",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Submit the app for the marketplace",
+        "description": "Snapshots your DRAFT listing and names your LATEST version, for `public` (browsed and searched) or `unlisted` (installs from its link) distribution: a `listing` review case, `checking` first (the automated checklist), then `submitted` or `checks_failed`. A new submission replaces an open case. Needs the current developer terms accepted. Tassyir aims at 5 working days for a first review, 2 for a resubmission.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitListingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The case, `checking`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`, `DEVELOPER_TERMS_REQUIRED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY",
+                            "DEVELOPER_TERMS_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      },
+      "get": {
+        "operationId": "listAppReviewCases",
+        "tags": [
+          "Review"
+        ],
+        "summary": "List your app's review cases",
+        "description": "Newest first: your submissions and the `version` cases a new version opened. `limit` 1-100 (default 20).\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100. A value outside that range is 400."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,15}_\\d{1,20}$"
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCasePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/submissions/{reviewId}": {
+      "get": {
+        "operationId": "getAppReviewCase",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Get a review case",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "description": "One of this app's review cases. Another app's, or a malformed id, is 404 `REVIEW_CASE_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The case.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `REVIEW_CASE_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "REVIEW_CASE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/submissions/{reviewId}/notes": {
+      "post": {
+        "operationId": "addAppReviewNote",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Add a note for the reviewer",
+        "description": "Plain text: test steps, a demo account on your service, why the version needs a scope. While the case is open; at most 20 notes.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "description": "One of this app's review cases. Another app's, or a malformed id, is 404 `REVIEW_CASE_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewNoteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case, with your note.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `REVIEW_CASE_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "REVIEW_CASE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `REVIEW_CASE_STATE`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REVIEW_CASE_STATE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/submissions/{reviewId}/withdraw": {
+      "post": {
+        "operationId": "withdrawAppReviewCase",
+        "tags": [
+          "Review"
+        ],
+        "summary": "Withdraw a review case",
+        "description": "An open case only. A version that waited for it is retired (never released); upload a new one when ready.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "description": "One of this app's review cases. Another app's, or a malformed id, is 404 `REVIEW_CASE_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The case, `withdrawn`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `REVIEW_CASE_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "REVIEW_CASE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `REVIEW_CASE_STATE`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REVIEW_CASE_STATE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
     "/developer/apps/{appId}/versions": {
       "get": {
         "operationId": "listAppVersions",
@@ -2066,7 +4196,7 @@
           "Versions"
         ],
         "summary": "Upload a version of the app's manifest",
-        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser); a larger body is 413 `PAYLOAD_TOO_LARGE` with `limitBytes`, `hostingAvailable` and a `fix` saying why (while hosting is off, only a version carrying a bundle is that large). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once. A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser); a larger body is 413 `PAYLOAD_TOO_LARGE` with `limitBytes`, `hostingAvailable` and a `fix` saying why (while hosting is off, only a version carrying a bundle is that large). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once, except for a LISTED app: there it must subscribe the three compliance topics and name a supported API version (400 `REVIEW_CHECKS_FAILED`, nothing stored), and a version that adds scopes, data hosts or storefront code waits `in_review` for a person (a `version` review case opens by itself). A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on and open to your developer account) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -2114,7 +4244,7 @@
             }
           },
           "400": {
-            "description": "Bad request: `APP_BUNDLE_INVALID`, `APP_BUNDLE_NOT_ALLOWED`, `APP_BUNDLE_REQUIRED`, `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "description": "Bad request: `APP_BUNDLE_INVALID`, `APP_BUNDLE_NOT_ALLOWED`, `APP_BUNDLE_REQUIRED`, `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`, `REVIEW_CHECKS_FAILED`; a field refused by validation (no `code`).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -2140,7 +4270,8 @@
                                 "APP_MANIFEST_HANDLE_MISMATCH",
                                 "APP_MANIFEST_INVALID",
                                 "APP_MANIFEST_TOO_DEEP",
-                                "BAD_REQUEST"
+                                "BAD_REQUEST",
+                                "REVIEW_CHECKS_FAILED"
                               ]
                             }
                           }
@@ -4511,6 +6642,189 @@
         },
         "x-tassyir-auth": "developer"
       }
+    },
+    "/developer/terms": {
+      "post": {
+        "operationId": "acceptDeveloperTerms",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Accept the developer terms",
+        "description": "Records that you accepted the \"Developer terms for free apps\" version `2026-10` (the only one accepted today; read `terms.currentVersion` on your account). Needed before a listing submission; a new version asks again before your next one.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptDeveloperTermsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Your account, with `terms`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `DEVELOPER_TERMS_REQUIRED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_TERMS_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
     }
   },
   "components": {
@@ -4743,6 +7057,19 @@
       }
     },
     "schemas": {
+      "AcceptDeveloperTermsInput": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ]
+      },
       "AppCredential": {
         "type": "object",
         "properties": {
@@ -4831,6 +7158,56 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AppCredential"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AppDelistingResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "appId": {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A Tassyir id: a string of digits."
+              },
+              "delistedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delistedBy": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "`developer` or `tassyir`."
+              }
+            },
+            "required": [
+              "appId",
+              "delistedAt",
+              "delistedBy"
+            ],
+            "additionalProperties": false,
+            "description": "Your app's delisting."
           }
         },
         "required": [
@@ -6564,7 +8941,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set by Tassyir (Phase 2), never by you."
+            "description": "Set by Tassyir when a reviewer verified you (in your first listing review), never by you."
           },
           "createdAt": {
             "type": "string",
@@ -6577,6 +8954,76 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 date-time, UTC."
+          },
+          "emergencyContact": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "International form: `+` then 8 to 15 digits."
+                  }
+                },
+                "required": [
+                  "email",
+                  "phone"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who Tassyir calls in an emergency about your apps. Only you and Tassyir staff read it; needed before a listing submission."
+          },
+          "terms": {
+            "type": "object",
+            "properties": {
+              "acceptedVersion": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The developer terms version you accepted."
+              },
+              "acceptedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "currentVersion": {
+                "type": "string",
+                "description": "The version a submission needs today."
+              },
+              "current": {
+                "type": "boolean",
+                "description": "You accepted the current version."
+              }
+            },
+            "required": [
+              "acceptedVersion",
+              "acceptedAt",
+              "currentVersion",
+              "current"
+            ],
+            "additionalProperties": false,
+            "description": "The developer terms for free apps (POST /developer/terms)."
           }
         },
         "required": [
@@ -6587,7 +9034,9 @@
           "status",
           "verifiedAt",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "emergencyContact",
+          "terms"
         ],
         "additionalProperties": false,
         "description": "The caller's developer account."
@@ -6649,7 +9098,7 @@
           },
           "distribution": {
             "type": "string",
-            "description": "`custom` in Phase 1."
+            "description": "`custom`; `public` or `unlisted` once Tassyir approved a listing of the app (Phase 2)."
           },
           "customBusinessId": {
             "anyOf": [
@@ -6699,7 +9148,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Not maintained yet."
+            "description": "Recounted hourly: live installations on businesses that are neither dev stores nor your own."
           },
           "createdAt": {
             "type": "string",
@@ -6786,7 +9235,7 @@
             "items": {
               "$ref": "#/components/schemas/FieldError"
             },
-            "description": "With `APP_MANIFEST_INVALID`, `APP_FIELDS_INVALID`, `DEVELOPER_ACCOUNT_INVALID`: every problem at once, in the manifest validator's format."
+            "description": "With `APP_MANIFEST_INVALID`, `APP_FIELDS_INVALID`, `DEVELOPER_ACCOUNT_INVALID`, `LISTING_INVALID`: every problem at once, in the manifest validator's format."
           },
           "path": {
             "type": "string",
@@ -6963,6 +9412,164 @@
         "additionalProperties": false,
         "description": "One page, newest first."
       },
+      "DeveloperListing": {
+        "type": "object",
+        "properties": {
+          "appId": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "distribution": {
+            "type": "string",
+            "description": "`custom` until a listing review approves `public` or `unlisted`."
+          },
+          "listedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First approval; null for an app never listed."
+          },
+          "delistedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delistedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`developer` or `tassyir`."
+          },
+          "draft": {
+            "$ref": "#/components/schemas/Listing"
+          },
+          "draftUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "LISTING_FIELD_UNKNOWN",
+                    "LISTING_FIELD_TYPE",
+                    "LISTING_NAME_INVALID",
+                    "LISTING_TEXT_INVALID",
+                    "LISTING_TEXT_TOO_LONG",
+                    "LISTING_TEXT_TOO_SHORT",
+                    "LISTING_TOO_MANY",
+                    "LISTING_TOO_FEW",
+                    "LISTING_REQUIRED",
+                    "LISTING_CATEGORY_UNKNOWN",
+                    "LISTING_LANGUAGE_UNKNOWN",
+                    "LISTING_URL_INVALID",
+                    "LISTING_MEDIA_UNKNOWN",
+                    "LISTING_MEDIA_KIND",
+                    "LISTING_MEDIA_DUPLICATE"
+                  ]
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Where: `tagline.ar`, `screenshots.desktop`, …"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "fix": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "path",
+                "message",
+                "fix"
+              ],
+              "additionalProperties": false,
+              "description": "One thing missing before the listing can be submitted."
+            },
+            "description": "What the draft still needs before a submission; empty when complete."
+          },
+          "live": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiveListing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListingMedia"
+            },
+            "description": "The app's listing images, newest first (at most 20)."
+          }
+        },
+        "required": [
+          "appId",
+          "distribution",
+          "listedAt",
+          "delistedAt",
+          "delistedBy",
+          "draft",
+          "draftUpdatedAt",
+          "issues",
+          "live",
+          "media"
+        ],
+        "additionalProperties": false,
+        "description": "Your app's listing: the draft you edit and the live one."
+      },
+      "DeveloperListingResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeveloperListing"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "DeveloperTokenResponse": {
         "type": "object",
         "properties": {
@@ -7122,6 +9729,26 @@
           "client_id"
         ]
       },
+      "EmergencyContactInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "description": "Phone must be in international form: + then 8 to 15 digits."
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "phone"
+        ]
+      },
       "FieldError": {
         "type": "object",
         "description": "One problem, as the manifest validator reports it.",
@@ -7275,6 +9902,878 @@
         "additionalProperties": false,
         "description": "A minted client secret (served with `Cache-Control: no-store`)."
       },
+      "Listing": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "en": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false,
+            "description": "The app's name on its listing: the manifest's `name` rule, at most 30 characters to be listed."
+          },
+          "tagline": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "en": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false,
+            "description": "One line, 10 to 100 characters."
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "en": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false,
+            "description": "Plain text, 100 to 1,500 characters: paragraphs and \"- \" lines, no HTML, no links."
+          },
+          "features": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ar": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "en": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ar",
+                "en"
+              ],
+              "additionalProperties": false,
+              "description": "The Arabic and English text; null where not written yet."
+            },
+            "description": "1 to 6 lines of at most 80 characters."
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "orders",
+                  "delivery",
+                  "marketing",
+                  "messaging",
+                  "reviews",
+                  "storefront",
+                  "catalog",
+                  "analytics",
+                  "finance",
+                  "customer_service",
+                  "productivity"
+                ],
+                "description": "A marketplace category (`GET /apps-catalog/categories`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "searchTerms": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most 5 terms of 2 to 30 characters."
+          },
+          "iconMediaId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A Tassyir id: a string of digits."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A listing image of kind `icon`."
+          },
+          "screenshots": {
+            "type": "object",
+            "properties": {
+              "desktop": {
+                "maxItems": 6,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string",
+                      "pattern": "^\\d{1,20}$",
+                      "description": "A listing image of the right kind (its upload id)."
+                    },
+                    "alt": {
+                      "type": "object",
+                      "properties": {
+                        "ar": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "en": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ar",
+                        "en"
+                      ],
+                      "additionalProperties": false,
+                      "description": "What the screenshot shows, at most 120 characters each."
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "3 to 6, kind `screenshot_desktop`."
+              },
+              "mobile": {
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "mediaId": {
+                      "type": "string",
+                      "pattern": "^\\d{1,20}$",
+                      "description": "A listing image of the right kind (its upload id)."
+                    },
+                    "alt": {
+                      "type": "object",
+                      "properties": {
+                        "ar": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "en": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ar",
+                        "en"
+                      ],
+                      "additionalProperties": false,
+                      "description": "What the screenshot shows, at most 120 characters each."
+                    }
+                  },
+                  "required": [
+                    "mediaId",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "0 to 4, kind `screenshot_mobile`."
+              }
+            },
+            "required": [
+              "desktop",
+              "mobile"
+            ],
+            "additionalProperties": false
+          },
+          "supportUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacyPolicyUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required to submit."
+          },
+          "externalService": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "paid": {
+                    "type": "boolean",
+                    "description": "The account may be paid."
+                  }
+                },
+                "required": [
+                  "name",
+                  "url",
+                  "paid"
+                ],
+                "additionalProperties": false,
+                "description": "An account the app needs on the developer's own service."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en",
+                "fr"
+              ]
+            },
+            "description": "The languages the app's own pages support."
+          }
+        },
+        "required": [
+          "name",
+          "tagline",
+          "description",
+          "features",
+          "category",
+          "searchTerms",
+          "iconMediaId",
+          "screenshots",
+          "supportUrl",
+          "privacyPolicyUrl",
+          "externalService",
+          "languages"
+        ],
+        "additionalProperties": false,
+        "description": "A listing as the draft holds it: images named by their upload id."
+      },
+      "ListingMedia": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`icon`, `screenshot_desktop` or `screenshot_mobile`."
+          },
+          "url": {
+            "type": "string",
+            "description": "On cdn.tassyir.io."
+          },
+          "contentType": {
+            "type": "string",
+            "description": "`image/png`, `image/jpeg` or `image/webp`, read from the bytes."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "description": "`draft` (yours to use or delete), `live` (the marketplace shows it) or `retired` (deleted 7 days later)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "retiredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "url",
+          "contentType",
+          "width",
+          "height",
+          "bytes",
+          "status",
+          "createdAt",
+          "retiredAt"
+        ],
+        "additionalProperties": false,
+        "description": "One listing image."
+      },
+      "ListingMediaDeletedResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A Tassyir id: a string of digits."
+              },
+              "deleted": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "id",
+              "deleted"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "description": "The image and its row are gone."
+      },
+      "ListingMediaResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListingMedia"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "LiveListing": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "type": "string"
+              },
+              "en": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false
+          },
+          "tagline": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "en": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false,
+            "description": "The Arabic and English text; null where not written yet."
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "ar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "en": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ar",
+              "en"
+            ],
+            "additionalProperties": false,
+            "description": "The Arabic and English text; null where not written yet."
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ar": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "en": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ar",
+                "en"
+              ],
+              "additionalProperties": false,
+              "description": "The Arabic and English text; null where not written yet."
+            }
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "orders",
+                  "delivery",
+                  "marketing",
+                  "messaging",
+                  "reviews",
+                  "storefront",
+                  "catalog",
+                  "analytics",
+                  "finance",
+                  "customer_service",
+                  "productivity"
+                ],
+                "description": "A marketplace category (`GET /apps-catalog/categories`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "searchTerms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "iconUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "screenshots": {
+            "type": "object",
+            "properties": {
+              "desktop": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^\\d{1,20}$",
+                      "description": "A Tassyir id: a string of digits."
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "alt": {
+                      "type": "object",
+                      "properties": {
+                        "ar": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "en": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ar",
+                        "en"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The Arabic and English text; null where not written yet."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "width",
+                    "height",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "mobile": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^\\d{1,20}$",
+                      "description": "A Tassyir id: a string of digits."
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "alt": {
+                      "type": "object",
+                      "properties": {
+                        "ar": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "en": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ar",
+                        "en"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The Arabic and English text; null where not written yet."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "width",
+                    "height",
+                    "alt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "desktop",
+              "mobile"
+            ],
+            "additionalProperties": false
+          },
+          "supportUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacyPolicyUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "externalService": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "paid": {
+                    "type": "boolean",
+                    "description": "The account may be paid."
+                  }
+                },
+                "required": [
+                  "name",
+                  "url",
+                  "paid"
+                ],
+                "additionalProperties": false,
+                "description": "An account the app needs on the developer's own service."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en",
+                "fr"
+              ]
+            }
+          },
+          "approvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When Tassyir last approved it."
+          }
+        },
+        "required": [
+          "name",
+          "tagline",
+          "description",
+          "features",
+          "category",
+          "searchTerms",
+          "iconUrl",
+          "screenshots",
+          "supportUrl",
+          "privacyPolicyUrl",
+          "externalService",
+          "languages",
+          "approvedAt"
+        ],
+        "additionalProperties": false,
+        "description": "The listing the marketplace shows (approved by Tassyir)."
+      },
       "OAuthError": {
         "type": "object",
         "description": "An OAuth error (RFC 6749 §5.2, RFC 8628 §3.5), on the two public CLI routes only.",
@@ -7304,6 +10803,531 @@
       "RateLimitError": {
         "type": "string",
         "description": "The platform-wide rate limit's refusal: a bare JSON string, not an object, sent only while that limit is enforced. A developer token's calls are counted by IP."
+      },
+      "ReviewCase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "appId": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`listing` (your submission) or `version` (a new version of a listed app that needs a person)."
+          },
+          "state": {
+            "type": "string",
+            "description": "`checking`, `checks_failed`, `submitted`, `in_review`, `approved`, `changes_requested`, `rejected`, `withdrawn` or `superseded`."
+          },
+          "distribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`public` or `unlisted` (a listing case)."
+          },
+          "versionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A Tassyir id: a string of digits."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why a person reviews it: `first_listing`, `scopes_added`, `hosts_added`, `storefront_code`, `ai_hold`."
+          },
+          "checks": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ranAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  },
+                  "passed": {
+                    "type": "boolean",
+                    "description": "No hard check failed."
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "listing_complete",
+                            "privacy_policy_reachable",
+                            "support_contact",
+                            "terms_accepted",
+                            "version_releasable",
+                            "compliance_topics",
+                            "webhooks_verify_signatures",
+                            "admin_page_frames",
+                            "blocks_valid",
+                            "api_version_current",
+                            "sensitive_scopes",
+                            "scan_findings",
+                            "developer_verified"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pass",
+                            "fail",
+                            "warning",
+                            "skipped",
+                            "error"
+                          ],
+                          "description": "`pass`, `fail`, `warning` (for the reviewer), `skipped` (does not apply), `error` (Tassyir could not run it: not yours to fix)."
+                        },
+                        "hard": {
+                          "type": "boolean",
+                          "description": "A hard check that fails ends a listing submission in `checks_failed`."
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "What to do, when it did not pass."
+                        },
+                        "detail": {
+                          "description": "Small facts: the issues, a status code, the scopes.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "status",
+                        "hard",
+                        "message",
+                        "fix"
+                      ],
+                      "additionalProperties": false,
+                      "description": "One check of the review checklist."
+                    }
+                  }
+                },
+                "required": [
+                  "ranAt",
+                  "passed",
+                  "results"
+                ],
+                "additionalProperties": false,
+                "description": "The automated checklist, every check in a fixed order."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                  "description": "ISO 8601 date-time, UTC."
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Your notes for the reviewer."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "note": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "message",
+                  "items"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reviewer's message and notes, once decided."
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previousReviewId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A Tassyir id: a string of digits."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turnaround": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "workingDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "dueAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  }
+                },
+                "required": [
+                  "workingDays",
+                  "dueAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the turnaround Tassyir aims at (working days, Sunday to Thursday)."
+          }
+        },
+        "required": [
+          "id",
+          "appId",
+          "kind",
+          "state",
+          "distribution",
+          "versionId",
+          "version",
+          "reasons",
+          "checks",
+          "notes",
+          "decision",
+          "submittedAt",
+          "decidedAt",
+          "previousReviewId",
+          "turnaround"
+        ],
+        "additionalProperties": false,
+        "description": "One review case of your app."
+      },
+      "ReviewCasePage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCase"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass it back as `cursor` (with the same filters) for the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false,
+        "description": "One page, newest first."
+      },
+      "ReviewCaseResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewCase"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewChecksRun": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "appId": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "finished"
+            ]
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "checks": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ranAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  },
+                  "passed": {
+                    "type": "boolean",
+                    "description": "No hard check failed."
+                  },
+                  "results": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "listing_complete",
+                            "privacy_policy_reachable",
+                            "support_contact",
+                            "terms_accepted",
+                            "version_releasable",
+                            "compliance_topics",
+                            "webhooks_verify_signatures",
+                            "admin_page_frames",
+                            "blocks_valid",
+                            "api_version_current",
+                            "sensitive_scopes",
+                            "scan_findings",
+                            "developer_verified"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pass",
+                            "fail",
+                            "warning",
+                            "skipped",
+                            "error"
+                          ],
+                          "description": "`pass`, `fail`, `warning` (for the reviewer), `skipped` (does not apply), `error` (Tassyir could not run it: not yours to fix)."
+                        },
+                        "hard": {
+                          "type": "boolean",
+                          "description": "A hard check that fails ends a listing submission in `checks_failed`."
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "fix": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "What to do, when it did not pass."
+                        },
+                        "detail": {
+                          "description": "Small facts: the issues, a status code, the scopes.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "status",
+                        "hard",
+                        "message",
+                        "fix"
+                      ],
+                      "additionalProperties": false,
+                      "description": "One check of the review checklist."
+                    }
+                  }
+                },
+                "required": [
+                  "ranAt",
+                  "passed",
+                  "results"
+                ],
+                "additionalProperties": false,
+                "description": "The automated checklist, every check in a fixed order."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while queued."
+          }
+        },
+        "required": [
+          "runId",
+          "appId",
+          "status",
+          "queuedAt",
+          "checks"
+        ],
+        "additionalProperties": false,
+        "description": "A dry run of the review checklist (kept 24 hours)."
+      },
+      "ReviewChecksRunResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewChecksRun"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewNoteInput": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "text"
+        ]
       },
       "SendWebhookTestInput": {
         "type": "object",
@@ -7361,6 +11385,428 @@
           "message"
         ]
       },
+      "SubmitListingInput": {
+        "type": "object",
+        "properties": {
+          "distribution": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted"
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "distribution"
+        ]
+      },
+      "UpdateAppListingInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 50
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "en": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 50
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "description": "The app's name: the manifest's `name` rule (one line, at most 50), and at most 30 characters for the app to be listed."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tagline": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "en": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "description": "One line, 10 to 100 characters."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "en": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Plain text, 100 to 1,500 characters: paragraphs and \"- \" lines only."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "features": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 6,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ar": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "en": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "One feature line."
+                },
+                "description": "1 to 6 lines of what the app does."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "orders",
+                  "delivery",
+                  "marketing",
+                  "messaging",
+                  "reviews",
+                  "storefront",
+                  "catalog",
+                  "analytics",
+                  "finance",
+                  "customer_service",
+                  "productivity"
+                ],
+                "description": "A marketplace category."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "searchTerms": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 30
+                },
+                "description": "Words merchants may search for; duplicates are dropped."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iconMediaId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}$",
+                "description": "A listing image of kind `icon`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "screenshots": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "desktop": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "mediaId": {
+                          "type": "string",
+                          "pattern": "^\\d{1,20}$",
+                          "description": "A listing image of kind `screenshot_desktop`."
+                        },
+                        "alt": {
+                          "type": "object",
+                          "properties": {
+                            "ar": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "en": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "What the screenshot shows."
+                        }
+                      },
+                      "required": [
+                        "mediaId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "mobile": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "mediaId": {
+                          "type": "string",
+                          "pattern": "^\\d{1,20}$",
+                          "description": "A listing image of kind `screenshot_mobile`."
+                        },
+                        "alt": {
+                          "type": "object",
+                          "properties": {
+                            "ar": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "en": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "What the screenshot shows."
+                        }
+                      },
+                      "required": [
+                        "mediaId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false,
+                "description": "3 to 6 desktop screenshots and 0 to 4 mobile ones, in order."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supportUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^https://",
+                "description": "Your support page. An https address on your own public domain (port 443, no IP address, no Tassyir domain)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacyPolicyUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^https://",
+                "description": "Your privacy policy (required to submit). An https address on your own public domain (port 443, no IP address, no Tassyir domain)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "externalService": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^https://",
+                    "description": "The service's page. An https address on your own public domain (port 443, no IP address, no Tassyir domain)."
+                  },
+                  "paid": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "url",
+                  "paid"
+                ],
+                "additionalProperties": false,
+                "description": "An account the app needs on your own service, shown on the listing (\"may be paid\" when `paid`)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "languages": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "ar",
+                    "en",
+                    "fr"
+                  ]
+                },
+                "description": "The languages your app's own pages support."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateDeveloperAccountInput": {
         "type": "object",
         "properties": {
@@ -7381,6 +11827,16 @@
                 "format": "uri",
                 "pattern": "^(?:https)://",
                 "description": "An https URL with a public host name."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emergencyContact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmergencyContactInput"
               },
               {
                 "type": "null"
