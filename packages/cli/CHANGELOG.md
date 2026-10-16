@@ -1,5 +1,14 @@
 # tassyir
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [492bb64]
+- Updated dependencies [492bb64]
+  - @tassyir/app-manifest@0.3.0
+  - create-tassyir-app@0.2.1
+
 ## 0.3.0
 
 ### Minor Changes

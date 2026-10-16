@@ -1,5 +1,11 @@
 # @tassyir/app-manifest
 
+## 0.3.0
+
+### Minor Changes
+
+- 492bb64: The marketplace's manifest fields (not live yet: the Tassyir API refuses them until the marketplace opens). `write_storefront` is now requestable (`MANIFEST_VOCABULARY`), and `[[storefront.blocks]]` takes `stylesheet`, `name`, `target` (`product` or `any`, default `any`), `data` (the app data keys the template reads, `<owner>.<key>`, declared with `storefront` visibility) and `[[storefront.blocks.settings]]` (`key`, `type` from `SETTING_TYPES`, `label`, and by type `default`, `options`, `min`, `max`, `max_length`). `[[data.definitions]]` takes a `label`, and `[[admin.actions]]` (`handle`, `target` from `ADMIN_ACTION_TARGETS`, `label`, `path`, at most 10) adds menu entries in the dashboard. `[app_proxy]` (`path`) is part of the shape but refused until the platform opens it (`MANIFEST_PROXY_NOT_AVAILABLE`): the vocabulary gains `appProxy: { available, unavailableReason? }` (a required field of `ManifestVocabulary`). Every label is `{ ar, en }` with the `name` rules. 23 new error codes, each with a `fix` (`MANIFEST_LIST_TOO_SHORT`, `MANIFEST_DATA_LABEL_INVALID`, `MANIFEST_BLOCK_*`, `MANIFEST_PROXY_*`, `MANIFEST_ACTION_*`); the JSON Schema is regenerated. The normalised manifest of a version without these fields is unchanged; a block always carries `target`, `data` (sorted) and `settings`, `admin.page` became optional (an app may have actions without a page), and `app_proxy` comes last. `MANIFEST_HOST_NOT_ALLOWED`'s `fix` now names `ctx.props.TASSYIR`.
+
 ## 0.2.0
 
 ### Minor Changes
