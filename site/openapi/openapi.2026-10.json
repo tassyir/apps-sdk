@@ -46,6 +46,10 @@
       "description": "The buyers behind the orders."
     },
     {
+      "name": "Offers",
+      "description": "The merchant's per-store pricing offers: quantity offers, free delivery and product discounts."
+    },
+    {
       "name": "Stores",
       "description": "The installation's stores."
     },
@@ -7210,6 +7214,467 @@
         "x-tassyir-scope": "read_customers"
       }
     },
+    "/apps/2026-10/offers": {
+      "get": {
+        "operationId": "listOffers",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "List offers",
+        "description": "The merchant's per-store pricing offers (quantity offers, free delivery, product discounts), newest first, drafts included. A store-limited installation reads the offers of its stores. Codes are not exposed (their count is), and neither is any usage: never a buyer.\n\nNeeds the `read_offers` scope (permission `offers:read`).",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "active",
+                "paused",
+                "ended"
+              ]
+            },
+            "description": "One status: `draft`, `scheduled` (starts later), `active`, `paused` or `ended` (an archived offer is ended). Omitted: every offer."
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quantity",
+                "free_delivery",
+                "product_discount",
+                "order_discount",
+                "bxgy",
+                "addon",
+                "app"
+              ]
+            },
+            "description": "Only this kind: `quantity`, `free_delivery`, `product_discount`, `order_discount`, `bxgy`, `addon` or `app`."
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "automatic",
+                "code"
+              ]
+            },
+            "description": "Only code offers (`code`) or automatic ones (`automatic`)."
+          },
+          {
+            "name": "storeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,24}$"
+            },
+            "description": "Only the offers of this store. A store outside the installation's stores is 460 `STORE_SCOPE_FORBIDDEN`."
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100 (default 50). A value outside that range is 400, never clamped."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters. Opaque; bound to this list and its filters (400 `INVALID_CURSOR` otherwise)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of offers.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_CURSOR`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_CURSOR",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "460": {
+            "description": "Store outside the installation: `STORE_SCOPE_FORBIDDEN`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 460
+                        },
+                        "code": {
+                          "enum": [
+                            "STORE_SCOPE_FORBIDDEN"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": "offers:read",
+        "x-tassyir-scope": "read_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}": {
+      "get": {
+        "operationId": "getOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Get an offer",
+        "description": "Needs the `read_offers` scope (permission `offers:read`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The offer.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": "offers:read",
+        "x-tassyir-scope": "read_offers"
+      }
+    },
     "/apps/2026-10/stores": {
       "get": {
         "operationId": "listStores",
@@ -12326,6 +12791,309 @@
         "x-tassyir-scope": "read_customers"
       }
     },
+    "offers/created": {
+      "post": {
+        "operationId": "onOffersCreated",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "offers/created",
+        "description": "An offer was created (as a draft).\n\nSent to installations granted `read_offers` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "webhook-id",
+            "in": "header",
+            "required": true,
+            "description": "`dlv_<delivery id>`: one per event per installation, the same on every retry. Deduplicate on it. A test delivery from the developer console is `dlv_test_<24 hex>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^dlv_(\\d+|test_[0-9a-f]{24})$"
+            }
+          },
+          {
+            "name": "webhook-timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix seconds of this attempt.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "webhook-signature",
+            "in": "header",
+            "required": true,
+            "description": "`v1a,<base64 Ed25519 signature>` of `{webhook-id}.{webhook-timestamp}.{raw body}`, one per active key, space-separated during a key rotation. Keys: `GET /apps/webhook-keys`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-topic",
+            "in": "header",
+            "required": true,
+            "description": "The topic, e.g. `orders/created`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-business-id",
+            "in": "header",
+            "required": true,
+            "description": "The installation's business.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-api-version",
+            "in": "header",
+            "required": true,
+            "description": "The version the body follows (the installation's pinned version's).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-test",
+            "in": "header",
+            "required": false,
+            "description": "`true` on a test delivery sent from the developer console (a sample body, envelope id `evt_0`); absent on every real delivery.",
+            "schema": {
+              "type": "string",
+              "const": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookOffersCreated"
+              }
+            }
+          }
+        },
+        "responses": {
+          "410": {
+            "description": "Gone: the installation's webhooks are disabled at once, every topic."
+          },
+          "2XX": {
+            "description": "Delivered. Answer within 10 s (the body is never read); do slow work after answering."
+          },
+          "default": {
+            "description": "Anything else (3xx, 4xx, 5xx, a timeout) is retried after 5 s, 5 min, 30 min, 2 h, 5 h, 10 h, 14 h, 20 h, 24 h: at most 10 attempts. A longer `Retry-After` is honoured (at most 24 h). 3 days of continuous failure disable the installation's webhooks."
+          }
+        },
+        "x-tassyir-scope": "read_offers"
+      }
+    },
+    "offers/updated": {
+      "post": {
+        "operationId": "onOffersUpdated",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "offers/updated",
+        "description": "An offer changed (publishing, pausing, archiving, its dates, rules and codes included); `changed` names the fields.\n\nSent to installations granted `read_offers` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "webhook-id",
+            "in": "header",
+            "required": true,
+            "description": "`dlv_<delivery id>`: one per event per installation, the same on every retry. Deduplicate on it. A test delivery from the developer console is `dlv_test_<24 hex>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^dlv_(\\d+|test_[0-9a-f]{24})$"
+            }
+          },
+          {
+            "name": "webhook-timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix seconds of this attempt.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "webhook-signature",
+            "in": "header",
+            "required": true,
+            "description": "`v1a,<base64 Ed25519 signature>` of `{webhook-id}.{webhook-timestamp}.{raw body}`, one per active key, space-separated during a key rotation. Keys: `GET /apps/webhook-keys`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-topic",
+            "in": "header",
+            "required": true,
+            "description": "The topic, e.g. `orders/created`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-business-id",
+            "in": "header",
+            "required": true,
+            "description": "The installation's business.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-api-version",
+            "in": "header",
+            "required": true,
+            "description": "The version the body follows (the installation's pinned version's).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-test",
+            "in": "header",
+            "required": false,
+            "description": "`true` on a test delivery sent from the developer console (a sample body, envelope id `evt_0`); absent on every real delivery.",
+            "schema": {
+              "type": "string",
+              "const": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookOffersUpdated"
+              }
+            }
+          }
+        },
+        "responses": {
+          "410": {
+            "description": "Gone: the installation's webhooks are disabled at once, every topic."
+          },
+          "2XX": {
+            "description": "Delivered. Answer within 10 s (the body is never read); do slow work after answering."
+          },
+          "default": {
+            "description": "Anything else (3xx, 4xx, 5xx, a timeout) is retried after 5 s, 5 min, 30 min, 2 h, 5 h, 10 h, 14 h, 20 h, 24 h: at most 10 attempts. A longer `Retry-After` is honoured (at most 24 h). 3 days of continuous failure disable the installation's webhooks."
+          }
+        },
+        "x-tassyir-scope": "read_offers"
+      }
+    },
+    "offers/deleted": {
+      "post": {
+        "operationId": "onOffersDeleted",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "offers/deleted",
+        "description": "An offer that was never redeemed was deleted; only its id remains.\n\nSent to installations granted `read_offers` whose version subscribes to the topic.\n\nAt least once, no ordering guarantee. `data` is read when the body is built (seconds after the event), masked for the installation.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "webhook-id",
+            "in": "header",
+            "required": true,
+            "description": "`dlv_<delivery id>`: one per event per installation, the same on every retry. Deduplicate on it. A test delivery from the developer console is `dlv_test_<24 hex>`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^dlv_(\\d+|test_[0-9a-f]{24})$"
+            }
+          },
+          {
+            "name": "webhook-timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix seconds of this attempt.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "webhook-signature",
+            "in": "header",
+            "required": true,
+            "description": "`v1a,<base64 Ed25519 signature>` of `{webhook-id}.{webhook-timestamp}.{raw body}`, one per active key, space-separated during a key rotation. Keys: `GET /apps/webhook-keys`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-topic",
+            "in": "header",
+            "required": true,
+            "description": "The topic, e.g. `orders/created`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-business-id",
+            "in": "header",
+            "required": true,
+            "description": "The installation's business.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-api-version",
+            "in": "header",
+            "required": true,
+            "description": "The version the body follows (the installation's pinned version's).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tassyir-test",
+            "in": "header",
+            "required": false,
+            "description": "`true` on a test delivery sent from the developer console (a sample body, envelope id `evt_0`); absent on every real delivery.",
+            "schema": {
+              "type": "string",
+              "const": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookOffersDeleted"
+              }
+            }
+          }
+        },
+        "responses": {
+          "410": {
+            "description": "Gone: the installation's webhooks are disabled at once, every topic."
+          },
+          "2XX": {
+            "description": "Delivered. Answer within 10 s (the body is never read); do slow work after answering."
+          },
+          "default": {
+            "description": "Anything else (3xx, 4xx, 5xx, a timeout) is retried after 5 s, 5 min, 30 min, 2 h, 5 h, 10 h, 14 h, 20 h, 24 h: at most 10 attempts. A longer `Retry-After` is honoured (at most 24 h). 3 days of continuous failure disable the installation's webhooks."
+          }
+        },
+        "x-tassyir-scope": "read_offers"
+      }
+    },
     "app/installed": {
       "post": {
         "operationId": "onAppInstalled",
@@ -15283,6 +16051,22 @@
         ],
         "additionalProperties": false
       },
+      "DeletedOffer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "description": "A deleted offer: only its id remains."
+      },
       "DeletedProduct": {
         "type": "object",
         "properties": {
@@ -16217,6 +17001,628 @@
           "error",
           "error_description"
         ]
+      },
+      "Offer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "storeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The store the offer belongs to."
+          },
+          "kind": {
+            "type": "string",
+            "description": "quantity, free_delivery, product_discount, order_discount, bxgy, addon or app. Ignore a kind you do not know."
+          },
+          "method": {
+            "type": "string",
+            "description": "automatic or code."
+          },
+          "title": {
+            "type": "string",
+            "description": "The merchant's name for the offer."
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fr": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "en": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "ar",
+                  "fr",
+                  "en"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the buyer reads, per language."
+          },
+          "status": {
+            "type": "string",
+            "description": "draft, scheduled, active, paused or ended (derived from the dates and the lifecycle timestamps; an archived offer is ended)."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 currency code of every amount in this resource."
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "priceMode": {
+                    "type": "string",
+                    "description": "total, percent or amount_each."
+                  },
+                  "tiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "pieces": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Pieces the tier is for."
+                        },
+                        "label": {
+                          "type": "object",
+                          "properties": {
+                            "ar": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "fr": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "en": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "ar",
+                            "fr",
+                            "en"
+                          ],
+                          "additionalProperties": false,
+                          "description": "What the buyer reads on the tier card."
+                        },
+                        "total": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^-?\\d+\\.\\d{2}$",
+                              "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "priceMode total: the whole price of the tier."
+                        },
+                        "percentOff": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "priceMode percent: 1 to 100, off each piece."
+                        },
+                        "amountOffEach": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^-?\\d+\\.\\d{2}$",
+                              "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "priceMode amount_each: DZD off each piece."
+                        },
+                        "preselected": {
+                          "type": "boolean"
+                        },
+                        "freeDelivery": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "pieces",
+                        "label",
+                        "total",
+                        "percentOff",
+                        "amountOffEach",
+                        "preselected",
+                        "freeDelivery"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "priceMode",
+                  "tiers"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind quantity only."
+          },
+          "freeDelivery": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "thresholdKind": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "pieces or amount; null while the offer has none (a draft)."
+                  },
+                  "thresholdPieces": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "thresholdAmount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "delivery": {
+                    "type": "string",
+                    "description": "home, desk or both."
+                  },
+                  "wilayas": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Two-digit wilaya codes; empty = every wilaya."
+                  }
+                },
+                "required": [
+                  "thresholdKind",
+                  "thresholdPieces",
+                  "thresholdAmount",
+                  "delivery",
+                  "wilayas"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind free_delivery only."
+          },
+          "productDiscount": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "valueType": {
+                    "type": "string",
+                    "description": "percent or fixed."
+                  },
+                  "percent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "valueType percent: 1 to 100."
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "valueType fixed: DZD off each unit."
+                  },
+                  "maxAmount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Cap on a percentage saving per unit, DZD."
+                  },
+                  "showCountdown": {
+                    "type": "boolean",
+                    "description": "A countdown to the offer's end date is shown."
+                  }
+                },
+                "required": [
+                  "valueType",
+                  "percent",
+                  "amount",
+                  "maxAmount",
+                  "showCountdown"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind product_discount only."
+          },
+          "combinesWith": {
+            "type": "object",
+            "properties": {
+              "product": {
+                "type": "boolean"
+              },
+              "order": {
+                "type": "boolean"
+              },
+              "delivery": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "product",
+              "order",
+              "delivery"
+            ],
+            "additionalProperties": false,
+            "description": "Which classes of offer this one stacks with."
+          },
+          "eligibility": {
+            "type": "object",
+            "properties": {
+              "audience": {
+                "type": "string",
+                "description": "everyone, first_order or returning."
+              },
+              "channels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "store, landing, shopify, dashboard, apps; empty = all."
+              },
+              "wilayas": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Empty = every wilaya."
+              },
+              "deliveryMethods": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "home, desk; empty = both."
+              }
+            },
+            "required": [
+              "audience",
+              "channels",
+              "wilayas",
+              "deliveryMethods"
+            ],
+            "additionalProperties": false
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "buy (what the offer applies to), get or addon."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "all, product, variant or collection."
+                },
+                "id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "A resource id (a snowflake id, as a string)."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null when type is all."
+                }
+              },
+              "required": [
+                "role",
+                "type",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What the offer applies to (empty for a free-delivery offer)."
+          },
+          "codeCount": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Codes buyers can still use (0 for an automatic offer)."
+          },
+          "totalUsageLimit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total uses; null = unlimited."
+          },
+          "perBuyerLimit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Uses per buyer (phone number); null = unlimited."
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the offer is a draft."
+          },
+          "pausedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appOwned": {
+            "type": "boolean",
+            "description": "The offer belongs to an installed app (phase 2 kinds)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          }
+        },
+        "required": [
+          "id",
+          "storeId",
+          "kind",
+          "method",
+          "title",
+          "label",
+          "status",
+          "currency",
+          "quantity",
+          "freeDelivery",
+          "productDiscount",
+          "combinesWith",
+          "eligibility",
+          "targets",
+          "codeCount",
+          "totalUsageLimit",
+          "perBuyerLimit",
+          "startsAt",
+          "endsAt",
+          "publishedAt",
+          "pausedAt",
+          "archivedAt",
+          "appOwned",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "An offer (API 2026-10)."
+      },
+      "OfferPage": {
+        "type": "object",
+        "description": "One page, newest first. Pass `nextCursor` back as `cursor` for the next one.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Offer"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on the last page."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "OfferResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Offer"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
       },
       "Order": {
         "type": "object",
@@ -19502,6 +20908,329 @@
         "required": [
           "keys"
         ]
+      },
+      "WebhookOffersCreated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_\\d{1,25}$",
+            "description": "Event id. Deduplicate on the `webhook-id` header."
+          },
+          "type": {
+            "type": "string",
+            "const": "offers/created"
+          },
+          "apiVersion": {
+            "type": "string",
+            "const": "2026-10"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the event happened."
+          },
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "storeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "storeId",
+                "kind",
+                "method",
+                "title",
+                "label",
+                "status",
+                "currency",
+                "quantity",
+                "freeDelivery",
+                "productDiscount",
+                "combinesWith",
+                "eligibility",
+                "targets",
+                "codeCount",
+                "totalUsageLimit",
+                "perBuyerLimit",
+                "startsAt",
+                "endsAt",
+                "publishedAt",
+                "pausedAt",
+                "archivedAt",
+                "appOwned",
+                "createdAt",
+                "updatedAt"
+              ]
+            },
+            "description": "Top-level fields of the resource that changed; may be empty."
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "offer": {
+                "$ref": "#/components/schemas/Offer"
+              }
+            },
+            "required": [
+              "offer"
+            ],
+            "additionalProperties": false,
+            "description": "The resource as it was when the body was built, masked for this installation. Re-read it when unsure."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "apiVersion",
+          "createdAt",
+          "businessId",
+          "storeId",
+          "appId",
+          "installationId",
+          "changed",
+          "data"
+        ],
+        "additionalProperties": false,
+        "title": "offers/created (2026-10)",
+        "description": "An offer was created (as a draft)."
+      },
+      "WebhookOffersDeleted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_\\d{1,25}$",
+            "description": "Event id. Deduplicate on the `webhook-id` header."
+          },
+          "type": {
+            "type": "string",
+            "const": "offers/deleted"
+          },
+          "apiVersion": {
+            "type": "string",
+            "const": "2026-10"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the event happened."
+          },
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "storeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "changed": {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Top-level fields of the resource that changed; may be empty."
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "offer": {
+                "$ref": "#/components/schemas/DeletedOffer"
+              }
+            },
+            "required": [
+              "offer"
+            ],
+            "additionalProperties": false,
+            "description": "The resource as it was when the body was built, masked for this installation. Re-read it when unsure."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "apiVersion",
+          "createdAt",
+          "businessId",
+          "storeId",
+          "appId",
+          "installationId",
+          "changed",
+          "data"
+        ],
+        "additionalProperties": false,
+        "title": "offers/deleted (2026-10)",
+        "description": "An offer that was never redeemed was deleted; only its id remains."
+      },
+      "WebhookOffersUpdated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_\\d{1,25}$",
+            "description": "Event id. Deduplicate on the `webhook-id` header."
+          },
+          "type": {
+            "type": "string",
+            "const": "offers/updated"
+          },
+          "apiVersion": {
+            "type": "string",
+            "const": "2026-10"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "When the event happened."
+          },
+          "businessId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "storeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Check it is yours."
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "storeId",
+                "kind",
+                "method",
+                "title",
+                "label",
+                "status",
+                "currency",
+                "quantity",
+                "freeDelivery",
+                "productDiscount",
+                "combinesWith",
+                "eligibility",
+                "targets",
+                "codeCount",
+                "totalUsageLimit",
+                "perBuyerLimit",
+                "startsAt",
+                "endsAt",
+                "publishedAt",
+                "pausedAt",
+                "archivedAt",
+                "appOwned",
+                "createdAt",
+                "updatedAt"
+              ]
+            },
+            "description": "Top-level fields of the resource that changed; may be empty."
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "offer": {
+                "$ref": "#/components/schemas/Offer"
+              }
+            },
+            "required": [
+              "offer"
+            ],
+            "additionalProperties": false,
+            "description": "The resource as it was when the body was built, masked for this installation. Re-read it when unsure."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "apiVersion",
+          "createdAt",
+          "businessId",
+          "storeId",
+          "appId",
+          "installationId",
+          "changed",
+          "data"
+        ],
+        "additionalProperties": false,
+        "title": "offers/updated (2026-10)",
+        "description": "An offer changed (publishing, pausing, archiving, its dates, rules and codes included); `changed` names the fields."
       },
       "WebhookOrdersCancelled": {
         "type": "object",

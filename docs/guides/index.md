@@ -44,6 +44,7 @@ catalogue of apps comes later.
 | Products and collections | The catalogue, its images and collections                                                     | [Products and collections](products-and-collections.md) |
 | Stock                    | Stock levels, and correcting a count                                                          | [Stock](stock.md)                                       |
 | Customers                | Buyers and their delivery record, and the contact data scope                                  | [Customers and contact data](customers.md)              |
+| Offers                   | The merchant's pricing offers, read-only, with their webhooks                                 | [Offers](offers.md)                                     |
 | Stores and delivery      | A business's stores, carriers and delivery prices                                             | [Stores and delivery](stores-and-delivery.md)           |
 | App data                 | Values your app keeps in Tassyir, next to the merchant's resources                            | [App data](app-data.md)                                 |
 | Storefront blocks        | Not live yet: HTML your app adds to store pages, a Liquid template Tassyir checks and renders | [Storefront blocks](storefront-blocks.md)               |

@@ -98,6 +98,7 @@ mode), asks for consent again.
 | `read_costs`            | buy prices (sensitive)                                                             | `read_inventory`              |
 | `read_customers`        | customers: counts and delivery record, no contact fields                           | `read_orders`                 |
 | `read_customer_contact` | buyer name, phones, address on orders and customers (sensitive, every read logged) | needs `read_orders`           |
+| `read_offers`           | the merchant's pricing offers: rules, dates, code count, never a code or a buyer   |                               |
 | `read_analytics`        | analytics                                                                          |                               |
 | `read_finance`          | finance (sensitive)                                                                |                               |
 | `read_stores`           | stores                                                                             |                               |
@@ -288,6 +289,7 @@ topic:
 | `products/created`, `products/updated`, `products/deleted`                                                                             | `read_products`  |
 | `inventory_levels/updated`                                                                                                             | `read_inventory` |
 | `customers/updated`                                                                                                                    | `read_customers` |
+| `offers/created`, `offers/updated`, `offers/deleted`                                                                                   | `read_offers`    |
 | `app/installed`, `app/uninstalled`, `app/scopes_updated`                                                                               | nothing          |
 | `customers/data_request`, `customers/redact`, `business/redact` (compliance)                                                           | nothing          |
 

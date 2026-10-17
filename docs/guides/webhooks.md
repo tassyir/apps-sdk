@@ -39,6 +39,7 @@ accepts the version that adds it.
 | `products/deleted`                                                                                 | not sent today: no product is deleted (see below)             | `product`                                     | `read_products`  |
 | `inventory_levels/updated`                                                                         | a stock item's levels, low-stock threshold or low flag change | `inventoryLevel`                              | `read_inventory` |
 | `customers/updated`                                                                                | a customer reads differently                                  | `customer`                                    | `read_customers` |
+| `offers/created`, `offers/updated`, `offers/deleted`                                               | an offer is created, reads differently, or is deleted         | `offer` (`offers/deleted`: its id only)       | `read_offers`    |
 | `app/installed`, `app/uninstalled`, `app/scopes_updated`                                           | your installation is created, removed, or its scopes change   | `installation`                                | none             |
 | `customers/data_request`, `customers/redact`, `business/redact`                                    | buyer data requests and the deletion after uninstall          | see [Compliance](compliance-and-uninstall.md) | none             |
 | `bulk/finished`                                                                                    | a bulk export your installation asked for is done, or failed  | `bulkExport`                                  | none             |
@@ -49,10 +50,12 @@ accepts the version that adds it.
   was granted its scope.
 - **An installation limited to selected stores** receives order, checkout,
   product and stock events of its stores only. Customer events carry that
-  installation's stores' counters.
+  installation's stores' counters. Offer events carry the offer's store, and
+  reach it for its own stores' offers ([Offers](offers.md#stores)).
 - The resources (`order`, `product`, …) are the same as the Admin API's
   ([Orders](orders.md), [Products and collections](products-and-collections.md),
-  [Stock](stock.md), [Customers](customers.md)), masked the same way.
+  [Stock](stock.md), [Customers](customers.md), [Offers](offers.md)),
+  masked the same way.
 
 ## What you receive
 
@@ -253,6 +256,11 @@ arrive twice (a retry after your answer was lost, a replay), and
   be negative after a dispatch shortfall; it is sent as it is.
 - **Customers.** `customers/updated` is sent when a customer reads
   differently, never when it was only recomputed.
+- **Offers.** `offers/created` when an offer is created (always a draft),
+  `offers/updated` when it reads differently (`changed` names the fields:
+  publishing, pausing, archiving, dates, rules, targets and the code count),
+  and `offers/deleted` when a never-redeemed one is deleted. A redeemed offer
+  is archived, never deleted. See [Offers](offers.md#webhooks).
 
 ## Test, replay and read the log
 

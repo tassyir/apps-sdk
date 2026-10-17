@@ -53,6 +53,7 @@ console.log(business.timezone, order.status, order.total);
 | `products`, `collections`, `images`                | [Products and collections](products-and-collections.md) |
 | `inventory-levels`                                 | [Stock](stock.md)                                       |
 | `customers`                                        | [Customers and contact data](customers.md)              |
+| `offers`                                           | [Offers](offers.md)                                     |
 | `stores`, `delivery-agents`, `delivery-fee-groups` | [Stores and delivery](stores-and-delivery.md)           |
 | `data`                                             | [App data](app-data.md)                                 |
 
