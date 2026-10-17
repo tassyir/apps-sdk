@@ -196,6 +196,40 @@ describe('rules that depend on the shipped vocabulary', () => {
     ]);
   });
 
+  it('read_offers opens the three offers topics and implies nothing', () => {
+    expect(vocabulary.scopes.find((s) => s.name === 'read_offers')).toEqual({
+      name: 'read_offers',
+      implies: [],
+      available: true,
+    });
+    expect(
+      vocabulary.topics.filter((topic) => topic.name.startsWith('offers/')),
+    ).toEqual([
+      { name: 'offers/created', scope: 'read_offers' },
+      { name: 'offers/updated', scope: 'read_offers' },
+      { name: 'offers/deleted', scope: 'read_offers' },
+    ]);
+
+    const doc = base();
+    doc.access.scopes.push('read_offers');
+    doc.access.scope_reasons.read_offers = 'Show the live offer in a campaign';
+    doc.webhooks.push({
+      topics: ['offers/created', 'offers/updated', 'offers/deleted'],
+      uri: '/webhooks/offers',
+    });
+    const granted = validateManifest(doc);
+    expect(granted.ok ? [] : codes(granted.errors)).toEqual([]);
+
+    delete doc.access.scope_reasons.read_offers;
+    doc.access.scopes.pop();
+    const refused = validateManifest(doc);
+    expect(refused.ok ? [] : codes(refused.errors)).toEqual([
+      'MANIFEST_TOPIC_SCOPE_MISSING webhooks[1].topics[0]',
+      'MANIFEST_TOPIC_SCOPE_MISSING webhooks[1].topics[1]',
+      'MANIFEST_TOPIC_SCOPE_MISSING webhooks[1].topics[2]',
+    ]);
+  });
+
   it('every requestable scope can be requested on its own', () => {
     for (const scope of vocabulary.scopes) {
       if (!scope.available || scope.needsOneOf) continue;

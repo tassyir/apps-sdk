@@ -25,7 +25,7 @@
       "type": "object",
       "properties": {
         "scopes": {
-          "maxItems": 17,
+          "maxItems": 18,
           "type": "array",
           "items": {
             "type": "string",
@@ -42,6 +42,7 @@
               "read_costs",
               "read_customers",
               "read_customer_contact",
+              "read_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -53,7 +54,7 @@
           "description": "Scopes the merchant must grant to install the app."
         },
         "optional_scopes": {
-          "maxItems": 17,
+          "maxItems": 18,
           "type": "array",
           "items": {
             "type": "string",
@@ -70,6 +71,7 @@
               "read_costs",
               "read_customers",
               "read_customer_contact",
+              "read_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -97,6 +99,7 @@
               "read_costs",
               "read_customers",
               "read_customer_contact",
+              "read_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -247,7 +250,7 @@
         "properties": {
           "topics": {
             "minItems": 1,
-            "maxItems": 20,
+            "maxItems": 23,
             "type": "array",
             "items": {
               "type": "string",
@@ -265,6 +268,9 @@
                 "products/deleted",
                 "inventory_levels/updated",
                 "customers/updated",
+                "offers/created",
+                "offers/updated",
+                "offers/deleted",
                 "app/installed",
                 "app/uninstalled",
                 "app/scopes_updated",
