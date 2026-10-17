@@ -30,6 +30,7 @@ export type ProductVariant = Schemas['ProductVariant'];
 export type Collection = Schemas['Collection'];
 export type InventoryLevel = Schemas['InventoryLevel'];
 export type Customer = Schemas['Customer'];
+export type Offer = Schemas['Offer'];
 export type Store = Schemas['Store'];
 export type DeliveryAgent = Schemas['DeliveryAgent'];
 export type DeliveryFeeGroup = Schemas['DeliveryFeeGroup'];

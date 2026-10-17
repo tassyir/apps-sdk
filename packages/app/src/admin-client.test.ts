@@ -6,6 +6,7 @@ import type {
   AdminApiPaths,
   FieldName,
   ListItem,
+  Offer,
   Order,
   Product,
   ResponseBody,
@@ -547,6 +548,53 @@ describe('AdminClient.paginate', () => {
     ]);
   });
 
+  it('lists offers with their filters, and reads one', async () => {
+    const offer = {
+      id: '741000000000002000',
+      storeId: '741000000000000100',
+      kind: 'a_kind_added_later',
+      method: 'automatic',
+      title: 'Buy 2, save 900',
+      status: 'active',
+      codeCount: 0,
+    };
+    const { admin, calls } = client((_url, _init, index) =>
+      jsonResponse(
+        200,
+        index === 0
+          ? { data: [offer], nextCursor: 'c1' }
+          : index === 1
+            ? { data: [], nextCursor: null }
+            : { data: offer },
+      ),
+    );
+    const seen: string[] = [];
+    for await (const item of admin.paginate('/offers', {
+      query: {
+        status: 'active',
+        method: 'automatic',
+        storeId: '741000000000000100',
+      },
+    }))
+      seen.push(`${item.kind} ${String(item.codeCount)}`);
+    expect(seen).toEqual(['a_kind_added_later 0']);
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
+      '/apps/2026-10/offers',
+      '/apps/2026-10/offers',
+    ]);
+    expect(calls.map((call) => new URL(call.url).search)).toEqual([
+      '?status=active&method=automatic&storeId=741000000000000100',
+      '?status=active&method=automatic&storeId=741000000000000100&cursor=c1',
+    ]);
+    const { data } = await admin.get('/offers/{id}', {
+      path: { id: offer.id },
+    });
+    expect(new URL(calls[2]?.url ?? '').pathname).toBe(
+      '/apps/2026-10/offers/741000000000002000',
+    );
+    expect(data.id).toBe(offer.id);
+  });
+
   it('stops when the caller breaks', async () => {
     const { admin, calls } = client(() =>
       jsonResponse(200, {
@@ -568,6 +616,18 @@ describe('AdminClient types (checked by tsc)', () => {
       data: Order;
     }>();
     expectTypeOf<ListItem<'/products'>>().toEqualTypeOf<Product>();
+    // read_offers: `kind` is an open string (new kinds are added within the
+    // version), the codes are a count, money a decimal string.
+    expectTypeOf<ListItem<'/offers'>>().toEqualTypeOf<Offer>();
+    expectTypeOf<ResponseBody<'get', '/offers/{id}'>>().toEqualTypeOf<{
+      data: Offer;
+    }>();
+    expectTypeOf<Offer['kind']>().toEqualTypeOf<string>();
+    expectTypeOf<Offer['codeCount']>().toEqualTypeOf<number>();
+    expectTypeOf<Offer['storeId']>().toEqualTypeOf<string>();
+    expectTypeOf<'STORE_SCOPE_FORBIDDEN' | 'INVALID_CURSOR'>().toExtend<
+      AdminApiErrorCode<'get', '/offers'>
+    >();
     expectTypeOf<Order['total']>().toEqualTypeOf<string | null>();
     expectTypeOf<Product['price']>().toEqualTypeOf<string>();
     expectTypeOf<'total'>().toExtend<

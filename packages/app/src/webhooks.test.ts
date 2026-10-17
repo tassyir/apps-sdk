@@ -93,6 +93,38 @@ describe('verifyWebhook', () => {
     expect(verified.event.data.product.price).toBe('1999.00');
   });
 
+  it('narrows the offers topics: an offer, and an id alone when deleted', async () => {
+    const updated = JSON.stringify({
+      ...ENVELOPE,
+      type: 'offers/updated',
+      storeId: '741000000000000100',
+      changed: ['status', 'publishedAt'],
+      data: {
+        offer: { id: '7', status: 'active', codeCount: 2, kind: 'new_kind' },
+      },
+    });
+    const first = await verifyWebhook(
+      { headers: signed(updated), body: updated },
+      options(),
+    );
+    if (first.event.type !== 'offers/updated') throw new Error('narrowing');
+    expect(first.event.data.offer.codeCount).toBe(2);
+    expect(first.topic).toBe('offers/updated');
+
+    const deleted = JSON.stringify({
+      ...ENVELOPE,
+      type: 'offers/deleted',
+      changed: [],
+      data: { offer: { id: '7' } },
+    });
+    const second = await verifyWebhook(
+      { headers: signed(deleted, { id: 'dlv_43' }), body: deleted },
+      options(),
+    );
+    if (second.event.type !== 'offers/deleted') throw new Error('narrowing');
+    expect(second.event.data.offer).toEqual({ id: '7' });
+  });
+
   it('reads a Fetch Request (Workers, Hono, Next.js)', async () => {
     const request = new Request('https://app.example/webhooks', {
       method: 'POST',

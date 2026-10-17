@@ -141,6 +141,7 @@ export type {
   InventoryLevel,
   ListItem,
   ListPath,
+  Offer,
   Order,
   OrderComment,
   PathsWithMethod,
