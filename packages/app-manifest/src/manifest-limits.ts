@@ -50,6 +50,12 @@ export const MANIFEST_LIMITS = {
   /** A `url` setting's default. */
   settingUrlMaxLength: 512,
   adminActionsMax: 10,
+  /** `[[offers.types]]`: the offer types one app may declare. */
+  offerTypesMax: 10,
+  /** The longest `offers.types[].path`: the API's own reader refuses more. */
+  offerTypePathMaxLength: 200,
+  /** Each language of an offer type's optional `description`. */
+  offerTypeDescriptionMaxLength: 200,
 } as const;
 
 export const HOSTING_MODES = ['tassyir', 'external'] as const;
@@ -122,6 +128,20 @@ export const ADMIN_ACTION_TARGET_SCOPES: Readonly<
   'products.selection': 'read_products',
   'customer.details': 'read_customers',
 };
+
+/**
+ * The classes of offer an app-owned offer type prices (docs/OFFERS_PLAN.md
+ * §11): what its declarative rule may do. `product` takes money off lines or
+ * adds a gift, `order` takes money off the goods, `delivery` waives the
+ * delivery fee.
+ */
+export const OFFER_TYPE_CLASSES = ['product', 'order', 'delivery'] as const;
+
+/**
+ * The scope an app needs to declare offer types, and to create the offers of
+ * those types through the Admin API. It implies `read_offers`.
+ */
+export const OFFER_TYPES_SCOPE = 'write_offers';
 
 /**
  * The names the dashboard uses NEXT TO its app pages
@@ -251,6 +271,12 @@ export const HTTPS_URL_HINT = /^https:\/\/[^/?#\s\\]+(?:\/[^?#\s\\]*)?$/;
 
 /** Shape hint for app-relative paths; the validator checks the rest. */
 export const RELATIVE_PATH_HINT = /^\/(?:[^/?#\s\\][^?#\s\\]*)?$/;
+
+/**
+ * An offer type's handle: lowercase letters, digits and hyphens, at most 40,
+ * starting with a letter or digit. Exactly the pattern the API reads it with.
+ */
+export const OFFER_TYPE_HANDLE_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export const DATA_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 

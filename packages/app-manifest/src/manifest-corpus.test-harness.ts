@@ -85,6 +85,7 @@ function evaluate(api, input) {
     const uris = [];
     if (manifest.admin && manifest.admin.page !== undefined) uris.push(manifest.admin.page);
     for (const action of (manifest.admin && manifest.admin.actions) || []) uris.push(action.path);
+    for (const type of (manifest.offers && manifest.offers.types) || []) uris.push(type.path);
     for (const hook of manifest.webhooks) uris.push(hook.uri);
     if (manifest.app_proxy) uris.push(manifest.app_proxy.path);
     return {
@@ -338,6 +339,18 @@ const VALUES: readonly string[] = [
     'customer.details',
     'products.selection',
     '/actions/print',
+    // offers: types, classes, handles, paths
+    'mix-match',
+    'Mix Match',
+    'a'.repeat(40),
+    'order',
+    'delivery',
+    'cart',
+    '/offers/mix-match',
+    `/${'a'.repeat(200)}`,
+    `/${'a'.repeat(199)}`,
+    'write_offers',
+    'read_offers',
     '/proxy',
     '/.tassyir/proxy',
     '#1a7f5a',
@@ -490,6 +503,12 @@ const HOSTED_LEAVES: readonly (readonly Segment[])[] = [
   ['admin', 'actions', 0, 'target'],
   ['admin', 'actions', 0, 'label', 'en'],
   ['admin', 'actions', 0, 'path'],
+  ['offers', 'types', 0, 'handle'],
+  ['offers', 'types', 0, 'class'],
+  ['offers', 'types', 0, 'path'],
+  ['offers', 'types', 0, 'label', 'ar'],
+  ['offers', 'types', 0, 'description', 'en'],
+  ['offers', 'types', 1, 'handle'],
   ['app_proxy', 'path'],
 ];
 const EXTERNAL_LEAVES: readonly (readonly Segment[])[] = [
@@ -763,6 +782,39 @@ function casesFor(kind: CorpusVocabulary, bases: CorpusBases): CorpusCase[] {
       })),
     };
     add(`${n} admin actions`, doc);
+  }
+  for (const n of [10, 11]) {
+    const doc = market();
+    doc.offers = {
+      types: Array.from({ length: n }, (_, i) => ({
+        handle: `type-${i}`,
+        class: 'order',
+        path: `/offers/${i}`,
+        label: label(`Type ${i}`),
+      })),
+    };
+    add(`${n} offer types`, doc);
+  }
+  if (bases.marketplace) {
+    const doc = bases.marketplace();
+    // The same handle twice, and a type without write_offers.
+    doc.offers.types.push({ ...doc.offers.types[0] });
+    add('duplicate offer type handles', doc);
+    const bare = bases.marketplace();
+    bare.access.scopes = bare.access.scopes.filter(
+      (scope: string) => scope !== 'write_offers',
+    );
+    delete bare.access.scope_reasons.write_offers;
+    add('offer types without write_offers', bare);
+    const optional = bases.marketplace();
+    optional.access.scopes = optional.access.scopes.filter(
+      (scope: string) => scope !== 'write_offers',
+    );
+    optional.access.optional_scopes = ['write_offers'];
+    add('offer types with write_offers optional', optional);
+    const implied = bases.marketplace();
+    implied.access.scopes = ['read_offers', 'write_storefront'];
+    add('offer types with only read_offers', implied);
   }
   if (bases.marketplace) {
     const doc = bases.marketplace();

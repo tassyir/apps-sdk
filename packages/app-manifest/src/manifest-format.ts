@@ -8,6 +8,7 @@ import {
   HOSTNAME_PATTERN,
   INVISIBLE_CHARACTER,
   MANIFEST_LIMITS,
+  OFFER_TYPE_HANDLE_PATTERN,
   PRIVATE_TLDS,
   RESERVED_DOMAINS,
   RESERVED_HANDLES,
@@ -199,6 +200,23 @@ export function labelProblem(
   });
 }
 
+/**
+ * One language of an offer type's optional `description` (the label rules,
+ * with room for a sentence).
+ */
+export function offerTypeDescriptionProblem(
+  value: string,
+  path: string,
+): Problem | null {
+  const language = path.endsWith('.ar') ? 'Arabic' : 'English';
+  return textProblem(value, path, {
+    code: 'MANIFEST_OFFER_TYPE_LABEL_INVALID',
+    min: 1,
+    max: L.offerTypeDescriptionMaxLength,
+    purpose: `the ${language} sentence merchants read under the offer type's name, ${L.offerTypeDescriptionMaxLength} characters at most`,
+  });
+}
+
 export function scopeReasonProblem(
   value: string,
   path: string,
@@ -265,6 +283,31 @@ export function handleProblem(
     );
   }
   return null;
+}
+
+/**
+ * An offer type's handle: the API reader's pattern (lowercase letters,
+ * digits and hyphens, at most 40, starting with a letter or digit).
+ */
+export function offerTypeHandleProblem(
+  value: string,
+  path: string,
+): Problem | null {
+  if (OFFER_TYPE_HANDLE_PATTERN.test(value)) return null;
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+  const suggestion = OFFER_TYPE_HANDLE_PATTERN.test(slug)
+    ? ` e.g. "${slug}"`
+    : ' e.g. "mix-match"';
+  return problem(
+    'MANIFEST_OFFER_TYPE_HANDLE_INVALID',
+    `\`${path}\` is ${quote(value)}; an offer type handle is 1 to 40 lowercase letters, digits and hyphens, starting with a letter or digit.`,
+    `Set \`${path}\` to a handle of that form,${suggestion}.`,
+  );
 }
 
 // ── Hostnames ───────────────────────────────────────────────────────────────

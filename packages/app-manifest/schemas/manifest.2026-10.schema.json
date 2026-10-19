@@ -25,7 +25,7 @@
       "type": "object",
       "properties": {
         "scopes": {
-          "maxItems": 18,
+          "maxItems": 19,
           "type": "array",
           "items": {
             "type": "string",
@@ -43,6 +43,7 @@
               "read_customers",
               "read_customer_contact",
               "read_offers",
+              "write_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -54,7 +55,7 @@
           "description": "Scopes the merchant must grant to install the app."
         },
         "optional_scopes": {
-          "maxItems": 18,
+          "maxItems": 19,
           "type": "array",
           "items": {
             "type": "string",
@@ -72,6 +73,7 @@
               "read_customers",
               "read_customer_contact",
               "read_offers",
+              "write_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -100,6 +102,7 @@
               "read_customers",
               "read_customer_contact",
               "read_offers",
+              "write_offers",
               "read_analytics",
               "read_finance",
               "read_stores",
@@ -578,6 +581,95 @@
             "additionalProperties": false
           },
           "description": "Declarative storefront blocks: they need the write_storefront scope."
+        }
+      },
+      "additionalProperties": false
+    },
+    "offers": {
+      "type": "object",
+      "properties": {
+        "types": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "handle": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+                "description": "Unique among the types: lowercase letters, digits and hyphens, at most 40."
+              },
+              "class": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "order",
+                  "delivery"
+                ],
+                "description": "What the offers of this type do: \"product\" (money off lines, a gift), \"order\" (money off the goods) or \"delivery\" (a waived fee). Every rule of the type uses this class."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^\\/(?:[^/?#\\s\\\\][^?#\\s\\\\]*)?$",
+                "description": "The app's page that configures one offer of this type: a path on the app's origin."
+              },
+              "label": {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  }
+                },
+                "required": [
+                  "ar",
+                  "en"
+                ],
+                "additionalProperties": false,
+                "description": "The type as the merchant reads it in \"From your apps\"."
+              },
+              "description": {
+                "type": "object",
+                "properties": {
+                  "ar": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  },
+                  "en": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB](?:[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB]*[^\\s\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u2028-\\u202E\\u2060-\\u206F\\u3164\\uFEFF\\uFFA0\\uFFF0-\\uFFFB])?$"
+                  }
+                },
+                "required": [
+                  "ar",
+                  "en"
+                ],
+                "additionalProperties": false,
+                "description": "Optional: one sentence under the name."
+              }
+            },
+            "required": [
+              "handle",
+              "class",
+              "path",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Offer types the merchant can create from the app: they need the write_offers scope."
         }
       },
       "additionalProperties": false

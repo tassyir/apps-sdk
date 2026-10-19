@@ -346,7 +346,7 @@ describe('validateManifest', () => {
       );
       expect(errors[0]?.fix).toBe('Rename `scope` to `scopes`, or remove it.');
       expect(errors[2]?.fix).toBe(
-        'Remove `version` from the top level of tassyir.app.toml; it accepts: name, handle, api_version, access, hosting, auth, admin, webhooks, data, storefront, app_proxy.',
+        'Remove `version` from the top level of tassyir.app.toml; it accepts: name, handle, api_version, access, hosting, auth, admin, webhooks, data, storefront, offers, app_proxy.',
       );
     });
 
@@ -1998,6 +1998,273 @@ describe('validateManifest', () => {
       });
     });
 
+    describe('offer types', () => {
+      const mixMatch = (): Doc => ({
+        handle: 'mix-match',
+        class: 'product',
+        path: '/offers/mix-match',
+        label: { ar: 'اخلط واختر', en: 'Mix and match' },
+        description: { ar: 'اختر قطعًا', en: 'Pick pieces' },
+      });
+      /** {@link app} with `write_offers` and one offer type. */
+      const offersApp = (change: (doc: Doc) => void = () => undefined): Doc =>
+        app((doc) => {
+          doc.access.scopes.push('write_offers');
+          doc.access.scope_reasons.write_offers = 'Create its own offers';
+          doc.offers = { types: [mixMatch()] };
+          change(doc);
+        });
+
+      it('are accepted and normalised: handle, class, path, label, description', () => {
+        const result = validateManifest(
+          offersApp((doc) => {
+            doc.offers.types.push({
+              path: '/offers/club',
+              label: { en: 'Club free delivery', ar: 'توصيل مجاني للأعضاء' },
+              class: 'delivery',
+              handle: 'a',
+            });
+          }),
+          V,
+        );
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.manifest.offers).toEqual({
+          types: [
+            mixMatch(),
+            {
+              handle: 'a',
+              class: 'delivery',
+              path: '/offers/club',
+              label: { ar: 'توصيل مجاني للأعضاء', en: 'Club free delivery' },
+            },
+          ],
+        });
+        expect(Object.keys(result.manifest.offers?.types[0] ?? {})).toEqual([
+          'handle',
+          'class',
+          'path',
+          'label',
+          'description',
+        ]);
+        expect(Object.keys(result.manifest).slice(-3)).toEqual([
+          'storefront',
+          'offers',
+          'app_proxy',
+        ]);
+        // Validating the stored form returns it unchanged.
+        expect(
+          validateManifest(JSON.parse(JSON.stringify(result.manifest)), V),
+        ).toEqual(result);
+      });
+
+      it('leave no offers key when there are none', () => {
+        for (const offers of [undefined, {}, { types: [] }]) {
+          const result = validateManifest(
+            offersApp((doc) => {
+              if (offers === undefined) delete doc.offers;
+              else doc.offers = offers;
+            }),
+            V,
+          );
+          expect(result.ok && 'offers' in result.manifest).toBe(false);
+        }
+      });
+
+      it('check their handle, class, path and labels, and handles once', () => {
+        const errors = expectErrors(
+          offersApp((doc) => {
+            doc.offers.types = [
+              { ...mixMatch(), handle: 'Mix Match' },
+              { ...mixMatch(), handle: '-x' },
+              { ...mixMatch(), handle: 'a'.repeat(41) },
+              { ...mixMatch(), handle: 'bundle', class: 'cart' },
+              { ...mixMatch(), handle: 'bundle-2', path: 'offers/x' },
+              {
+                ...mixMatch(),
+                handle: 'bundle-3',
+                path: `/${'a'.repeat(200)}`,
+              },
+              mixMatch(),
+              mixMatch(),
+            ];
+          }),
+          [
+            'MANIFEST_OFFER_TYPE_HANDLE_INVALID offers.types[0].handle',
+            'MANIFEST_OFFER_TYPE_HANDLE_INVALID offers.types[1].handle',
+            'MANIFEST_OFFER_TYPE_HANDLE_INVALID offers.types[2].handle',
+            'MANIFEST_VALUE_NOT_ALLOWED offers.types[3].class',
+            'MANIFEST_PATH_INVALID offers.types[4].path',
+            'MANIFEST_PATH_INVALID offers.types[5].path',
+            'MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE offers.types[7].handle',
+          ],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Set `offers.types[0].handle` to a handle of that form, e.g. "mix-match".',
+        );
+        expect(errors[3]?.fix).toBe(
+          'Set `offers.types[3].class` to one of "product", "order", "delivery".',
+        );
+        expect(errors[6]?.message).toBe(
+          '"mix-match" is already the handle of `offers.types[6]`.',
+        );
+        expect(errors[5]?.message).toContain('the limit is 200');
+      });
+
+      it('hold a short, one-line label in both languages and an optional description', () => {
+        const errors = expectErrors(
+          offersApp((doc) => {
+            doc.offers.types = [
+              { ...mixMatch(), label: { ar: '', en: 'x' } },
+              {
+                ...mixMatch(),
+                handle: 'b',
+                label: { ar: 'x', en: 'x'.repeat(51) },
+              },
+              {
+                ...mixMatch(),
+                handle: 'c',
+                description: { ar: 'x'.repeat(201), en: 'x' },
+              },
+              {
+                ...mixMatch(),
+                handle: 'd',
+                description: { ar: 'x', en: 'a\nb' },
+              },
+              { ...mixMatch(), handle: 'e', label: { ar: 'x' } },
+              { ...mixMatch(), handle: 'f', label: 'Mix' },
+            ];
+          }),
+          [
+            'MANIFEST_OFFER_TYPE_LABEL_INVALID offers.types[0].label.ar',
+            'MANIFEST_OFFER_TYPE_LABEL_INVALID offers.types[1].label.en',
+            'MANIFEST_OFFER_TYPE_LABEL_INVALID offers.types[2].description.ar',
+            'MANIFEST_OFFER_TYPE_LABEL_INVALID offers.types[3].description.en',
+            'MANIFEST_FIELD_REQUIRED offers.types[4].label.en',
+            'MANIFEST_FIELD_TYPE offers.types[5].label',
+          ],
+          V,
+        );
+        expect(errors[2]?.message).toContain('the limit is 200');
+        expect(errors[1]?.message).toContain('the limit is 50');
+      });
+
+      it('need every field but the description, and refuse unknown ones', () => {
+        expectErrors(
+          offersApp((doc) => {
+            doc.offers.types = [
+              { handle: 'a' },
+              { ...mixMatch(), handle: 'b', rule: {} },
+            ];
+          }),
+          [
+            'MANIFEST_FIELD_REQUIRED offers.types[0].class',
+            'MANIFEST_FIELD_REQUIRED offers.types[0].label',
+            'MANIFEST_FIELD_REQUIRED offers.types[0].path',
+            'MANIFEST_FIELD_UNKNOWN offers.types[1].rule',
+          ],
+          V,
+        );
+        expectErrors(
+          offersApp((doc) => {
+            doc.offers.types = 'mix-match';
+          }),
+          ['MANIFEST_FIELD_TYPE offers.types'],
+          V,
+        );
+      });
+
+      it('need the write_offers scope, required or optional, and at most 10', () => {
+        const errors = expectErrors(
+          app((doc) => {
+            doc.offers = { types: [mixMatch()] };
+          }),
+          ['MANIFEST_OFFER_TYPES_SCOPE_MISSING offers.types'],
+          V,
+        );
+        expect(errors[0]?.fix).toBe(
+          'Add "write_offers" to `access.scopes` (or `access.optional_scopes`), or remove the [[offers.types]] tables.',
+        );
+        // read_offers is not enough: the scope is the write one.
+        expectErrors(
+          app((doc) => {
+            doc.access.scopes.push('read_offers');
+            doc.access.scope_reasons.read_offers = 'Read the live offers';
+            doc.offers = { types: [mixMatch()] };
+          }),
+          ['MANIFEST_OFFER_TYPES_SCOPE_MISSING offers.types'],
+          V,
+        );
+        expect(
+          at(
+            app((doc) => {
+              doc.access.optional_scopes = ['write_offers'];
+              doc.access.scope_reasons.write_offers = 'Create its own offers';
+              delete doc.access.scope_reasons.read_customer_contact;
+              doc.offers = { types: [mixMatch()] };
+            }),
+          ),
+        ).toEqual([]);
+        expectErrors(
+          offersApp((doc) => {
+            doc.offers.types = Array.from({ length: 11 }, (_, i) => ({
+              ...mixMatch(),
+              handle: `type-${i}`,
+            }));
+          }),
+          ['MANIFEST_LIST_TOO_LONG offers.types'],
+          V,
+        );
+        expect(
+          at(
+            offersApp((doc) => {
+              doc.offers.types = Array.from({ length: 10 }, (_, i) => ({
+                ...mixMatch(),
+                handle: `type-${i}`,
+              }));
+            }),
+          ),
+        ).toEqual([]);
+      });
+
+      it('are refused where the platform does not offer write_offers', () => {
+        const errors = expectErrors(
+          hosted((doc) => {
+            doc.offers = { types: [mixMatch()] };
+          }),
+          ['MANIFEST_OFFER_TYPES_NOT_AVAILABLE offers.types'],
+        );
+        expect(errors[0]?.fix).toBe('Remove the [[offers.types]] tables.');
+      });
+
+      it("keep a hosted app's paths out of /.tassyir/", () => {
+        expectErrors(
+          offersApp((doc) => {
+            doc.offers.types[0].path = '/.tassyir/offers';
+          }),
+          ['MANIFEST_PATH_RESERVED offers.types[0].path'],
+          V,
+        );
+      });
+
+      it('are in the published shape', () => {
+        const schema = manifestJsonSchema(V);
+        const doc = offersApp();
+        expect(schemaViolations(doc, schema)).toEqual([]);
+        const broken = offersApp((d) => {
+          d.offers.types[0].class = 'cart';
+          d.offers.types[0].handle = 'Mix';
+          d.offers.types[0].description.en = 'x'.repeat(201);
+        });
+        expect(schemaViolations(broken, schema)).toEqual([
+          '$.offers.types[0].handle: fails ^[a-z0-9][a-z0-9-]{0,39}$',
+          '$.offers.types[0].class: "cart" not in enum',
+          '$.offers.types[0].description.en: longer than 200',
+        ]);
+      });
+    });
+
     it('the new fields are in the published shape', () => {
       const schema = manifestJsonSchema(V);
       const doc = app();
@@ -2179,6 +2446,18 @@ describe('validateManifest', () => {
         (d.admin.actions = [
           { handle: v, target: v, label: { ar: v, en: v }, path: v },
         ]),
+      (d, v) =>
+        (d.offers = {
+          types: [
+            {
+              handle: v,
+              class: v,
+              path: v,
+              label: { ar: v, en: v },
+              description: { ar: v, en: v },
+            },
+          ],
+        }),
       (d, v) => (d.app_proxy = { path: v }),
     ];
     const externalLeaves: Array<(doc: Doc, value: string) => void> = [

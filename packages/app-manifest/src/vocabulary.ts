@@ -50,6 +50,7 @@ export const MANIFEST_VOCABULARY: ManifestVocabulary =
         needsOneOf: ['read_orders'],
       },
       { name: 'read_offers', implies: [], available: true },
+      { name: 'write_offers', implies: ['read_offers'], available: true },
       { name: 'read_analytics', implies: [], available: true },
       { name: 'read_finance', implies: [], available: true },
       { name: 'read_stores', implies: [], available: true },

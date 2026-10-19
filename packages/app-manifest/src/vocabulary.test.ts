@@ -230,6 +230,45 @@ describe('rules that depend on the shipped vocabulary', () => {
     ]);
   });
 
+  it('write_offers implies read_offers and opens offer types', () => {
+    expect(vocabulary.scopes.find((s) => s.name === 'write_offers')).toEqual({
+      name: 'write_offers',
+      implies: ['read_offers'],
+      available: true,
+    });
+    // Right after read_offers: the consent-screen order.
+    expect(scopeNames.indexOf('write_offers')).toBe(
+      scopeNames.indexOf('read_offers') + 1,
+    );
+    const doc = base();
+    doc.access.scopes.push('write_offers');
+    doc.access.scope_reasons.write_offers = 'Mint a code for each influencer';
+    doc.offers = {
+      types: [
+        {
+          handle: 'mix-match',
+          class: 'product',
+          path: '/offers/mix-match',
+          label: { ar: 'اخلط واختر', en: 'Mix and match' },
+        },
+      ],
+    };
+    const granted = validateManifest(doc);
+    expect(granted.ok ? [] : codes(granted.errors)).toEqual([]);
+    // It implies read_offers, so the offers topics need nothing more.
+    doc.webhooks.push({ topics: ['offers/updated'], uri: '/webhooks/offers' });
+    const heard = validateManifest(doc);
+    expect(heard.ok ? [] : codes(heard.errors)).toEqual([]);
+
+    delete doc.access.scope_reasons.write_offers;
+    doc.access.scopes.pop();
+    const refused = validateManifest(doc);
+    expect(refused.ok ? [] : codes(refused.errors)).toEqual([
+      'MANIFEST_TOPIC_SCOPE_MISSING webhooks[1].topics[0]',
+      'MANIFEST_OFFER_TYPES_SCOPE_MISSING offers.types',
+    ]);
+  });
+
   it('every requestable scope can be requested on its own', () => {
     for (const scope of vocabulary.scopes) {
       if (!scope.available || scope.needsOneOf) continue;
