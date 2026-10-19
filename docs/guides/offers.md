@@ -13,8 +13,10 @@ merchant's offers (a reports app that lines orders up with the offer that
 priced them, an ads app that shows the live deal in a campaign, an assistant
 that explains why a cart total is lower) and follows them with webhooks.
 
-In API version `2026-10` offers are **read-only**: an app cannot create or
-change an offer or its codes, and cannot apply an offer to an order.
+With `read_offers` an app **reads** offers. With `write_offers` it also runs
+offers of its own, and their codes: that is [Write offers and
+codes](write-offers.md). An app never changes the merchant's own offers, and
+never applies an offer to an order itself.
 
 | Route                              | Does                | Scope         |
 | ---------------------------------- | ------------------- | ------------- |
@@ -151,9 +153,10 @@ export function describe(offer: Offer): string | null {
 ## Codes and usage
 
 **Codes are not exposed.** `codeCount` is the number of codes that can still
-be used, and that is all an app learns about them. Neither is a redemption:
-**no buyer, phone or order is ever sent**, and using an offer at checkout
-sends no event. To know which orders an offer priced you need the orders
+be used, and that is all an app learns about them. The codes and the
+redemptions of an offer are read only by the app that **owns** the offer
+([Write offers and codes](write-offers.md)). **No buyer or phone is ever
+sent**, and using an offer at checkout sends no event. To know which orders an offer priced you need the orders
 themselves, under their own scope: an order's `discounts[]` names the offer
 that priced it ([Order money](orders.md#order-money)).
 
@@ -256,10 +259,7 @@ export async function onOfferEvent(
 
 ## What is not here yet
 
-This version reads offers. These come later, under their own scopes, and this
-guide will grow a section for each:
-
-- **Writing offers and codes**: creating and changing offers, their codes
-  (including codes in bulk) and a list of redemptions, with a `write_offers`
-  scope that will imply `read_offers`.
-- **Offers that belong to an app**, and an app that prices a cart itself.
+Creating offers, their codes (in bulk) and a list of redemptions, and offer
+types that belong to your app, are in [Write offers and
+codes](write-offers.md). No app code runs at checkout: an app-owned offer is a
+declarative rule that Tassyir evaluates.

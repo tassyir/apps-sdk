@@ -33,6 +33,7 @@ naming the scope).
 | `read_customers`        | Customers: order counts and delivery record, no contact fields                                                              | `customers:read`                                                                                                       | `read_orders`                 |
 | `read_customer_contact` | Buyers' names, phones, email, address and order notes, on orders, customers and webhooks (**sensitive**, every read logged) | no permission: a field grant                                                                                           |                               |
 | `read_offers`           | The merchant's pricing offers: their rules, dates and number of codes, never a code or a buyer                              | `offers:read`                                                                                                          |                               |
+| `write_offers`          | Create, change, publish, pause and archive the offers the app owns, and their codes; read their redemptions                 | `offers:create`, `offers:update`, `offers:delete`                                                                      | `read_offers`                 |
 | `read_analytics`        | Analytics                                                                                                                   | `analytics:read`                                                                                                       |                               |
 | `read_finance`          | Finance (**sensitive**)                                                                                                     | `finance:read`                                                                                                         |                               |
 | `read_stores`           | The business's stores                                                                                                       | `stores:read`                                                                                                          |                               |
@@ -40,7 +41,8 @@ naming the scope).
 | `write_storefront`      | Storefront blocks: refused until they open                                                                                  | no permission                                                                                                          |                               |
 
 - **Implied scopes come with the scope.** `write_orders` brings
-  `read_orders`; `read_customers` brings `read_orders`. The install screen
+  `read_orders`; `read_customers` brings `read_orders`; `write_offers` brings
+  `read_offers`. The install screen
   shows the whole set, implied scopes included, and a token's `scope` lists it.
 - **`read_customer_contact` opens nothing alone.** It needs `read_orders`:
   among the required scopes when it is required, among all requested scopes

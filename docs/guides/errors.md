@@ -163,6 +163,16 @@ no longer be edited, confirmed or cancelled.
 HTTP 409. The order's status does not allow this move (`orderStatus`,
 `requestedStatus`): read the order again and decide.
 
+### `OFFER_NOT_OWNED`
+
+HTTP 403. You tried to change, or read the codes or redemptions of, an offer
+your installation did not create: the merchant's own, or another app's. An
+app writes only its own offers. Create your own offer with `POST /offers` and
+change that one ([Write offers and codes](write-offers.md#you-write-only-the-offers-you-own)).
+The merchant's dashboard has a counterpart you never get: editing or
+duplicating an **app-owned** offer there answers 409 `OFFER_APP_OWNED`,
+because such an offer is changed in the app that owns it.
+
 ### `MEDIA_URL_NOT_ALLOWED`
 
 HTTP 400. An image is not on `https://cdn.tassyir.io/` and not already on the
@@ -221,94 +231,113 @@ now; nothing was sent. Try again later.
 
 ## Every Admin API code
 
-Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (43 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.
+Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (55 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.
 
-| Code                                    | HTTP     | Answered by                                                                                                                           |
-| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_BUSY`                              | 503      | every operation                                                                                                                       |
-| `APP_DATA_KEY_NOT_DECLARED`             | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                               |
-| `APP_DATA_LIMIT_REACHED`                | 409      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                               |
-| `APP_DATA_VALUE_INVALID`                | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                               |
-| `APP_DATA_VALUE_TOO_LARGE`              | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                               |
-| `APP_TOKEN_INVALID`                     | 401      | every operation                                                                                                                       |
-| `APP_TOKEN_REQUIRED`                    | 401      | every operation                                                                                                                       |
-| `BAD_REQUEST`                           | 400      | 16 operations                                                                                                                         |
-| `BRAND_NOT_FOUND`                       | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `BULK_EXPORTS_NOT_CONFIGURED`           | 503      | `POST /bulk/exports`                                                                                                                  |
-| `BULK_EXPORT_IN_PROGRESS`               | 409      | `POST /bulk/exports`                                                                                                                  |
-| `BULK_EXPORT_RATE_LIMITED`              | 429      | `POST /bulk/exports`                                                                                                                  |
-| `BUSINESS_RATE_LIMITED`                 | 429      | every operation                                                                                                                       |
-| `CANCEL_NOTE_REQUIRED`                  | 400      | `POST /orders/{id}/cancel`                                                                                                            |
-| `CANCEL_REASON_INVALID`                 | 400      | `POST /orders/{id}/cancel`                                                                                                            |
-| `COLLECTION_CONDITIONAL_LIMIT`          | 409      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
-| `COLLECTION_DEPTH_LIMIT`                | 409      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
-| `COLLECTION_NOT_FOUND`                  | 400      | `POST /products`                                                                                                                      |
-| `COLLECTION_PARENT_CYCLE`               | 409      | `PATCH /collections/{id}`                                                                                                             |
-| `COLLECTION_PARENT_NOT_FOUND`           | 404      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
-| `COLLECTION_PRODUCT_WRONG_STORE`        | 400      | `PATCH /collections/{id}/products`                                                                                                    |
-| `COLLECTION_RULE_INVALID`               | 400      | `PATCH /collections/{id}`, `POST /collections`                                                                                        |
-| `CONFLICT`                              | 409      | any operation, as a fallback                                                                                                          |
-| `DELIVERY_SPEED_UNAVAILABLE`            | 400      | `PATCH /orders/{id}`, `POST /orders`                                                                                                  |
-| `DELIVERY_SPEED_UNSUPPORTED`            | 400      | `PATCH /orders/{id}`                                                                                                                  |
-| `DEV_STORE_ORDER_LIMIT_REACHED`         | 429      | `POST /orders`                                                                                                                        |
-| `FORBIDDEN`                             | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`, `POST /orders`                           |
-| `HOSTED_CALL_REFUSED`                   | 401      | every operation                                                                                                                       |
-| `HTML_NOT_ALLOWED`                      | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `POST /collections`, `POST /products`                                              |
-| `IDEMPOTENCY_KEY_INVALID`               | 400      | 18 operations                                                                                                                         |
-| `IDEMPOTENCY_KEY_IN_USE`                | 409      | 18 operations                                                                                                                         |
-| `IDEMPOTENCY_KEY_REUSED`                | 422      | 18 operations                                                                                                                         |
-| `IDEMPOTENCY_UNAVAILABLE`               | 503      | 18 operations                                                                                                                         |
-| `IMAGE_FETCH_FAILED`                    | 400      | `POST /images`                                                                                                                        |
-| `IMAGE_QUOTA_REACHED`                   | 429      | `POST /images`                                                                                                                        |
-| `IMAGE_TOO_LARGE`                       | 400      | `POST /images`                                                                                                                        |
-| `IMAGE_TYPE_NOT_ALLOWED`                | 400      | `POST /images`                                                                                                                        |
-| `IMAGE_URL_NOT_ALLOWED`                 | 400      | `POST /images`                                                                                                                        |
-| `INSUFFICIENT_AT_LOCATION`              | 409      | `POST /inventory-levels/{id}/adjust`                                                                                                  |
-| `INTERNAL_ERROR`                        | 500      | every operation                                                                                                                       |
-| `INVALID_CURSOR`                        | 400      | 11 operations                                                                                                                         |
-| `INVALID_FIELDS`                        | 400      | 39 operations                                                                                                                         |
-| `LOCATION_NOT_FOUND`                    | 400, 404 | `POST /inventory-levels/{id}/adjust`                                                                                                  |
-| `MEDIA_URL_NOT_ALLOWED`                 | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /collections`, `POST /products` |
-| `METHOD_NOT_ALLOWED`                    | 405      | any operation, as a fallback                                                                                                          |
-| `NOT_FOUND`                             | 404      | 29 operations                                                                                                                         |
-| `ORDER_DUPLICATE`                       | 409      | `POST /orders`                                                                                                                        |
-| `ORDER_LIMIT_REACHED`                   | 403      | `POST /orders/{id}/confirm`                                                                                                           |
-| `ORDER_NOT_EDITABLE`                    | 409      | `PATCH /orders/{id}`, `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                           |
-| `ORDER_PRICING_LOCKED`                  | 400      | `PATCH /orders/{id}`                                                                                                                  |
-| `ORDER_STATUS_CONFLICT`                 | 409      | `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                 |
-| `PAYLOAD_TOO_LARGE`                     | 413      | 15 operations                                                                                                                         |
-| `PERMISSION_DENIED`                     | 403      | 42 operations                                                                                                                         |
-| `PLAN_FEATURE_REQUIRED`                 | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                           |
-| `PRODUCT_DEFAULT_VARIANT`               | 409      | `PATCH /products/{id}/variants/{variantId}`                                                                                           |
-| `PRODUCT_OPTIONS_REQUIRE_VARIANTS`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_OPTION_DUPLICATE_NAME`         | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_OPTION_DUPLICATE_VALUE`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_OPTION_NOT_FOUND`              | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_OPTION_NO_VALUES`              | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_OPTION_VALUE_EMPTY`            | 400      | `PATCH /products/{id}`                                                                                                                |
-| `PRODUCT_OPTION_VALUE_NOT_FOUND`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_SLUG_INVALID`                  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_SLUG_TAKEN`                    | 409      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_COMBINATION_MISMATCH`  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_COUNT_MISMATCH`        | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                 |
-| `PRODUCT_VARIANT_DUPLICATE_COMBINATION` | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_DUPLICATE_OPTION`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_INVALID_VALUE`         | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_MISSING_COMBINATIONS`  | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                 |
-| `PRODUCT_VARIANT_MISSING_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_SELECTED_COUNT`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_VARIANT_UNKNOWN_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                              |
-| `PRODUCT_WRITE_TIMEOUT`                 | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                 |
-| `RATE_LIMITED`                          | 429      | every operation                                                                                                                       |
-| `REQUEST_FAILED`                        | 4xx      | any operation, as a fallback                                                                                                          |
-| `SERVICE_UNAVAILABLE`                   | 503      | every operation                                                                                                                       |
-| `STORE_REQUIRED`                        | 400      | `POST /orders`                                                                                                                        |
-| `STORE_SCOPE_FORBIDDEN`                 | 460      | 16 operations                                                                                                                         |
-| `SUBSCRIPTION_REQUIRED`                 | 422      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                           |
-| `UNAUTHORIZED`                          | 401      | any operation, as a fallback                                                                                                          |
-| `UNPROCESSABLE_ENTITY`                  | 422      | any operation, as a fallback                                                                                                          |
-| `UNSUPPORTED_MEDIA_TYPE`                | 415      | 15 operations                                                                                                                         |
-| `VALIDATION_FAILED`                     | 400      | 42 operations                                                                                                                         |
+| Code                                    | HTTP     | Answered by                                                                                                                                                         |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_BUSY`                              | 503      | every operation                                                                                                                                                     |
+| `APP_DATA_KEY_NOT_DECLARED`             | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                                                             |
+| `APP_DATA_LIMIT_REACHED`                | 409      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                                                             |
+| `APP_DATA_VALUE_INVALID`                | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                                                             |
+| `APP_DATA_VALUE_TOO_LARGE`              | 400      | `PUT /data/{ownerType}/{ownerId}/{key}`                                                                                                                             |
+| `APP_TOKEN_INVALID`                     | 401      | every operation                                                                                                                                                     |
+| `APP_TOKEN_REQUIRED`                    | 401      | every operation                                                                                                                                                     |
+| `BAD_REQUEST`                           | 400      | 23 operations                                                                                                                                                       |
+| `BRAND_NOT_FOUND`                       | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `BULK_EXPORTS_NOT_CONFIGURED`           | 503      | `POST /bulk/exports`                                                                                                                                                |
+| `BULK_EXPORT_IN_PROGRESS`               | 409      | `POST /bulk/exports`                                                                                                                                                |
+| `BULK_EXPORT_RATE_LIMITED`              | 429      | `POST /bulk/exports`                                                                                                                                                |
+| `BUSINESS_RATE_LIMITED`                 | 429      | every operation                                                                                                                                                     |
+| `CANCEL_NOTE_REQUIRED`                  | 400      | `POST /orders/{id}/cancel`                                                                                                                                          |
+| `CANCEL_REASON_INVALID`                 | 400      | `POST /orders/{id}/cancel`                                                                                                                                          |
+| `COLLECTION_CONDITIONAL_LIMIT`          | 409      | `PATCH /collections/{id}`, `POST /collections`                                                                                                                      |
+| `COLLECTION_DEPTH_LIMIT`                | 409      | `PATCH /collections/{id}`, `POST /collections`                                                                                                                      |
+| `COLLECTION_NOT_FOUND`                  | 400      | `POST /products`                                                                                                                                                    |
+| `COLLECTION_PARENT_CYCLE`               | 409      | `PATCH /collections/{id}`                                                                                                                                           |
+| `COLLECTION_PARENT_NOT_FOUND`           | 404      | `PATCH /collections/{id}`, `POST /collections`                                                                                                                      |
+| `COLLECTION_PRODUCT_WRONG_STORE`        | 400      | `PATCH /collections/{id}/products`                                                                                                                                  |
+| `COLLECTION_RULE_INVALID`               | 400      | `PATCH /collections/{id}`, `POST /collections`                                                                                                                      |
+| `CONFLICT`                              | 409      | any operation, as a fallback                                                                                                                                        |
+| `DELIVERY_SPEED_UNAVAILABLE`            | 400      | `PATCH /orders/{id}`, `POST /orders`                                                                                                                                |
+| `DELIVERY_SPEED_UNSUPPORTED`            | 400      | `PATCH /orders/{id}`                                                                                                                                                |
+| `DEV_STORE_ORDER_LIMIT_REACHED`         | 429      | `POST /orders`                                                                                                                                                      |
+| `FORBIDDEN`                             | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`, `POST /orders`                                                         |
+| `HOSTED_CALL_REFUSED`                   | 401      | every operation                                                                                                                                                     |
+| `HTML_NOT_ALLOWED`                      | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `POST /collections`, `POST /products`                                                                            |
+| `IDEMPOTENCY_KEY_INVALID`               | 400      | 28 operations                                                                                                                                                       |
+| `IDEMPOTENCY_KEY_IN_USE`                | 409      | 28 operations                                                                                                                                                       |
+| `IDEMPOTENCY_KEY_REUSED`                | 422      | 28 operations                                                                                                                                                       |
+| `IDEMPOTENCY_UNAVAILABLE`               | 503      | 28 operations                                                                                                                                                       |
+| `IMAGE_FETCH_FAILED`                    | 400      | `POST /images`                                                                                                                                                      |
+| `IMAGE_QUOTA_REACHED`                   | 429      | `POST /images`                                                                                                                                                      |
+| `IMAGE_TOO_LARGE`                       | 400      | `POST /images`                                                                                                                                                      |
+| `IMAGE_TYPE_NOT_ALLOWED`                | 400      | `POST /images`                                                                                                                                                      |
+| `IMAGE_URL_NOT_ALLOWED`                 | 400      | `POST /images`                                                                                                                                                      |
+| `INSUFFICIENT_AT_LOCATION`              | 409      | `POST /inventory-levels/{id}/adjust`                                                                                                                                |
+| `INTERNAL_ERROR`                        | 500      | every operation                                                                                                                                                     |
+| `INVALID_CURSOR`                        | 400      | 13 operations                                                                                                                                                       |
+| `INVALID_FIELDS`                        | 400      | 49 operations                                                                                                                                                       |
+| `LOCATION_NOT_FOUND`                    | 400, 404 | `POST /inventory-levels/{id}/adjust`                                                                                                                                |
+| `MEDIA_URL_NOT_ALLOWED`                 | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /collections`, `POST /products`                               |
+| `METHOD_NOT_ALLOWED`                    | 405      | any operation, as a fallback                                                                                                                                        |
+| `NOT_FOUND`                             | 404      | 40 operations                                                                                                                                                       |
+| `OFFER_ARCHIVED`                        | 409      | `PATCH /offers/{id}`, `POST /offers/{id}/codes`, `POST /offers/{id}/codes/bulk`, `POST /offers/{id}/pause`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume` |
+| `OFFER_CODE_INVALID`                    | 400      | `POST /offers/{id}/codes`                                                                                                                                           |
+| `OFFER_CODE_NOT_FOUND`                  | 404      | `POST /offers/{id}/codes/{codeId}/disable`, `POST /offers/{id}/codes/{codeId}/enable`                                                                               |
+| `OFFER_CODE_TAKEN`                      | 409      | `POST /offers`, `POST /offers/{id}/codes`                                                                                                                           |
+| `OFFER_ENDED`                           | 409      | `POST /offers/{id}/pause`, `POST /offers/{id}/resume`                                                                                                               |
+| `OFFER_GONE`                            | 409      | `POST /orders`                                                                                                                                                      |
+| `OFFER_INVALID`                         | 400      | `PATCH /offers/{id}`, `POST /offers`, `POST /offers/{id}/publish`                                                                                                   |
+| `OFFER_KIND_IMMUTABLE`                  | 400      | `PATCH /offers/{id}`                                                                                                                                                |
+| `OFFER_KIND_NOT_AVAILABLE`              | 400      | `POST /offers`                                                                                                                                                      |
+| `OFFER_LIMIT_REACHED`                   | 409      | `POST /orders`                                                                                                                                                      |
+| `OFFER_NOT_CODE_METHOD`                 | 409      | `POST /offers/{id}/codes`, `POST /offers/{id}/codes/bulk`                                                                                                           |
+| `OFFER_NOT_FOUND`                       | 404      | 9 operations                                                                                                                                                        |
+| `OFFER_NOT_OWNED`                       | 403      | 11 operations                                                                                                                                                       |
+| `OFFER_NOT_PUBLISHED`                   | 409      | `POST /offers/{id}/pause`, `POST /offers/{id}/resume`                                                                                                               |
+| `OFFER_STORE_NOT_FOUND`                 | 404      | `POST /offers`                                                                                                                                                      |
+| `OFFER_TARGET_NOT_FOUND`                | 400      | `PATCH /offers/{id}`, `POST /offers`                                                                                                                                |
+| `OFFER_TARGET_OUTSIDE_STORE`            | 400      | `PATCH /offers/{id}`, `POST /offers`                                                                                                                                |
+| `OFFER_VERSION_CONFLICT`                | 409      | `PATCH /offers/{id}`, `POST /offers/{id}/pause`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume`                                                            |
+| `ORDER_DUPLICATE`                       | 409      | `POST /orders`                                                                                                                                                      |
+| `ORDER_LIMIT_REACHED`                   | 403      | `POST /orders/{id}/confirm`                                                                                                                                         |
+| `ORDER_NOT_EDITABLE`                    | 409      | `PATCH /orders/{id}`, `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                         |
+| `ORDER_PRICING_LOCKED`                  | 400      | `PATCH /orders/{id}`                                                                                                                                                |
+| `ORDER_STATUS_CONFLICT`                 | 409      | `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                                               |
+| `PAYLOAD_TOO_LARGE`                     | 413      | 22 operations                                                                                                                                                       |
+| `PERMISSION_DENIED`                     | 403      | 54 operations                                                                                                                                                       |
+| `PLAN_FEATURE_REQUIRED`                 | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                                                         |
+| `PLAN_LIMIT_REACHED`                    | 403      | `PATCH /offers/{id}`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume`                                                                                       |
+| `PRODUCT_DEFAULT_VARIANT`               | 409      | `PATCH /products/{id}/variants/{variantId}`                                                                                                                         |
+| `PRODUCT_OPTIONS_REQUIRE_VARIANTS`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_OPTION_DUPLICATE_NAME`         | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_OPTION_DUPLICATE_VALUE`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_OPTION_NOT_FOUND`              | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_OPTION_NO_VALUES`              | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_OPTION_VALUE_EMPTY`            | 400      | `PATCH /products/{id}`                                                                                                                                              |
+| `PRODUCT_OPTION_VALUE_NOT_FOUND`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_SLUG_INVALID`                  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_SLUG_TAKEN`                    | 409      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_COMBINATION_MISMATCH`  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_COUNT_MISMATCH`        | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
+| `PRODUCT_VARIANT_DUPLICATE_COMBINATION` | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_DUPLICATE_OPTION`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_INVALID_VALUE`         | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_MISSING_COMBINATIONS`  | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
+| `PRODUCT_VARIANT_MISSING_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_SELECTED_COUNT`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_VARIANT_UNKNOWN_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_WRITE_TIMEOUT`                 | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
+| `RATE_LIMITED`                          | 429      | every operation                                                                                                                                                     |
+| `REQUEST_FAILED`                        | 4xx      | any operation, as a fallback                                                                                                                                        |
+| `SERVICE_UNAVAILABLE`                   | 503      | every operation                                                                                                                                                     |
+| `STORE_REQUIRED`                        | 400      | `POST /orders`                                                                                                                                                      |
+| `STORE_SCOPE_FORBIDDEN`                 | 460      | 17 operations                                                                                                                                                       |
+| `SUBSCRIPTION_REQUIRED`                 | 422      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                                                         |
+| `UNAUTHORIZED`                          | 401      | any operation, as a fallback                                                                                                                                        |
+| `UNPROCESSABLE_ENTITY`                  | 422      | any operation, as a fallback                                                                                                                                        |
+| `UNSUPPORTED_MEDIA_TYPE`                | 415      | 22 operations                                                                                                                                                       |
+| `VALIDATION_FAILED`                     | 400      | 53 operations                                                                                                                                                       |
 
 ## Token endpoint errors
 

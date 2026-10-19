@@ -98,6 +98,7 @@ uri    = "https://privacy.example.com/tassyir"
 | `data.definitions`         | At most 50 keys of [app data](/guides/app-data): `owner` (`business`, `store`, `product`, `order`, `customer`), `key` (`[a-z][a-z0-9_]{0,63}`, unique per owner), `type` (`string`, `number`, `integer`, `boolean`, `json`), `visibility` (`app`, `merchant`, `storefront`).                                                                                         |
 | `data.definitions[].label` | Optional, `{ ar = "…", en = "…" }`: the name the dashboard shows next to a value. Not live yet, see [Marketplace fields](#marketplace-fields-not-live-yet).                                                                                                                                                                                                     |
 | `storefront.blocks`        | Storefront blocks: see [Marketplace fields](#marketplace-fields-not-live-yet). Not live yet.                                                                                                                                                                                                                                                                    |
+| `offers.types`             | Offer types a merchant can create from your app: see [Offer types](#offer-types). Needs `write_offers`.                                                                                                                                                                                                                                                         |
 | `admin.actions`            | Menu entries in the dashboard: see [Marketplace fields](#marketplace-fields-not-live-yet). Not live yet.                                                                                                                                                                                                                                                        |
 | `app_proxy`                | Part of the format, refused until the app proxy opens.                                                                                                                                                                                                                                                                                                          |
 
@@ -111,6 +112,37 @@ uri    = "https://privacy.example.com/tassyir"
   to its own address, `https://{handle}.tassyir-apps.com`.
 - **Every host your data reaches** (`hosting.url`, an absolute webhook `uri`,
   `auth.callback_url`) is shown to the merchant on the install screen.
+
+## Offer types
+
+An app that runs offers of its own ([Write offers and codes](/guides/write-offers))
+can declare **kinds of offer** the merchant creates from your app, under "From
+your apps" on the Offers page:
+
+```toml
+[[offers.types]]
+handle      = "mix-match"
+class       = "product"
+path        = "/offers/mix-match"
+label       = { ar = "اخلط واختر", en = "Mix and match" }
+description = { ar = "القطعة الثالثة مجانًا", en = "The third piece free" }
+```
+
+At most 10 types, each with:
+
+| Field         | Rule                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handle`      | Required. 1 to 40 lowercase letters, digits and hyphens, starting with a letter or digit. Once per manifest (`MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE`)                                     |
+| `class`       | Required. `product`, `order` or `delivery`: the step the offers of the type price in                                                                                                     |
+| `path`        | Required. The page of your app that configures one offer of the type: a path on your origin (the `admin.page` rules, at most 200 characters; on a hosted app never `/.tassyir` or below) |
+| `label`       | Required. `{ ar = "…", en = "…" }`, 1 to 50 characters each (the `name` text rules)                                                                                                      |
+| `description` | Optional. `{ ar, en }`, 1 to 200 characters each                                                                                                                                         |
+
+Declaring any type needs the `write_offers` scope, in `scopes` or in
+`optional_scopes` (`MANIFEST_OFFER_TYPES_SCOPE_MISSING`). The type declares
+what the merchant can pick; the rule that prices each offer is written through
+the Admin API, with `kind = "app"` ([Your own offer
+types](/guides/write-offers#your-own-offer-types)).
 
 ## Marketplace fields (not live yet)
 

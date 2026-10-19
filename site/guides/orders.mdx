@@ -268,13 +268,14 @@ else
   );
 ```
 
-| Field                  | Rule                                                                                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storeId`              | Optional for an installation with one store or every store (then resolved from the items). Required with several selected stores (400 `STORE_REQUIRED`).                                          |
-| `buyer`                | Required, may be `{}`. `phone`, `phone2`: `+213`, then 5, 6 or 7, then 8 digits. `provinceCode` 1 to 58, `townOns` a commune code, `name` up to 200, `address` and `address2` up to 500, `email`. |
-| `items`                | 1 to 50 lines of `productId`, optional `variantId`, `quantity` 1 to 999. Each product must be one you can list; same lines are merged.                                                            |
-| `delivery`             | Optional. `method`: `home` (default) or `stopdesk` (the desk of the buyer's commune). `speed`: `standard` (default) or `economy`.                                                                 |
-| `note`, `deliveryNote` | Optional, up to 1,000 characters.                                                                                                                                                                 |
+| Field                  | Rule                                                                                                                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storeId`              | Optional for an installation with one store or every store (then resolved from the items). Required with several selected stores (400 `STORE_REQUIRED`).                                                                      |
+| `buyer`                | Required, may be `{}`. `phone`, `phone2`: `+213`, then 5, 6 or 7, then 8 digits. `provinceCode` 1 to 58, `townOns` a commune code, `name` up to 200, `address` and `address2` up to 500, `email`.                             |
+| `items`                | 1 to 50 lines of `productId`, optional `variantId`, `quantity` 1 to 999. Each product must be one you can list; same lines are merged.                                                                                        |
+| `delivery`             | Optional. `method`: `home` (default) or `stopdesk` (the desk of the buyer's commune). `speed`: `standard` (default) or `economy`.                                                                                             |
+| `codes`                | Optional, **one offer code at most** (`["SARA10"]`). A code that does not apply never fails the order: it is listed in `rejectedCodes` beside `data` ([Write offers and codes](/guides/write-offers#applying-a-code-to-an-order)). |
+| `note`, `deliveryNote` | Optional, up to 1,000 characters.                                                                                                                                                                                             |
 
 Anything else is refused, on purpose: an order is created `pending` (confirm
 it with the route below), priced from the catalogue and the business's
