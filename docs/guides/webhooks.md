@@ -237,8 +237,10 @@ arrive twice (a retry after your answer was lost, a replay), and
 - **One fact, one event.** Confirming, cancelling, dispatching, delivering or
   returning an order sends that topic. `orders/updated` is sent for every
   other change an app can read (the buyer, the items, the delivery and the
-  carrier's status, scheduling, archiving, a waiting order unlocking), with
-  `changed` naming the order's top-level fields. A write that also changed
+  carrier's status, scheduling, archiving, a waiting order unlocking, a
+  discount added or removed), with `changed` naming the order's top-level
+  fields (`subtotal`, `discountTotal` and `discounts` among them: see
+  [Order money](orders.md#order-money)). A write that also changed
   fields outside its topic's own sends `orders/updated` for those too.
 - **`orders/created` is sent once per real order.** An abandoned checkout is
   `abandoned_checkouts/created`; when it becomes an order (same id),

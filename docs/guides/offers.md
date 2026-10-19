@@ -154,7 +154,8 @@ export function describe(offer: Offer): string | null {
 be used, and that is all an app learns about them. Neither is a redemption:
 **no buyer, phone or order is ever sent**, and using an offer at checkout
 sends no event. To know which orders an offer priced you need the orders
-themselves ([Orders](orders.md)), under their own scope.
+themselves, under their own scope: an order's `discounts[]` names the offer
+that priced it ([Order money](orders.md#order-money)).
 
 ## List and read
 
@@ -261,6 +262,4 @@ guide will grow a section for each:
 - **Writing offers and codes**: creating and changing offers, their codes
   (including codes in bulk) and a list of redemptions, with a `write_offers`
   scope that will imply `read_offers`.
-- **The money on orders**: an order's subtotal, total discount and the offers
-  that priced each line.
 - **Offers that belong to an app**, and an app that prices a cart itself.

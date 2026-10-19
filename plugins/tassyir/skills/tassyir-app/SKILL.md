@@ -114,6 +114,10 @@ mode), asks for consent again.
 - When the plan hides phones, they read `**********`. A **waiting** order
   (past the plan's monthly allowance, `waiting: true`) is masked whatever the
   scopes until it unlocks.
+- Order money: `subtotal` (goods before offers) − `discountTotal` +
+  `shippingPrice` = `total`; `discounts[]` names the offers; a line's
+  `unitPrice`/`totalPrice` are net, `originalPrice` is gross. Money is never
+  masked, and keep a default branch over `changed` on `orders/updated`.
 
 ## Tokens
 
