@@ -111,20 +111,23 @@ without it answers 403 `PERMISSION_DENIED`, with a `fix` that names the scope.
 
 ## The kinds
 
-`kind` says which one of three fields holds the rule. The other two are
+`kind` says which one of seven fields holds the rule. The other six are
 `null`:
 
-| `kind`             | Field             | Reads                                                                                                                                                                                                                                                                                   |
-| ------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quantity`         | `quantity`        | `priceMode` `total` (each tier's `total` is the whole price of `pieces` pieces), `percent` (`percentOff` off each piece) or `amount_each` (`amountOffEach` off each piece). Tiers go up by `pieces`; at most one is `preselected`; a tier's `freeDelivery` waives delivery at that tier |
-| `free_delivery`    | `freeDelivery`    | The threshold: `thresholdKind` `pieces` (`thresholdPieces`) or `amount` (`thresholdAmount`), `null` while a draft has none; `delivery` `home`, `desk` or `both`; `wilayas` as two-digit codes, empty = every wilaya                                                                     |
-| `product_discount` | `productDiscount` | `valueType` `percent` (`percent`, with `maxAmount` capping the saving per unit) or `fixed` (`amount` off each unit); `showCountdown` counts down to `endsAt`                                                                                                                            |
+| `kind`             | Field             | Reads                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quantity`         | `quantity`        | `priceMode` `total` (each tier's `total` is the whole price of `pieces` pieces), `percent` (`percentOff` off each piece) or `amount_each` (`amountOffEach` off each piece). Tiers go up by `pieces`; at most one is `preselected`; a tier's `freeDelivery` waives delivery at that tier                                                                    |
+| `free_delivery`    | `freeDelivery`    | The threshold: `thresholdKind` `pieces` (`thresholdPieces`) or `amount` (`thresholdAmount`), `null` while a draft has none; `delivery` `home`, `desk` or `both`; `wilayas` as two-digit codes, empty = every wilaya                                                                                                                                        |
+| `product_discount` | `productDiscount` | `valueType` `percent` (`percent`, with `maxAmount` capping the saving per unit) or `fixed` (`amount` off each unit); `showCountdown` counts down to `endsAt`                                                                                                                                                                                               |
+| `order_discount`   | `orderDiscount`   | `valueType` `percent` (`percent`, with `maxAmount` capping the order's saving) or `fixed` (`amount` off the order); `minimumKind` `pieces` or `amount` (`minimumPieces`, `minimumAmount`), `null` = every order                                                                                                                                            |
+| `bxgy`             | `bxgy`            | Buy X, get Y: `buyPieces` paid pieces and `getPieces` discounted ones per set; `getDiscountType` `percent` (`getPercent`, 100 = free) or `fixed_price` (`getPrice` per piece); `maxPerOrder` sets, `null` = as many as the cart holds. The buy and get products are the `targets` with role `buy` and `get` (no `get` target: the buy products themselves) |
+| `addon`            | `addon`           | A product offered next to the order: `priceType` `fixed_price` (`price`), `percent` or `amount_off` (`amountOff`); `maxQuantity`; `beforeSubmit` (in the order form) and `afterSubmit` (on the thank-you page). The add-on products are the `targets` with role `addon`, the products that trigger it role `buy`                                           |
+| `app`              | `appRule`         | An offer of an app's own type: `{ typeHandle, rule }`, where `rule` is the declarative rule the app wrote ([Write offers and codes](write-offers.md#the-rule)). It is the app's JSON, so read it defensively                                                                                                                                               |
 
-**`kind` can grow.** More kinds exist in the model (`order_discount`, `bxgy`,
-`addon`, `app`) and Tassyir adds kinds, and values to the other open fields
+**`kind` can grow.** Tassyir adds kinds, and values to the other open fields
 (`priceMode`, `valueType`, `audience`, a target's `type`), inside API version
 `2026-10`. Write code that **ignores an offer of a kind it does not know**
-(all three rule fields are `null` for it) instead of failing, and treat every
+(all seven rule fields are `null` for it) instead of failing, and treat every
 field you do not know the same way:
 
 ```ts
@@ -143,6 +146,13 @@ export function describe(offer: Offer): string | null {
       return offer.productDiscount?.percent
         ? `${String(offer.productDiscount.percent)}% off`
         : null;
+    case 'bxgy':
+      return offer.bxgy
+        ? `Buy ${String(offer.bxgy.buyPieces)}, get ${String(offer.bxgy.getPieces)}`
+        : null;
+    case 'app':
+      // The app's own rule: only its type is known to everyone.
+      return offer.appRule?.typeHandle ?? null;
     default:
       // A kind added later.
       return null;

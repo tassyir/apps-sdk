@@ -95,6 +95,10 @@ with `UNKNOWN_FIELD`):
 | `addon`            | `{ price: { type, value }, maxQuantity, beforeSubmit, afterSubmit }`: a product offered next to the order                      | `addon` (1 to 5 products or variants, required) and `buy` |
 | `app`              | `{ typeHandle, rule }`: an offer of one of your own types, [below](#your-own-offer-types)                                      | none (the rule names its lines)                           |
 
+You read an offer back in the block of its kind (`quantity`, `freeDelivery`,
+`productDiscount`, `orderDiscount`, `bxgy`, `addon` or, for an app's own kind,
+`appRule`), in the shape [Offers](/guides/offers#the-kinds) describes.
+
 A **draft** is saved as long as everything present is well formed; **publish**
 also checks completeness (a title, the kind's required settings, at least one
 target where the kind needs one, at least one enabled code for a `code`
@@ -146,10 +150,7 @@ const refused = added.results.filter((entry) => entry.outcome !== 'created');
 for (const entry of refused) console.warn(entry.code, entry.outcome);
 
 // 3. Put it live (at least one enabled code is required for a code offer).
-await admin.post('/offers/{id}/publish', {
-  path: { id: offer.id },
-  body: {},
-});
+await admin.post('/offers/{id}/publish', { path: { id: offer.id } });
 ```
 
 Each entry of a bulk answer's `results` has an `outcome`:
@@ -188,8 +189,7 @@ offer, the webhooks and an order show a count, or nothing.
 
 `publish`, `pause` and `resume` are **idempotent**: asking for the state the
 offer is already in changes nothing and sends no event. Their body is
-optional in the API; the typed client asks for it, so send `{}`, or
-`{ expectedVersion }` (below).
+optional: send none, or `{ expectedVersion }` (below).
 
 | Route     | Does                                                                                                                              | Refused with                                                       |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |

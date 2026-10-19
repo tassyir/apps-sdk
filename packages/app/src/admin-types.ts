@@ -39,6 +39,19 @@ export type Collection = Schemas['Collection'];
 export type InventoryLevel = Schemas['InventoryLevel'];
 export type Customer = Schemas['Customer'];
 export type Offer = Schemas['Offer'];
+/** The rule block of a `quantity` offer (`Offer['kind']`), `null` for any other kind. */
+export type OfferQuantity = NonNullable<Offer['quantity']>;
+/** `order_discount` offers only: `valueType` percent or fixed, the cap and the minimum. */
+export type OfferOrderDiscount = NonNullable<Offer['orderDiscount']>;
+/** `bxgy` (buy X, get Y) offers only. The buy and get products are the `targets` with role `buy` / `get`. */
+export type OfferBxgy = NonNullable<Offer['bxgy']>;
+/** `addon` offers only. The add-on products are the `targets` with role `addon`. */
+export type OfferAddon = NonNullable<Offer['addon']>;
+/**
+ * `app` offers only: the owning app's type and its rule. `rule` is `unknown`
+ * here (an app's rule is the JSON it wrote): narrow it to `AppOfferRule`.
+ */
+export type OfferAppRule = NonNullable<Offer['appRule']>;
 /**
  * The kinds an app may name when it creates an offer (`write_offers`). What
  * you READ is `Offer['kind']`, an open string: new kinds are added within the
@@ -127,11 +140,21 @@ export type PathParams<O> = O extends { parameters: { path: infer X } }
 export type QueryParams<O> = O extends { parameters: { query?: infer Q } }
   ? NonNullable<Q>
   : never;
-export type RequestBody<O> = O extends {
-  requestBody: { content: { 'application/json': infer B } };
-}
-  ? B
+/** The JSON body an operation takes, required or optional; `never` when it takes none. */
+export type RequestBody<O> = O extends { requestBody?: infer R }
+  ? [NonNullable<R>] extends [never]
+    ? never
+    : NonNullable<R> extends { content: { 'application/json': infer B } }
+      ? B
+      : never
   : never;
+
+/** `{ body }` when the document marks the body required, `{ body? }` when it does not. */
+type BodyOption<O> = [RequestBody<O>] extends [never]
+  ? { body?: never }
+  : O extends { requestBody: unknown }
+    ? { body: RequestBody<O> }
+    : { body?: RequestBody<O> };
 
 type ResourceOf<B> = B extends { data: infer D }
   ? D extends readonly (infer Item)[]
@@ -163,9 +186,7 @@ export type RequestOptions<
     ([QueryParams<AdminOperation<M, P>>] extends [never]
       ? { query?: never }
       : { query?: Query<AdminOperation<M, P>> }) &
-    ([RequestBody<AdminOperation<M, P>>] extends [never]
-      ? { body?: never }
-      : { body: RequestBody<AdminOperation<M, P>> }) &
+    BodyOption<AdminOperation<M, P>> &
     (M extends 'get'
       ? unknown
       : {

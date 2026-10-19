@@ -9,14 +9,19 @@ import type {
   FieldName,
   ListItem,
   Offer,
+  OfferAddon,
+  OfferAppRule,
+  OfferBxgy,
   OfferCode,
   OfferCodesBulkResult,
   OfferKind,
+  OfferOrderDiscount,
   OfferRedemption,
   OfferRemoval,
   Order,
   OrderItem,
   Product,
+  RequestOptions,
   ResponseBody,
 } from './admin-types.js';
 import { TassyirApiError } from './errors.js';
@@ -680,14 +685,12 @@ describe('AdminClient.paginate', () => {
       path: { id: offer.id },
       body: { expectedVersion: 1 },
     });
-    // The document marks the body of these three required: send `{}`.
+    // The body of these three is optional: none is needed.
     await admin.post('/offers/{id}/pause', {
       path: { id: offer.id },
-      body: {},
     });
     await admin.post('/offers/{id}/resume', {
       path: { id: offer.id },
-      body: {},
     });
     await admin.patch('/offers/{id}', {
       path: { id: offer.id },
@@ -829,7 +832,7 @@ describe('AdminClient.paginate', () => {
       }),
     );
     const error: unknown = await admin
-      .post('/offers/{id}/pause', { path: { id: '5' }, body: {} })
+      .post('/offers/{id}/pause', { path: { id: '5' } })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TassyirApiError);
     expect((error as TassyirApiError).status).toBe(403);
@@ -946,6 +949,26 @@ describe('AdminClient types (checked by tsc)', () => {
     expectTypeOf<
       ListItem<'/offers/{id}/redemptions'>
     >().toEqualTypeOf<OfferRedemption>();
+    // The Phase 2 kinds: exactly one block is set, the others are null.
+    expectTypeOf<
+      Offer['orderDiscount']
+    >().toEqualTypeOf<OfferOrderDiscount | null>();
+    expectTypeOf<Offer['bxgy']>().toEqualTypeOf<OfferBxgy | null>();
+    expectTypeOf<Offer['addon']>().toEqualTypeOf<OfferAddon | null>();
+    expectTypeOf<Offer['appRule']>().toEqualTypeOf<OfferAppRule | null>();
+    expectTypeOf<OfferAppRule['typeHandle']>().toEqualTypeOf<string>();
+    expectTypeOf<OfferAppRule['rule']>().toEqualTypeOf<unknown>();
+    expectTypeOf<OfferOrderDiscount['amount']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OfferBxgy['buyPieces']>().toEqualTypeOf<number>();
+    expectTypeOf<OfferBxgy['getPrice']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OfferAddon['afterSubmit']>().toEqualTypeOf<boolean>();
+    // publish, pause and resume take an optional body; a create needs its own.
+    expectTypeOf<
+      RequestOptions<'post', '/offers/{id}/pause'>['body']
+    >().toEqualTypeOf<{ expectedVersion?: number | null } | undefined>();
+    expectTypeOf<
+      RequestOptions<'post', '/offers'>['body']
+    >().toEqualTypeOf<CreateOfferInput>();
     expectTypeOf<OfferCode['uses']>().toEqualTypeOf<number>();
     expectTypeOf<OfferRedemption['amount']>().toEqualTypeOf<string>();
     expectTypeOf<OfferRedemption['codeId']>().toEqualTypeOf<string | null>();

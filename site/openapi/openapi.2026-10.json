@@ -7290,7 +7290,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "name": "limit",
@@ -7496,7 +7496,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -7841,7 +7841,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           }
         ],
         "responses": {
@@ -8035,7 +8035,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -8615,14 +8615,14 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -8921,14 +8921,14 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -9227,14 +9227,14 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `orderDiscount`, `bxgy`, `addon`, `appRule`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -19292,6 +19292,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Label is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -19303,6 +19304,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Config is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -19314,6 +19316,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "CombinesWith is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -19325,6 +19328,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Eligibility is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -21103,6 +21107,287 @@
             ],
             "description": "kind product_discount only."
           },
+          "orderDiscount": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "valueType": {
+                    "type": "string",
+                    "description": "percent or fixed."
+                  },
+                  "percent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "valueType percent: 1 to 100."
+                  },
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "valueType fixed: DZD off the order."
+                  },
+                  "maxAmount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "valueType percent: the most the order's saving may reach."
+                  },
+                  "minimumKind": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "pieces or amount; null = every order."
+                  },
+                  "minimumPieces": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "minimumAmount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "valueType",
+                  "percent",
+                  "amount",
+                  "maxAmount",
+                  "minimumKind",
+                  "minimumPieces",
+                  "minimumAmount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind order_discount only."
+          },
+          "bxgy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "buyPieces": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Paid pieces of the buy targets per set."
+                  },
+                  "getPieces": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Discounted pieces per set."
+                  },
+                  "getDiscountType": {
+                    "type": "string",
+                    "description": "percent (100 = free) or fixed_price (the gift price per piece)."
+                  },
+                  "getPercent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "getPrice": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "maxPerOrder": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Sets per order; null = as many as the cart holds."
+                  }
+                },
+                "required": [
+                  "buyPieces",
+                  "getPieces",
+                  "getDiscountType",
+                  "getPercent",
+                  "getPrice",
+                  "maxPerOrder"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind bxgy only (buy X get Y)."
+          },
+          "addon": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "priceType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "fixed_price, percent or amount_off; null while a draft has none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "priceType fixed_price."
+                  },
+                  "percent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "priceType percent."
+                  },
+                  "amountOff": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "priceType amount_off."
+                  },
+                  "maxQuantity": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "beforeSubmit": {
+                    "type": "boolean",
+                    "description": "Offered in the order form."
+                  },
+                  "afterSubmit": {
+                    "type": "boolean",
+                    "description": "Offered on the thank-you page."
+                  }
+                },
+                "required": [
+                  "priceType",
+                  "price",
+                  "percent",
+                  "amountOff",
+                  "maxQuantity",
+                  "beforeSubmit",
+                  "afterSubmit"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind addon only."
+          },
+          "appRule": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "typeHandle": {
+                    "type": "string",
+                    "description": "The owning app's [[offers.types]] handle."
+                  },
+                  "rule": {
+                    "description": "The declarative rule as the app wrote it: { class, when, then } (see the offers guide)."
+                  }
+                },
+                "required": [
+                  "typeHandle",
+                  "rule"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "kind app only: an app-owned offer type and its rule."
+          },
           "combinesWith": {
             "type": "object",
             "properties": {
@@ -21318,6 +21603,10 @@
           "quantity",
           "freeDelivery",
           "productDiscount",
+          "orderDiscount",
+          "bxgy",
+          "addon",
+          "appRule",
           "combinesWith",
           "eligibility",
           "targets",
@@ -23941,6 +24230,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Label is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -23952,6 +24242,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Config is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -23963,6 +24254,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "CombinesWith is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -23974,6 +24266,7 @@
             "anyOf": [
               {
                 "type": "object",
+                "additionalProperties": true,
                 "description": "Eligibility is the offer's stored settings for its kind, exactly as the Offers page keeps them."
               },
               {
@@ -25482,6 +25775,10 @@
                 "quantity",
                 "freeDelivery",
                 "productDiscount",
+                "orderDiscount",
+                "bxgy",
+                "addon",
+                "appRule",
                 "combinesWith",
                 "eligibility",
                 "targets",
@@ -25689,6 +25986,10 @@
                 "quantity",
                 "freeDelivery",
                 "productDiscount",
+                "orderDiscount",
+                "bxgy",
+                "addon",
+                "appRule",
                 "combinesWith",
                 "eligibility",
                 "targets",
