@@ -22,6 +22,14 @@ type Schemas = components['schemas'];
 // numbers: keep them strings, or use a decimal library, never parseFloat.
 export type Business = Schemas['Business'];
 export type Order = Schemas['Order'];
+/** One line of an order. `unitPrice` and `totalPrice` are NET of discounts; `originalPrice` is the gross unit price. */
+export type OrderItem = Order['items'][number];
+/**
+ * A discount an order got, grouped by title, code, class and source: on the
+ * order (`Order['discounts']`) or on a line (`OrderItem['discounts']`).
+ * `class: 'delivery'` is a shipping waiver and is not part of `discountTotal`.
+ */
+export type Discount = Order['discounts'][number];
 export type OrderComment = Schemas['OrderComment'];
 export type CancelReason = Schemas['CancelReason'];
 export type Checkout = Schemas['Checkout'];

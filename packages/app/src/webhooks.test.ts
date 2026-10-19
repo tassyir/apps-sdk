@@ -125,6 +125,57 @@ describe('verifyWebhook', () => {
     expect(second.event.data.offer).toEqual({ id: '7' });
   });
 
+  it('narrows an order and reads its money: subtotal, discounts, net lines', async () => {
+    const order = JSON.stringify({
+      ...ENVELOPE,
+      type: 'orders/updated',
+      storeId: '741000000000000100',
+      changed: ['subtotal', 'discountTotal', 'discounts', 'total'],
+      data: {
+        order: {
+          id: '5',
+          currency: 'DZD',
+          total: '4600.00',
+          shippingPrice: '600.00',
+          subtotal: '5000.00',
+          discountTotal: '1000.00',
+          discounts: [
+            {
+              title: 'Sample 2-piece offer',
+              code: null,
+              class: 'product',
+              source: 'offer',
+              amount: '1000.00',
+              offerId: null,
+            },
+          ],
+          items: [
+            {
+              id: '9',
+              quantity: 2,
+              unitPrice: '2000.00',
+              totalPrice: '4000.00',
+              originalPrice: '2500.00',
+              discountAmount: '1000.00',
+              discounts: [],
+            },
+          ],
+        },
+      },
+    });
+    const verified = await verifyWebhook(
+      { headers: signed(order, { id: 'dlv_44' }), body: order },
+      options(),
+    );
+    if (verified.event.type !== 'orders/updated') throw new Error('narrowing');
+    const body = verified.event.data.order;
+    expect(body.subtotal).toBe('5000.00');
+    expect(body.discountTotal).toBe('1000.00');
+    expect(body.discounts[0]?.offerId).toBeNull();
+    expect(body.items[0]?.originalPrice).toBe('2500.00');
+    expect(verified.event.changed).toContain('discounts');
+  });
+
   it('reads a Fetch Request (Workers, Hono, Next.js)', async () => {
     const request = new Request('https://app.example/webhooks', {
       method: 'POST',

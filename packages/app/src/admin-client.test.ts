@@ -4,10 +4,12 @@ import type { AdminClientOptions, ResponseInfo } from './admin-client.js';
 import type {
   AdminApiErrorCode,
   AdminApiPaths,
+  Discount,
   FieldName,
   ListItem,
   Offer,
   Order,
+  OrderItem,
   Product,
   ResponseBody,
 } from './admin-types.js';
@@ -91,6 +93,54 @@ describe('AdminClient requests', () => {
     const { data } = await admin.get('/orders/{id}', { path: { id: '1' } });
     expect(data.total).toBe('2500.10');
     expect(data.shippingPrice).toBe('0.00');
+  });
+
+  it('reads the order money as decimal strings, with the discount entries', async () => {
+    const discount = {
+      title: 'Autumn sale',
+      code: null,
+      class: 'product',
+      source: 'offer',
+      amount: '500.00',
+      offerId: '741000000000000800',
+    };
+    const { admin, calls } = client(() =>
+      jsonResponse(200, {
+        data: {
+          ...ORDER,
+          total: '5000.00',
+          shippingPrice: '500.00',
+          subtotal: '5000.00',
+          discountTotal: '500.00',
+          discounts: [discount],
+          items: [
+            {
+              id: '11',
+              quantity: 1,
+              unitPrice: '4500.00',
+              totalPrice: '4500.00',
+              originalPrice: '5000.00',
+              discountAmount: '500.00',
+              discounts: [discount],
+            },
+          ],
+        },
+      }),
+    );
+    const { data } = await admin.get('/orders/{id}', {
+      path: { id: '1' },
+      query: { fields: ['subtotal', 'discountTotal', 'discounts'] },
+    });
+    expect(calls[0]?.url).toContain(
+      'fields=subtotal%2CdiscountTotal%2Cdiscounts',
+    );
+    const order = data;
+    expect(order.subtotal).toBe('5000.00');
+    expect(order.discountTotal).toBe('500.00');
+    expect(order.discounts[0]?.offerId).toBe('741000000000000800');
+    expect(order.items[0]?.originalPrice).toBe('5000.00');
+    expect(order.items[0]?.discountAmount).toBe('500.00');
+    expect(order.items[0]?.discounts[0]?.class).toBe('product');
   });
 
   it('sends a JSON body and a fresh Idempotency-Key on every write', async () => {
@@ -629,6 +679,22 @@ describe('AdminClient types (checked by tsc)', () => {
       AdminApiErrorCode<'get', '/offers'>
     >();
     expectTypeOf<Order['total']>().toEqualTypeOf<string | null>();
+    // The order money: the goods, what the offers took off, and the entries
+    // that name them. Lines are net; `originalPrice` is the gross unit price.
+    expectTypeOf<Order['subtotal']>().toEqualTypeOf<string>();
+    expectTypeOf<Order['discountTotal']>().toEqualTypeOf<string>();
+    expectTypeOf<Order['discounts']>().toEqualTypeOf<Discount[]>();
+    expectTypeOf<OrderItem['originalPrice']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OrderItem['discountAmount']>().toEqualTypeOf<string>();
+    expectTypeOf<OrderItem['discounts']>().toEqualTypeOf<Discount[]>();
+    expectTypeOf<Discount['class']>().toEqualTypeOf<
+      'product' | 'order' | 'delivery'
+    >();
+    expectTypeOf<Discount['code']>().toEqualTypeOf<string | null>();
+    expectTypeOf<Discount['offerId']>().toEqualTypeOf<string | null>();
+    expectTypeOf<'subtotal' | 'discountTotal' | 'discounts'>().toExtend<
+      FieldName<NonNullable<AdminApiPaths['/orders']['get']>>
+    >();
     expectTypeOf<Product['price']>().toEqualTypeOf<string>();
     expectTypeOf<'total'>().toExtend<
       FieldName<NonNullable<AdminApiPaths['/orders']['get']>>

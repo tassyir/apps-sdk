@@ -348,6 +348,28 @@ describe('get_api_operation', () => {
     ).toEqual([]);
   });
 
+  it('answers the Order schema with its money: subtotal, discountTotal, discounts and net lines', async () => {
+    const answer = await harness.ok('get_api_operation', { schema: 'Order' });
+    const definition = (
+      answer['schema'] as {
+        definition: { properties: Record<string, unknown> };
+      }
+    ).definition;
+    expect(Object.keys(definition.properties)).toEqual(
+      expect.arrayContaining([
+        'total',
+        'shippingPrice',
+        'subtotal',
+        'discountTotal',
+        'discounts',
+      ]),
+    );
+    const text = JSON.stringify(definition);
+    for (const field of ['originalPrice', 'discountAmount']) {
+      expect(text).toContain(field);
+    }
+  });
+
   it.each([
     ['getOrder', 'getOrder'],
     ['GETORDER', 'getOrder'],
@@ -614,6 +636,14 @@ describe('get_event_schema', () => {
     });
     expect(deleted['schemas']).toContain('DeletedOffer');
     expect(deleted['schemas']).not.toContain('Offer');
+  });
+
+  it('renders the orders topics with the order money', async () => {
+    for (const topic of ['orders/created', 'orders/updated']) {
+      const answer = await harness.ok('get_event_schema', { topic });
+      expect(answer['schemas']).toContain('Order');
+      expect(JSON.stringify(answer)).toContain('discountTotal');
+    }
   });
 
   it('refuses an unknown topic with the list', async () => {

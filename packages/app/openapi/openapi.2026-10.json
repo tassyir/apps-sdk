@@ -276,7 +276,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "name": "limit",
@@ -482,7 +482,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -898,7 +898,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           }
         ],
         "responses": {
@@ -1092,7 +1092,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1396,7 +1396,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1683,7 +1683,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -1987,7 +1987,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderNumber`, `storeId`, `status`, `waiting`, `archived`, `dispatched`, `delivered`, `returned`, `currency`, `total`, `shippingPrice`, `subtotal`, `discountTotal`, `discounts`, `buyer`, `delivery`, `items`, `note`, `deliveryNote`, `source`, `landingPageId`, `utm`, `exchangeOfOrderId`, `cancellation`, `scheduledFor`, `confirmedAt`, `dispatchedAt`, `deliveredAt`, `returnedAt`, `canceledAt`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -15125,7 +15125,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The NET unit price: what was charged per unit after discounts."
                 },
                 "totalPrice": {
                   "anyOf": [
@@ -15137,7 +15138,99 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The NET line total: originalPrice x quantity minus discountAmount."
+                },
+                "originalPrice": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?\\d+\\.\\d{2}$",
+                      "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The catalogue unit price before any offer. Null on a line no discount was computed for (older orders, exchanges, synced orders)."
+                },
+                "discountAmount": {
+                  "type": "string",
+                  "pattern": "^-?\\d+\\.\\d{2}$",
+                  "description": "This line's share of every product- and order-class discount."
+                },
+                "discounts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Frozen at placement: the offer or code title."
+                      },
+                      "code": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The code the buyer typed, if any."
+                      },
+                      "class": {
+                        "type": "string",
+                        "enum": [
+                          "product",
+                          "order",
+                          "delivery"
+                        ],
+                        "description": "product: on lines. order: on the whole order. delivery: the shipping waiver (not part of discountTotal)."
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "offer",
+                          "code",
+                          "manual",
+                          "app",
+                          "import"
+                        ],
+                        "description": "Where the discount came from."
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "Total of the stored rows this entry groups."
+                      },
+                      "offerId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "A resource id (a snowflake id, as a string)."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null for manual, import and legacy quantity-tier discounts."
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "code",
+                      "class",
+                      "source",
+                      "amount",
+                      "offerId"
+                    ],
+                    "additionalProperties": false,
+                    "description": "A discount applied to an order or to one of its lines."
+                  },
+                  "description": "The product-class discounts allocated to this line."
                 }
               },
               "required": [
@@ -15150,7 +15243,10 @@
                 "sku",
                 "quantity",
                 "unitPrice",
-                "totalPrice"
+                "totalPrice",
+                "originalPrice",
+                "discountAmount",
+                "discounts"
               ],
               "additionalProperties": false
             }
@@ -17684,7 +17780,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "What the courier collects: subtotal - discountTotal + shippingPrice."
           },
           "shippingPrice": {
             "anyOf": [
@@ -17696,7 +17793,91 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "What the buyer pays for delivery (0.00 when waived)."
+          },
+          "subtotal": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{2}$",
+            "description": "The goods before every offer. For an order with no discount data: total - shippingPrice."
+          },
+          "discountTotal": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{2}$",
+            "description": "The product- and order-class discounts. Excludes a delivery waiver."
+          },
+          "discounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Frozen at placement: the offer or code title."
+                },
+                "code": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The code the buyer typed, if any."
+                },
+                "class": {
+                  "type": "string",
+                  "enum": [
+                    "product",
+                    "order",
+                    "delivery"
+                  ],
+                  "description": "product: on lines. order: on the whole order. delivery: the shipping waiver (not part of discountTotal)."
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "offer",
+                    "code",
+                    "manual",
+                    "app",
+                    "import"
+                  ],
+                  "description": "Where the discount came from."
+                },
+                "amount": {
+                  "type": "string",
+                  "pattern": "^-?\\d+\\.\\d{2}$",
+                  "description": "Total of the stored rows this entry groups."
+                },
+                "offerId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "A resource id (a snowflake id, as a string)."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null for manual, import and legacy quantity-tier discounts."
+                }
+              },
+              "required": [
+                "title",
+                "code",
+                "class",
+                "source",
+                "amount",
+                "offerId"
+              ],
+              "additionalProperties": false,
+              "description": "A discount applied to an order or to one of its lines."
+            },
+            "description": "Every discount the order got (all classes), grouped by title, code, class and source."
           },
           "buyer": {
             "type": "object",
@@ -17959,7 +18140,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The NET unit price: what was charged per unit after discounts."
                 },
                 "totalPrice": {
                   "anyOf": [
@@ -17971,7 +18153,99 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "The NET line total: originalPrice x quantity minus discountAmount."
+                },
+                "originalPrice": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?\\d+\\.\\d{2}$",
+                      "description": "A decimal amount with two decimals, as a string (\"2500.00\")."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The catalogue unit price before any offer. Null on a line no discount was computed for (older orders, exchanges, synced orders)."
+                },
+                "discountAmount": {
+                  "type": "string",
+                  "pattern": "^-?\\d+\\.\\d{2}$",
+                  "description": "This line's share of every product- and order-class discount."
+                },
+                "discounts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Frozen at placement: the offer or code title."
+                      },
+                      "code": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The code the buyer typed, if any."
+                      },
+                      "class": {
+                        "type": "string",
+                        "enum": [
+                          "product",
+                          "order",
+                          "delivery"
+                        ],
+                        "description": "product: on lines. order: on the whole order. delivery: the shipping waiver (not part of discountTotal)."
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "offer",
+                          "code",
+                          "manual",
+                          "app",
+                          "import"
+                        ],
+                        "description": "Where the discount came from."
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?\\d+\\.\\d{2}$",
+                        "description": "Total of the stored rows this entry groups."
+                      },
+                      "offerId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "A resource id (a snowflake id, as a string)."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Null for manual, import and legacy quantity-tier discounts."
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "code",
+                      "class",
+                      "source",
+                      "amount",
+                      "offerId"
+                    ],
+                    "additionalProperties": false,
+                    "description": "A discount applied to an order or to one of its lines."
+                  },
+                  "description": "The product-class discounts allocated to this line."
                 }
               },
               "required": [
@@ -17984,7 +18258,10 @@
                 "sku",
                 "quantity",
                 "unitPrice",
-                "totalPrice"
+                "totalPrice",
+                "originalPrice",
+                "discountAmount",
+                "discounts"
               ],
               "additionalProperties": false
             }
@@ -18256,6 +18533,9 @@
           "currency",
           "total",
           "shippingPrice",
+          "subtotal",
+          "discountTotal",
+          "discounts",
           "buyer",
           "delivery",
           "items",
@@ -21301,6 +21581,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -21422,6 +21705,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -21543,6 +21829,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -21664,6 +21953,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -21785,6 +22077,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -21906,6 +22201,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
@@ -22027,6 +22325,9 @@
                 "currency",
                 "total",
                 "shippingPrice",
+                "subtotal",
+                "discountTotal",
+                "discounts",
                 "buyer",
                 "delivery",
                 "items",
