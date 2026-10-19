@@ -39,6 +39,28 @@ export type Collection = Schemas['Collection'];
 export type InventoryLevel = Schemas['InventoryLevel'];
 export type Customer = Schemas['Customer'];
 export type Offer = Schemas['Offer'];
+/**
+ * The kinds an app may name when it creates an offer (`write_offers`). What
+ * you READ is `Offer['kind']`, an open string: new kinds are added within the
+ * version, so ignore one you do not know.
+ */
+export type OfferKind = Schemas['CreateOfferInput']['kind'];
+/** The body of `POST /offers`; `config` is the rule as the Offers page stores it. */
+export type CreateOfferInput = Schemas['CreateOfferInput'];
+/** The body of `PATCH /offers/{id}`. */
+export type UpdateOfferInput = Schemas['UpdateOfferInput'];
+/** `{ role?, refType, refId? }`: what an offer applies to. */
+export type OfferTargetInput = Schemas['OfferTargetInput'];
+/** A code of an offer you own (`GET /offers/{id}/codes`). */
+export type OfferCode = Schemas['OfferCode'];
+/** One code to add: `{ code, usageLimit? }`. */
+export type OfferCodeInput = Schemas['OfferCodeInput'];
+/** What `POST /offers/{id}/codes/bulk` did, one entry per code sent. */
+export type OfferCodesBulkResult = Schemas['OfferCodesBulkResult'];
+/** One use of an offer you own on an order (`GET /offers/{id}/redemptions`). Never a buyer. */
+export type OfferRedemption = Schemas['OfferRedemption'];
+/** What `DELETE /offers/{id}` did: exactly one of `deleted` and `archived` is true. */
+export type OfferRemoval = Schemas['OfferRemoval'];
 export type Store = Schemas['Store'];
 export type DeliveryAgent = Schemas['DeliveryAgent'];
 export type DeliveryFeeGroup = Schemas['DeliveryFeeGroup'];

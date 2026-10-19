@@ -64,6 +64,46 @@ describe('validate_manifest', () => {
     expect(real['warnings']).toEqual([]);
   });
 
+  it('checks the offer types a manifest declares, and the scope they need (write_offers)', async () => {
+    const harness = await createHarness();
+    const types = [
+      '',
+      '[[offers.types]]',
+      'handle = "mix-match"',
+      'class  = "product"',
+      'path   = "/offers/mix-match"',
+      'label  = { ar = "اخلط واختر", en = "Mix and match" }',
+      '',
+    ].join('\n');
+    const without = await harness.ok('validate_manifest', {
+      toml: `${REAL_URL}${types}`,
+    });
+    expect(without['valid']).toBe(false);
+    expect(
+      (without['errors'] as { code: string; path: string }[]).map((error) => [
+        error.code,
+        error.path,
+      ]),
+    ).toEqual([['MANIFEST_OFFER_TYPES_SCOPE_MISSING', 'offers.types']]);
+
+    const withScope = REAL_URL.replace(
+      'scopes = ["read_orders"]',
+      'scopes = ["read_orders", "write_offers"]',
+    ).replace(
+      'read_orders = "Show the store\'s pending orders on the app\'s page"',
+      'read_orders = "Show the store\'s pending orders on the app\'s page"\nwrite_offers = "Create the offers your merchants set up in the app"',
+    );
+    const granted = await harness.ok('validate_manifest', {
+      toml: `${withScope}${types}`,
+    });
+    expect(granted['errors']).toEqual([]);
+    expect(granted['valid']).toBe(true);
+    expect((granted['summary'] as { scopes: string[] }).scopes).toEqual([
+      'read_orders',
+      'write_offers',
+    ]);
+  });
+
   it('accepts bulk/finished, which needs no scope (AP-B1.8)', async () => {
     const harness = await createHarness();
     const answer = await harness.ok('validate_manifest', {

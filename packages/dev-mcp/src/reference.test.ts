@@ -100,6 +100,16 @@ describe('search_docs', () => {
     });
   });
 
+  it('finds the guide that writes offers, and the code an app gets on a foreign offer', async () => {
+    const [guide] = await searchFor('write_offers');
+    expect(guide?.open).toEqual({
+      tool: 'fetch_doc',
+      arguments: expect.objectContaining({ slug: 'write-offers' }) as unknown,
+    });
+    const results = await searchFor('OFFER_NOT_OWNED', 5);
+    expect(results.map((result) => result.open.tool)).toContain('fetch_doc');
+  });
+
   it('finds an error code in the error reference and the operations that answer it', async () => {
     const results = await searchFor('BULK_EXPORT_RATE_LIMITED', 5);
     expect(results.map((result) => result.open.tool)).toContain('fetch_doc');
@@ -368,6 +378,70 @@ describe('get_api_operation', () => {
     for (const field of ['originalPrice', 'discountAmount']) {
       expect(text).toContain(field);
     }
+  });
+
+  it('answers the offers write routes: write_offers, the bulk limit, ownership', async () => {
+    const created = await harness.ok('get_api_operation', {
+      operation: 'POST /offers',
+    });
+    const operation = created['operation'] as Record<string, unknown>;
+    expect(operation).toMatchObject({
+      id: 'createOffer',
+      method: 'POST',
+      path: '/apps/2026-10/offers',
+      sdkPath: '/offers',
+    });
+    expect(JSON.stringify(operation['access'])).toContain('write_offers');
+    expect(created['schemas']).toEqual(
+      expect.arrayContaining(['Offer', 'OfferCodeInput', 'OfferTargetInput']),
+    );
+
+    const bulk = await harness.ok('get_api_operation', {
+      operation: 'POST /offers/741000000000002000/codes/bulk',
+    });
+    expect((bulk['operation'] as { id: string }).id).toBe('addOfferCodes');
+    expect(bulk['schemas']).toEqual(
+      expect.arrayContaining(['OfferCodeInput', 'OfferCodesBulkResult']),
+    );
+    expect(JSON.stringify(bulk['operation'])).toContain('OFFER_NOT_OWNED');
+
+    for (const [operationId, shown] of [
+      ['updateOffer', 'PATCH /offers/{id}'],
+      ['deleteOffer', 'DELETE /offers/{id}'],
+      ['publishOffer', 'POST /offers/{id}/publish'],
+      ['pauseOffer', 'POST /offers/{id}/pause'],
+      ['resumeOffer', 'POST /offers/{id}/resume'],
+      ['listOfferCodes', 'GET /offers/{id}/codes'],
+      ['addOfferCode', 'POST /offers/{id}/codes'],
+      ['disableOfferCode', 'POST /offers/{id}/codes/{codeId}/disable'],
+      ['enableOfferCode', 'POST /offers/{id}/codes/{codeId}/enable'],
+      ['listOfferRedemptions', 'GET /offers/{id}/redemptions'],
+    ] as const) {
+      const answer = await harness.ok('get_api_operation', {
+        operation: shown,
+      });
+      expect((answer['operation'] as { id: string }).id).toBe(operationId);
+    }
+
+    const redemption = await harness.ok('get_api_operation', {
+      schema: 'OfferRedemption',
+    });
+    const fields = Object.keys(
+      (
+        redemption['schema'] as {
+          definition: { properties: Record<string, unknown> };
+        }
+      ).definition.properties,
+    );
+    // The order it priced, the code and the amount: never a buyer.
+    expect(fields).toEqual(
+      expect.arrayContaining(['orderId', 'code', 'amount', 'state']),
+    );
+    expect(
+      fields.filter((name) =>
+        /^(buyer|phone|customer|name|address)/i.test(name),
+      ),
+    ).toEqual([]);
   });
 
   it.each([

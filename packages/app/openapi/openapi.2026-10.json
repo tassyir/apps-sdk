@@ -47,7 +47,7 @@
     },
     {
       "name": "Offers",
-      "description": "The merchant's per-store pricing offers: quantity offers, free delivery and product discounts."
+      "description": "The merchant's per-store pricing offers (read them with read_offers), and the offers an app creates and manages itself, with their codes and redemptions (write_offers)."
     },
     {
       "name": "Stores",
@@ -472,7 +472,7 @@
           "Orders"
         ],
         "summary": "Create an order",
-        "description": "The dashboard's manual create: allowance admit, one distribution pass, `source = app:<handle>`. Past the plan's allowance the order is created WAITING (phones hidden, confirm and dispatch locked). On a dev store, orders are capped per day: 429 `DEV_STORE_ORDER_LIMIT_REACHED` with `retryAfterSeconds`.\n\nNeeds the `write_orders` scope (permission `orders:create`).",
+        "description": "The dashboard's manual create: allowance admit, one distribution pass, `source = app:<handle>`. Past the plan's allowance the order is created WAITING (phones hidden, confirm and dispatch locked). `codes` (one offer code at most) prices the order with that code when the business has order pricing on; a code that does not apply is listed in `rejectedCodes` beside `data` and the order is still created. On a dev store, orders are capped per day: 429 `DEV_STORE_ORDER_LIMIT_REACHED` with `retryAfterSeconds`.\n\nNeeds the `write_orders` scope (permission `orders:create`).",
         "parameters": [
           {
             "name": "fields",
@@ -689,7 +689,7 @@
             }
           },
           "409": {
-            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `ORDER_DUPLICATE`.",
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_GONE`, `OFFER_LIMIT_REACHED`, `ORDER_DUPLICATE`.",
             "headers": {
               "RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimit-Limit"
@@ -719,6 +719,8 @@
                         "code": {
                           "enum": [
                             "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_GONE",
+                            "OFFER_LIMIT_REACHED",
                             "ORDER_DUPLICATE"
                           ]
                         }
@@ -7477,6 +7479,339 @@
         },
         "x-tassyir-permission": "offers:read",
         "x-tassyir-scope": "read_offers"
+      },
+      "post": {
+        "operationId": "createOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Create an offer",
+        "description": "Always a DRAFT, owned by the calling installation: publish it with `POST /offers/{id}/publish`. The body is the dashboard's create body (`kind`, `method`, `title`, `label`, `config`, `combinesWith`, `eligibility`, limits, dates, `targets`, and up to 250 `codes` for a `code` offer) with the store in the body: `config` is the rule exactly as the Offers page stores it, not the shape `GET /offers` answers. Validated by the same rules as the dashboard (`400 OFFER_INVALID` lists `errors` with a `field` and a `code` each). An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:create`).",
+        "parameters": [
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOfferInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new draft offer.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `OFFER_INVALID`, `OFFER_KIND_NOT_AVAILABLE`, `OFFER_TARGET_NOT_FOUND`, `OFFER_TARGET_OUTSIDE_STORE`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "OFFER_INVALID",
+                            "OFFER_KIND_NOT_AVAILABLE",
+                            "OFFER_TARGET_NOT_FOUND",
+                            "OFFER_TARGET_OUTSIDE_STORE",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `OFFER_STORE_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_STORE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_CODE_TAKEN`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_CODE_TAKEN"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "460": {
+            "description": "Store outside the installation: `STORE_SCOPE_FORBIDDEN`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 460
+                        },
+                        "code": {
+                          "enum": [
+                            "STORE_SCOPE_FORBIDDEN"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:create",
+        "x-tassyir-scope": "write_offers"
       }
     },
     "/apps/2026-10/offers/{id}": {
@@ -7611,6 +7946,3144 @@
                         },
                         "code": {
                           "enum": [
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": "offers:read",
+        "x-tassyir-scope": "read_offers"
+      },
+      "patch": {
+        "operationId": "updateOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Update an offer",
+        "description": "Changes the fields sent (`targets`, when sent, replaces the whole target set; `kind` and `method` never change). A live offer must stay publishable. The change applies to the offer as it is now unless `expectedVersion` is sent (the dashboard's compare-and-set, 409 `OFFER_VERSION_CONFLICT` with `currentVersion`). An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOfferInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `OFFER_INVALID`, `OFFER_KIND_IMMUTABLE`, `OFFER_TARGET_NOT_FOUND`, `OFFER_TARGET_OUTSIDE_STORE`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "OFFER_INVALID",
+                            "OFFER_KIND_IMMUTABLE",
+                            "OFFER_TARGET_NOT_FOUND",
+                            "OFFER_TARGET_OUTSIDE_STORE",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`, `PLAN_LIMIT_REACHED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED",
+                            "PLAN_LIMIT_REACHED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_VERSION_CONFLICT`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_VERSION_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      },
+      "delete": {
+        "operationId": "deleteOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Delete or archive an offer",
+        "description": "An offer nobody ever redeemed is deleted with its codes and targets (`deleted: true`, `offers/deleted`). One with any redemption keeps its history and is archived instead (`archived: true`, status `ended`, `offers/updated`); archiving again changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:delete`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What happened to the offer.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferRemovalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `IDEMPOTENCY_KEY_INVALID`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_INVALID"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:delete",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/publish": {
+      "post": {
+        "operationId": "publishOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Publish an offer",
+        "description": "Puts a draft live (from its start date). An incomplete offer is 400 `OFFER_INVALID`; past the plan's `active_offers` cap it is 403 `PLAN_LIMIT_REACHED` (the cap counts an app's offers like the merchant's). Publishing a published offer changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferActionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `OFFER_INVALID`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "OFFER_INVALID",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`, `PLAN_LIMIT_REACHED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED",
+                            "PLAN_LIMIT_REACHED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_VERSION_CONFLICT`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_VERSION_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/pause": {
+      "post": {
+        "operationId": "pauseOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Pause an offer",
+        "description": "Stops a live offer pricing orders; resume it to start again. Pausing a paused offer changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferActionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_ENDED`, `OFFER_NOT_PUBLISHED`, `OFFER_VERSION_CONFLICT`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_ENDED",
+                            "OFFER_NOT_PUBLISHED",
+                            "OFFER_VERSION_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/resume": {
+      "post": {
+        "operationId": "resumeOffer",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Resume a paused offer",
+        "description": "Starts a paused offer again; the plan's `active_offers` cap applies. An ended offer is not resumed: move its end date instead. Resuming an offer that is not paused changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `kind`, `method`, `title`, `label`, `status`, `currency`, `quantity`, `freeDelivery`, `productDiscount`, `combinesWith`, `eligibility`, `targets`, `codeCount`, `totalUsageLimit`, `perBuyerLimit`, `startsAt`, `endsAt`, `publishedAt`, `pausedAt`, `archivedAt`, `appOwned`, `createdAt`, `updatedAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferActionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The offer as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`, `PLAN_LIMIT_REACHED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED",
+                            "PLAN_LIMIT_REACHED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_ENDED`, `OFFER_NOT_PUBLISHED`, `OFFER_VERSION_CONFLICT`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_ENDED",
+                            "OFFER_NOT_PUBLISHED",
+                            "OFFER_VERSION_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/codes": {
+      "get": {
+        "operationId": "listOfferCodes",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "List an offer's codes",
+        "description": "Newest first, disabled codes included. Only the owner reads them: An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `read_offers` scope (permission `offers:read`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100 (default 50). A value outside that range is 400, never clamped."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters. Opaque; bound to this list and its filters (400 `INVALID_CURSOR` otherwise)."
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `code`, `usageLimit`, `uses`, `disabled`, `disabledAt`, `createdAt`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of codes.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCodePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_CURSOR`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_CURSOR",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-permission": "offers:read",
+        "x-tassyir-scope": "read_offers"
+      },
+      "post": {
+        "operationId": "addOfferCode",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Add a code to an offer",
+        "description": "One code for a `code` offer. Codes are unique across the business (any case, disabled ones included): 409 `OFFER_CODE_TAKEN`. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `code`, `usageLimit`, `uses`, `disabled`, `disabledAt`, `createdAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferCodeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new code.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `OFFER_CODE_INVALID`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "OFFER_CODE_INVALID",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_CODE_TAKEN`, `OFFER_NOT_CODE_METHOD`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_CODE_TAKEN",
+                            "OFFER_NOT_CODE_METHOD"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/codes/bulk": {
+      "post": {
+        "operationId": "addOfferCodes",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Add up to 250 codes to an offer",
+        "description": "One call, at most 250 codes (one per influencer, say). Partial by design: a code with a bad format, a repeat inside the request or one the business already has is reported for THAT entry in `results` and the others are created; the call is 200 whatever the mix. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkOfferCodesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What each code did.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCodesBulkResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `IDEMPOTENCY_KEY_INVALID`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "BAD_REQUEST",
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`, `OFFER_ARCHIVED`, `OFFER_NOT_CODE_METHOD`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE",
+                            "OFFER_ARCHIVED",
+                            "OFFER_NOT_CODE_METHOD"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/codes/{codeId}/disable": {
+      "post": {
+        "operationId": "disableOfferCode",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Disable a code",
+        "description": "A disabled code stops applying; its history and its spelling are kept (it cannot be added again). Disabling a disabled code changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "codeId",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `code`, `usageLimit`, `uses`, `disabled`, `disabledAt`, `createdAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The code as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_CODE_NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_CODE_NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/codes/{codeId}/enable": {
+      "post": {
+        "operationId": "enableOfferCode",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "Enable a disabled code",
+        "description": "Enabling an enabled code changes nothing. An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `write_offers` scope (permission `offers:update`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "codeId",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `code`, `usageLimit`, `uses`, `disabled`, `disabledAt`, `createdAt`."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The code as it is now.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `IDEMPOTENCY_KEY_INVALID`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_INVALID",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
+                            "PERMISSION_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `NOT_FOUND`, `OFFER_CODE_NOT_FOUND`, `OFFER_NOT_FOUND`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 404
+                        },
+                        "code": {
+                          "enum": [
+                            "NOT_FOUND",
+                            "OFFER_CODE_NOT_FOUND",
+                            "OFFER_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `IDEMPOTENCY_KEY_IN_USE`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 409
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_IN_USE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable: `IDEMPOTENCY_KEY_REUSED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 422
+                        },
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_KEY_REUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/UnavailableForWrite"
+          }
+        },
+        "x-tassyir-permission": "offers:update",
+        "x-tassyir-scope": "write_offers"
+      }
+    },
+    "/apps/2026-10/offers/{id}/redemptions": {
+      "get": {
+        "operationId": "listOfferRedemptions",
+        "tags": [
+          "Offers"
+        ],
+        "summary": "List an offer's redemptions",
+        "description": "Each use of the offer on an order, newest first: the order id, the code and the amount it took off. Never the buyer: no name, no phone, no phone key. Only the owner reads them: An app changes, and reads the codes and redemptions of, only the offers its own installation created (`ownerInstallationId` is set from the token when it creates one). A merchant's offer, or another app's, is 403 `OFFER_NOT_OWNED`; an offer the token cannot see (another business, a store outside the installation's stores) is 404.\n\nNeeds the `read_offers` scope (permission `offers:read`).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "A resource id. One this installation cannot read, or a malformed one, is 404 `NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "held",
+                "final",
+                "released"
+              ]
+            },
+            "description": "Only redemptions in this state: `held` (the order is not with a carrier yet), `final` (handed over) or `released` (the order was cancelled)."
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `orderId`, `codeId`, `code`, `amount`, `currency`, `state`, `createdAt`."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100 (default 50). A value outside that range is 400, never clamped."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters. Opaque; bound to this list and its filters (400 `INVALID_CURSOR` otherwise)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of redemptions.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache-Control-No-Store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferRedemptionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `INVALID_CURSOR`, `INVALID_FIELDS`, `VALIDATION_FAILED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 400
+                        },
+                        "code": {
+                          "enum": [
+                            "INVALID_CURSOR",
+                            "INVALID_FIELDS",
+                            "VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `OFFER_NOT_OWNED`, `PERMISSION_DENIED`.",
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "properties": {
+                        "status": {
+                          "const": 403
+                        },
+                        "code": {
+                          "enum": [
+                            "OFFER_NOT_OWNED",
                             "PERMISSION_DENIED"
                           ]
                         }
@@ -14646,6 +18119,23 @@
         ],
         "additionalProperties": false
       },
+      "BulkOfferCodesInput": {
+        "type": "object",
+        "properties": {
+          "codes": {
+            "maxItems": 250,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferCodeInput"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "codes"
+        ]
+      },
       "Business": {
         "type": "object",
         "properties": {
@@ -15752,6 +19242,163 @@
           "name"
         ]
       },
+      "CreateOfferInput": {
+        "type": "object",
+        "properties": {
+          "storeId": {
+            "type": "string",
+            "pattern": "^\\d{1,24}$",
+            "description": "An id (a string of digits)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "quantity",
+              "free_delivery",
+              "product_discount",
+              "order_discount",
+              "bxgy",
+              "addon",
+              "app"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "code"
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "codes": {
+            "anyOf": [
+              {
+                "maxItems": 250,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OfferCodeInput"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Label is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Config is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "combinesWith": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "CombinesWith is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eligibility": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Eligibility is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalUsageLimit": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "perBuyerLimit": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targets": {
+            "anyOf": [
+              {
+                "maxItems": 101,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OfferTargetInput"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "storeId",
+          "kind",
+          "method",
+          "title"
+        ]
+      },
       "CreateOrderCommentInput": {
         "type": "object",
         "properties": {
@@ -15795,6 +19442,15 @@
           "deliveryNote": {
             "maxLength": 1000,
             "type": "string"
+          },
+          "codes": {
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "maxLength": 64,
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "additionalProperties": false,
@@ -17680,6 +21336,206 @@
         "additionalProperties": false,
         "description": "An offer (API 2026-10)."
       },
+      "OfferActionInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OfferCode": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "code": {
+            "type": "string",
+            "description": "The code as the app typed it (buyers type it in any case)."
+          },
+          "usageLimit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Uses of this code; null = no limit of its own."
+          },
+          "uses": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Redemptions of this code that count against its limit."
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "A disabled code stops applying."
+          },
+          "disabledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "usageLimit",
+          "uses",
+          "disabled",
+          "disabledAt",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "A code of an offer (API 2026-10)."
+      },
+      "OfferCodeInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "maxLength": 60,
+            "type": "string"
+          },
+          "usageLimit": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ]
+      },
+      "OfferCodePage": {
+        "type": "object",
+        "description": "One page, newest first. Pass `nextCursor` back as `cursor` for the next one.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferCode"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on the last page."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "OfferCodeResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OfferCode"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "OfferCodesBulkResult": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many codes were created."
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "The code as sent."
+                },
+                "outcome": {
+                  "type": "string",
+                  "description": "created, taken (the business already has it), invalid (not 3 to 30 letters, digits, - or _) or duplicate_in_request."
+                }
+              },
+              "required": [
+                "code",
+                "outcome"
+              ],
+              "additionalProperties": false
+            },
+            "description": "One entry per code sent, in the order sent."
+          }
+        },
+        "required": [
+          "created",
+          "results"
+        ],
+        "additionalProperties": false,
+        "description": "What a bulk add did. Partial by design: an entry that cannot be created is reported, the others are created."
+      },
+      "OfferCodesBulkResultResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OfferCodesBulkResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "OfferPage": {
         "type": "object",
         "description": "One page, newest first. Pass `nextCursor` back as `cursor` for the next one.",
@@ -17708,6 +21564,146 @@
         ],
         "additionalProperties": false
       },
+      "OfferRedemption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The order the offer priced. Read it with GET /orders/{id} (with read_orders); the buyer is never in a redemption."
+          },
+          "codeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "A resource id (a snowflake id, as a string)."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The code the buyer typed; null for an automatic offer."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "That code, null when there is none or it was removed."
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{2}$",
+            "description": "What the offer took off the order."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 currency code of every amount in this resource."
+          },
+          "state": {
+            "type": "string",
+            "description": "held (the order is not with a carrier yet), final (it was handed over) or released (the order was cancelled)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "codeId",
+          "code",
+          "amount",
+          "currency",
+          "state",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "One use of an offer on one order (API 2026-10)."
+      },
+      "OfferRedemptionPage": {
+        "type": "object",
+        "description": "One page, newest first. Pass `nextCursor` back as `cursor` for the next one.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferRedemption"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null on the last page."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "OfferRemoval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "A resource id (a snowflake id, as a string)."
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "The offer was never redeemed: it and its codes are gone."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "The offer had been redeemed: it keeps its history and is archived (status ended)."
+          }
+        },
+        "required": [
+          "id",
+          "deleted",
+          "archived"
+        ],
+        "additionalProperties": false,
+        "description": "What deleting an offer did: exactly one of deleted and archived is true."
+      },
+      "OfferRemovalResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OfferRemoval"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
       "OfferResponse": {
         "type": "object",
         "properties": {
@@ -17719,6 +21715,51 @@
           "data"
         ],
         "additionalProperties": false
+      },
+      "OfferTargetInput": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "buy",
+                  "get",
+                  "addon"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refType": {
+            "type": "string",
+            "enum": [
+              "all",
+              "product",
+              "variant",
+              "collection"
+            ]
+          },
+          "refId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,24}$",
+                "description": "An id (a string of digits)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "refType"
+        ]
       },
       "Order": {
         "type": "object",
@@ -18769,6 +22810,27 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/Order"
+          },
+          "rejectedCodes": {
+            "type": "array",
+            "description": "Only on `POST orders`, and only when the body sent `codes` and one did not apply: each code with the reason it was not used. A code that does not apply never fails the order.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the code was not used: `code_unknown`, `code_wrong_store`, `code_expired`, `code_not_started`, `code_used_up`, `code_not_applicable`, `not_eligible_channel`, `not_eligible_audience`, `audience_unknown`, `not_eligible_wilaya`, `not_eligible_delivery_method`, `beaten_by` or `no_stacking`."
+                }
+              },
+              "required": [
+                "code",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -19813,6 +23875,169 @@
             "items": {
               "$ref": "#/components/schemas/CategoryRuleInput"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateOfferInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "quantity",
+                  "free_delivery",
+                  "product_discount",
+                  "order_discount",
+                  "bxgy",
+                  "addon",
+                  "app"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "automatic",
+                  "code"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Label is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Config is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "combinesWith": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "CombinesWith is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eligibility": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Eligibility is the offer's stored settings for its kind, exactly as the Offers page keeps them."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalUsageLimit": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "perBuyerLimit": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targets": {
+            "anyOf": [
+              {
+                "maxItems": 101,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OfferTargetInput"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -23035,6 +27260,132 @@
       "fix": "Check the path and the id; a resource outside this installation's stores reads as not found.",
       "fallback": "A refusal with HTTP 404 that carries no more specific code."
     },
+    "OFFER_ARCHIVED": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Create a new offer: an archived one is history and cannot be changed."
+    },
+    "OFFER_CODE_INVALID": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Send a code of 3 to 30 characters: letters, digits, hyphens and underscores."
+    },
+    "OFFER_CODE_NOT_FOUND": {
+      "title": "Not found",
+      "statuses": [
+        404
+      ],
+      "fix": "Name a code of this offer (GET /offers/{id}/codes)."
+    },
+    "OFFER_CODE_TAKEN": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Choose another code: codes are unique across the whole business, disabled ones included."
+    },
+    "OFFER_ENDED": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Move endsAt to a later date with PATCH /offers/{id}: an ended offer is not resumed."
+    },
+    "OFFER_GONE": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Send the order again: the offer behind the code was deleted, and the retry will list the code in rejectedCodes and create the order without it."
+    },
+    "OFFER_INVALID": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Correct the fields listed in errors (each has a field and a code), then send the request again."
+    },
+    "OFFER_KIND_IMMUTABLE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Leave kind and method as the offer has them: create a new offer to change either."
+    },
+    "OFFER_KIND_NOT_AVAILABLE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Create an offer of a kind the dashboard offers today; the other kinds in the model open later."
+    },
+    "OFFER_LIMIT_REACHED": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Send the order again: the code (or offer) has no uses left, and the retry will list the code in rejectedCodes as code_used_up and create the order without it."
+    },
+    "OFFER_NOT_CODE_METHOD": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Only an offer created with method \"code\" has codes; create a code offer to use them."
+    },
+    "OFFER_NOT_FOUND": {
+      "title": "Not found",
+      "statuses": [
+        404
+      ],
+      "fix": "The offer was deleted between the check and the change; read the list again."
+    },
+    "OFFER_NOT_OWNED": {
+      "title": "Offer not owned by this app",
+      "statuses": [
+        403
+      ],
+      "fix": "Create your own offer with POST /offers and change that one; the merchant edits their own offers in the dashboard."
+    },
+    "OFFER_NOT_PUBLISHED": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Publish the draft with POST /offers/{id}/publish first."
+    },
+    "OFFER_STORE_NOT_FOUND": {
+      "title": "Not found",
+      "statuses": [
+        404
+      ],
+      "fix": "Send the id of a store of this business that the installation may access (GET /stores)."
+    },
+    "OFFER_TARGET_NOT_FOUND": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Target only products, variants and collections of this business that still exist; the ids in the offer's targets are not."
+    },
+    "OFFER_TARGET_OUTSIDE_STORE": {
+      "title": "Bad request",
+      "statuses": [
+        400
+      ],
+      "fix": "Target only products, variants and collections of the offer's store."
+    },
+    "OFFER_VERSION_CONFLICT": {
+      "title": "Conflict",
+      "statuses": [
+        409
+      ],
+      "fix": "Read the offer again (currentVersion is its version now) and send expectedVersion with the change, or leave expectedVersion out."
+    },
     "ORDER_DUPLICATE": {
       "title": "Duplicate order",
       "statuses": [
@@ -23090,6 +27441,13 @@
         403
       ],
       "fix": "The merchant's plan does not include this feature; it works once the merchant upgrades."
+    },
+    "PLAN_LIMIT_REACHED": {
+      "title": "Merchant's plan limit reached",
+      "statuses": [
+        403
+      ],
+      "fix": "The merchant's plan limit is reached; it works once the merchant upgrades or frees capacity."
     },
     "PRODUCT_DEFAULT_VARIANT": {
       "title": "Default variant follows its product",

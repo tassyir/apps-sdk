@@ -108,6 +108,22 @@ export type {
   VerifyHostedWebhookOptions,
 } from './hosted.js';
 
+export {
+  addOfferCodes,
+  APP_OFFER_RULE_LIMITS,
+  OFFER_CODES_BULK_MAX,
+} from './offers.js';
+export type {
+  AppOfferAction,
+  AppOfferChannel,
+  AppOfferClass,
+  AppOfferCondition,
+  AppOfferConfig,
+  AppOfferIds,
+  AppOfferLeaf,
+  AppOfferRule,
+} from './offers.js';
+
 export { AdminClient } from './admin-client.js';
 export type {
   AccessTokenProvider,
@@ -131,6 +147,7 @@ export type {
   CancelReason,
   Checkout,
   Collection,
+  CreateOfferInput,
   Customer,
   DeliveryAgent,
   DeliveryFeeGroup,
@@ -143,6 +160,13 @@ export type {
   ListItem,
   ListPath,
   Offer,
+  OfferCode,
+  OfferCodeInput,
+  OfferCodesBulkResult,
+  OfferKind,
+  OfferRedemption,
+  OfferRemoval,
+  OfferTargetInput,
   Order,
   OrderComment,
   OrderItem,
@@ -153,6 +177,7 @@ export type {
   RequestOptions,
   ResponseBody,
   Store,
+  UpdateOfferInput,
   WebhookEvent,
   WebhookEventOf,
   WebhookTopic,

@@ -263,6 +263,10 @@ export function search(
     score *= 0.5 + matched / terms.length;
     if (phrase.length >= 4 && entry.text.toLowerCase().includes(phrase))
       score *= 1.5;
+    // The query is a whole heading ("create an order"): that section is the
+    // answer, not the guide it sits in.
+    if (phrase.length >= 4 && entry.title.toLowerCase().includes(phrase))
+      score *= 1.5;
     return [{ entry, score }];
   });
   scored.sort((a, b) => b.score - a.score || a.entry.rank - b.entry.rank);
