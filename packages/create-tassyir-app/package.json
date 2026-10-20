@@ -1,6 +1,6 @@
 {
   "name": "create-tassyir-app",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Start a Tassyir app: npm create tassyir-app@latest. A Node server with an embedded page, webhooks and the Admin API, ready for AI coding agents (AGENTS.md, CLAUDE.md, a Claude Code skill).",
   "license": "MIT",
   "repository": {
@@ -49,7 +49,7 @@
     "browser-check": "node scripts/browser-check.mjs"
   },
   "dependencies": {
-    "@tassyir/app-manifest": "^0.3.1",
+    "@tassyir/app-manifest": "^0.4.0",
     "smol-toml": "^1.9.0"
   }
 }

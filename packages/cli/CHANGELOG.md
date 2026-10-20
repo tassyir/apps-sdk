@@ -1,5 +1,22 @@
 # tassyir
 
+## 0.6.0
+
+### Minor Changes
+
+- d978cfe: `tassyir webhook trigger` accepts `offers/created`, `offers/updated` and `offers/deleted` (they need `read_offers`; the manifest checks know the scope). The developer API types follow the API's OpenAPI document at backend `5cfe4ee3`, which also carries the ratings operations (`listAppRatings`, `replyToAppRating`, `deleteAppRatingReply`, `reportAppRating`) the previous copy predated.
+- 0efc04c: `tassyir validate` and `tassyir deploy` check the `[[offers.types]]` section and the `write_offers` scope with the new manifest package, each problem with its code, path and fix.
+
+### Patch Changes
+
+- Updated dependencies [79d20f8]
+- Updated dependencies [891045a]
+- Updated dependencies [1b2ca05]
+- Updated dependencies [f6bb3c0]
+- Updated dependencies [f744f56]
+  - @tassyir/app-manifest@0.4.0
+  - create-tassyir-app@0.2.4
+
 ## 0.5.0
 
 ### Minor Changes

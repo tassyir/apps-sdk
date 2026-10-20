@@ -1,5 +1,12 @@
 # @tassyir/app-manifest
 
+## 0.4.0
+
+### Minor Changes
+
+- 79d20f8: The `read_offers` scope (it implies no other) and the webhook topics `offers/created`, `offers/updated` and `offers/deleted`, which `read_offers` opens. `MANIFEST_VOCABULARY` and the published JSON Schema carry them (`access.scopes` and `access.optional_scopes` may now hold 18 names, and `webhooks[].topics` 23). Equal to the Tassyir API's catalogues: a manifest that asks for the scope or subscribes to a topic validates, and a topic without `read_offers` is `MANIFEST_TOPIC_SCOPE_MISSING`.
+- 1b2ca05: `write_offers` (it implies `read_offers`, and comes right after it in the scope order) and the `[[offers.types]]` section: the offer types an app lets the merchant create from it, each with a `handle` (`[a-z0-9][a-z0-9-]{0,39}`, unique), a `class` (`product`, `order` or `delivery`), a `path` (your page that configures one offer, at most 200 characters), a `label` and an optional `description` (`{ ar, en }`). At most 10, and declaring any needs `write_offers` (`MANIFEST_OFFER_TYPES_SCOPE_MISSING`). New error codes `MANIFEST_OFFER_TYPES_NOT_AVAILABLE`, `MANIFEST_OFFER_TYPES_SCOPE_MISSING`, `MANIFEST_OFFER_TYPE_HANDLE_INVALID`, `MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE` and `MANIFEST_OFFER_TYPE_LABEL_INVALID`; the types `ManifestOfferType` and `ManifestOfferTypeClass` and the constants `OFFER_TYPE_CLASSES`, `OFFER_TYPE_HANDLE_PATTERN` and `OFFER_TYPES_SCOPE` are exported. The normalised manifest has an `offers` table only when it holds a type, and `MANIFEST_VOCABULARY` and the published JSON Schema carry the scope (`access.scopes` and `access.optional_scopes` may now hold 19 names) and the section.
+
 ## 0.3.1
 
 ### Patch Changes
