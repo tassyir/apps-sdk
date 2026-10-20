@@ -10,6 +10,8 @@ import {
   httpsUrlProblem,
   labelProblem,
   nameProblem,
+  offerTypeDescriptionProblem,
+  offerTypeHandleProblem,
   optionValueProblem,
   quote,
   relativePathProblem,
@@ -31,6 +33,8 @@ import {
   HOSTING_MODES,
   MANIFEST_FILE_NAME,
   MANIFEST_LIMITS,
+  OFFER_TYPE_CLASSES,
+  OFFER_TYPES_SCOPE,
   SETTING_KEY_PATTERN,
   SETTING_OPTION_VALUE_PATTERN,
   SETTING_TYPES,
@@ -43,6 +47,7 @@ import type {
   ManifestError,
   ManifestErrorCode,
   ManifestLabel,
+  ManifestOfferType,
   ManifestSetting,
   ManifestStorefrontBlock,
   ManifestValidationResult,
@@ -66,7 +71,7 @@ import { MANIFEST_VOCABULARY } from './vocabulary.js';
  *     the most specific message;
  *  3. rules across fields: hosting mode, scope reasons, implied scopes,
  *     topics needing a scope, duplicates, storefront blocks and their
- *     settings, the app proxy, admin actions.
+ *     settings, the app proxy, admin actions, offer types.
  *
  * Deterministic: errors are sorted by field (manifest order, then array
  * index), then code, so the same document always gives the same list, in the
@@ -153,14 +158,18 @@ const KEY_ORDER = [
   'template',
   'stylesheet',
   'target',
+  'class',
   'settings',
   'value',
   'label',
+  'description',
   'default',
   'options',
   'min',
   'max',
   'max_length',
+  'offers',
+  'types',
   'path',
   'app_proxy',
   'ar',
@@ -345,6 +354,7 @@ const ENUMS: Record<string, readonly string[]> = {
   'storefront.blocks[].target': BLOCK_TARGETS,
   'storefront.blocks[].settings[].type': SETTING_TYPES,
   'admin.actions[].target': ADMIN_ACTION_TARGETS,
+  'offers.types[].class': OFFER_TYPE_CLASSES,
 };
 
 /** The `{ ar, en }` labels, by the shape of the table that holds them. */
@@ -356,6 +366,7 @@ const LABEL_CODES: Record<string, ManifestErrorCode> = {
   'storefront.blocks[].settings[].options[].label':
     'MANIFEST_BLOCK_SETTING_LABEL_INVALID',
   'admin.actions[].label': 'MANIFEST_ACTION_LABEL_INVALID',
+  'offers.types[].label': 'MANIFEST_OFFER_TYPE_LABEL_INVALID',
 };
 
 /** The numeric fields of a setting, checked by {@link numberProblem}. */
@@ -450,6 +461,21 @@ function webhookUriProblem(value: string, path: string): Problem | null {
     : relativePathProblem(value, path, '/webhooks');
 }
 
+/**
+ * An offer type's `path`: a path on the app's origin like a page's, at most
+ * as long as the API's reader accepts (shorter than a page path).
+ */
+function offerTypePathProblem(value: string, path: string): Problem | null {
+  if (value.length > L.offerTypePathMaxLength) {
+    return {
+      code: 'MANIFEST_PATH_INVALID',
+      message: `\`${path}\` is ${value.length} characters long; the limit is ${L.offerTypePathMaxLength}.`,
+      fix: `Shorten \`${path}\` to ${L.offerTypePathMaxLength} characters or fewer.`,
+    };
+  }
+  return relativePathProblem(value, path, '/offers/mix-match');
+}
+
 /** The check for the value at `path`, chosen by the field it is. */
 function leafProblem(lookup: Lookup, path: Path, value: string): LeafVerdict {
   const at = formatManifestPath(path);
@@ -500,6 +526,13 @@ function leafProblem(lookup: Lookup, path: Path, value: string): LeafVerdict {
       return handleProblem(value, at, 'action');
     case 'admin.actions[].path':
       return relativePathProblem(value, at, '/actions/print');
+    case 'offers.types[].handle':
+      return offerTypeHandleProblem(value, at);
+    case 'offers.types[].path':
+      return offerTypePathProblem(value, at);
+    case 'offers.types[].description.ar':
+    case 'offers.types[].description.en':
+      return offerTypeDescriptionProblem(value, at);
     case 'app_proxy.path':
       return relativePathProblem(value, at, '/proxy');
   }
@@ -653,6 +686,15 @@ const EXAMPLES: Record<string, string> = {
   'admin.actions[].label':
     'label = { ar = "طباعة الملصقات", en = "Print labels" }',
   'admin.actions[].path': 'path = "/actions/print"',
+  offers: '[offers] table',
+  'offers.types': '[[offers.types]] table',
+  'offers.types[]': '[[offers.types]] table',
+  'offers.types[].handle': 'handle = "mix-match"',
+  'offers.types[].class': 'class = "product"',
+  'offers.types[].path': 'path = "/offers/mix-match"',
+  'offers.types[].label': 'label = { ar = "اخلط واختر", en = "Mix and match" }',
+  'offers.types[].description':
+    'description = { ar = "اختر قطعًا من تشكيلة", en = "Pick pieces from a range" }',
   app_proxy: '[app_proxy] table',
   'app_proxy.path': 'path = "/proxy"',
 };
@@ -1192,6 +1234,14 @@ function checkHostedReservedPaths(root: unknown, report: Report): void {
       '/actions/print',
     );
   });
+  (listAt(root, ['offers', 'types']) ?? []).forEach((entry, index) => {
+    if (!isTable(entry)) return;
+    reserved(
+      ['offers', 'types', index, 'path'],
+      own(entry, 'path'),
+      '/offers/mix-match',
+    );
+  });
   (listAt(root, ['webhooks']) ?? []).forEach((entry, index) => {
     if (!isTable(entry)) return;
     reserved(['webhooks', index, 'uri'], own(entry, 'uri'), '/webhooks');
@@ -1673,6 +1723,52 @@ function checkActions(lookup: Lookup, root: unknown, report: Report): void {
   });
 }
 
+/**
+ * `[[offers.types]]`: the scope that makes them usable, and each handle once.
+ * The scope is `write_offers` (it implies `read_offers`): the API lists a type
+ * "from your apps" only for an installation that holds it.
+ */
+function checkOfferTypes(lookup: Lookup, root: unknown, report: Report): void {
+  const types = listAt(root, ['offers', 'types']);
+  if (!types || types.length === 0) return;
+  const term = lookup.scopes.get(OFFER_TYPES_SCOPE);
+  if (!term || !term.available) {
+    report.error(
+      ['offers', 'types'],
+      'MANIFEST_OFFER_TYPES_NOT_AVAILABLE',
+      'Offer types cannot be declared yet.',
+      term?.unavailableReason
+        ? `Remove the [[offers.types]] tables; ${term.unavailableReason}.`
+        : 'Remove the [[offers.types]] tables.',
+    );
+  } else if (
+    !closeScopes(lookup, requestedScopes(root)).has(OFFER_TYPES_SCOPE)
+  ) {
+    report.error(
+      ['offers', 'types'],
+      'MANIFEST_OFFER_TYPES_SCOPE_MISSING',
+      `Offer types need the "${OFFER_TYPES_SCOPE}" scope, which the manifest does not request.`,
+      `Add "${OFFER_TYPES_SCOPE}" to \`access.scopes\` (or \`access.optional_scopes\`), or remove the [[offers.types]] tables.`,
+    );
+  }
+  const seen = new Map<string, number>();
+  types.forEach((entry, index) => {
+    const handle = isTable(entry) ? own(entry, 'handle') : undefined;
+    if (typeof handle !== 'string') return;
+    const first = seen.get(handle);
+    if (first !== undefined) {
+      report.error(
+        ['offers', 'types', index, 'handle'],
+        'MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE',
+        `"${handle}" is already the handle of \`offers.types[${first}]\`.`,
+        `Give \`offers.types[${index}]\` another handle.`,
+      );
+      return;
+    }
+    seen.set(handle, index);
+  });
+}
+
 // ── Normalisation ───────────────────────────────────────────────────────────
 
 function strings(value: unknown): string[] {
@@ -1740,6 +1836,19 @@ function normaliseAction(entry: Record<string, unknown>): ManifestAdminAction {
     label: labelOf(entry['label']),
     path: entry['path'] as string,
   };
+}
+
+function normaliseOfferType(entry: Record<string, unknown>): ManifestOfferType {
+  const type: ManifestOfferType = {
+    handle: entry['handle'] as string,
+    class: entry['class'] as ManifestOfferType['class'],
+    path: entry['path'] as string,
+    label: labelOf(entry['label']),
+  };
+  if (isTable(entry['description'])) {
+    type.description = labelOf(entry['description']);
+  }
+  return type;
 }
 
 /** The stored form of a manifest that passed every check. */
@@ -1813,6 +1922,10 @@ function normalise(lookup: Lookup, root: Record<string, unknown>): AppManifest {
   manifest.storefront.blocks = tables(
     valueAt(root, ['storefront', 'blocks']),
   ).map(normaliseBlock);
+  const offerTypes = tables(valueAt(root, ['offers', 'types'])).map(
+    normaliseOfferType,
+  );
+  if (offerTypes.length > 0) manifest.offers = { types: offerTypes };
   const proxyPath = valueAt(root, ['app_proxy', 'path']);
   if (typeof proxyPath === 'string') {
     manifest.app_proxy = { path: proxyPath };
@@ -1830,6 +1943,7 @@ function normalise(lookup: Lookup, root: Record<string, unknown>): AppManifest {
     'webhooks',
     'data',
     'storefront',
+    'offers',
     'app_proxy',
   ]) {
     if (key in manifest) ordered[key] = manifest[key as keyof AppManifest];
@@ -1908,6 +2022,7 @@ export function validateManifest(
   checkBlocks(lookup, input, report);
   checkProxy(lookup, input, report);
   checkActions(lookup, input, report);
+  checkOfferTypes(lookup, input, report);
 
   if (report.collected.length === 0) {
     return { ok: true, manifest: normalise(lookup, input) };

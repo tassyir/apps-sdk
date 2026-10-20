@@ -51,11 +51,16 @@ export const FIXTURE_VOCABULARY: ManifestVocabulary = {
  */
 export const STOREFRONT_VOCABULARY: ManifestVocabulary = {
   ...FIXTURE_VOCABULARY,
-  scopes: FIXTURE_VOCABULARY.scopes.map((scope) =>
-    scope.name === FIXTURE_VOCABULARY.storefrontBlocksScope
-      ? { name: scope.name, implies: [], available: true }
-      : scope,
-  ),
+  scopes: [
+    ...FIXTURE_VOCABULARY.scopes.map((scope) =>
+      scope.name === FIXTURE_VOCABULARY.storefrontBlocksScope
+        ? { name: scope.name, implies: [], available: true }
+        : scope,
+    ),
+    // Offers Phase 2: `write_offers` (implies `read_offers`) opens offer types.
+    { name: 'read_offers', implies: [], available: true },
+    { name: 'write_offers', implies: ['read_offers'], available: true },
+  ],
   appProxy: { available: true },
 };
 
@@ -94,7 +99,8 @@ export function hostedManifest(): Record<string, unknown> {
 
 /**
  * A valid hosted manifest with every marketplace field (storefront blocks and
- * their settings, a data label, an admin action, the app proxy), valid for
+ * their settings, a data label, an admin action, an offer type, the app
+ * proxy), valid for
  * {@link STOREFRONT_VOCABULARY}.
  */
 export function storefrontManifest(): Record<string, unknown> {
@@ -103,8 +109,9 @@ export function storefrontManifest(): Record<string, unknown> {
     scopes: string[];
     scope_reasons: Record<string, string>;
   };
-  access.scopes.push('write_storefront');
+  access.scopes.push('write_storefront', 'write_offers');
   access.scope_reasons['write_storefront'] = 'Show the stars on product pages';
+  access.scope_reasons['write_offers'] = 'Create the offers of its own types';
   (doc['admin'] as Record<string, unknown>)['actions'] = [
     {
       handle: 'ask-for-reviews',
@@ -158,6 +165,26 @@ export function storefrontManifest(): Record<string, unknown> {
             max_length: 60,
           },
         ],
+      },
+    ],
+  };
+  doc['offers'] = {
+    types: [
+      {
+        handle: 'mix-match',
+        class: 'product',
+        path: '/offers/mix-match',
+        label: { ar: 'اخلط واختر', en: 'Mix and match' },
+        description: {
+          ar: 'اختر قطعًا من تشكيلة بسعر واحد',
+          en: 'Pick pieces from a range at one price',
+        },
+      },
+      {
+        handle: 'free-delivery-club',
+        class: 'delivery',
+        path: '/offers/club',
+        label: { ar: 'توصيل مجاني للأعضاء', en: 'Club free delivery' },
       },
     ],
   };

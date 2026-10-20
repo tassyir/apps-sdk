@@ -828,6 +828,20 @@ describe('tassyir webhook', () => {
     expect(JSON.parse(sent?.body ?? '{}')).toEqual({ topic: 'orders/created' });
   });
 
+  it.each(['offers/created', 'offers/updated', 'offers/deleted'])(
+    'trigger sends a test %s event (the server builds the sample offer)',
+    async (topic) => {
+      const { harness, app } = await ready();
+      const result = await harness.run('webhook', 'trigger', topic, '--json');
+      expect(result.code).toBe(0);
+      const sent = posts(harness, /webhooks\/test$/)[0];
+      expect(sent?.path).toBe(
+        `/developer/apps/${app.id}/installations/5001/webhooks/test`,
+      );
+      expect(JSON.parse(sent?.body ?? '{}')).toEqual({ topic });
+    },
+  );
+
   it('trigger: exit 1 with a fix when the endpoint did not answer 2xx', async () => {
     const { harness } = await ready();
     harness.fake.testResult = {

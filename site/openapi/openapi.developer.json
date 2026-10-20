@@ -45,6 +45,10 @@
       "description": "Submitting your app for the marketplace: the review cases, the checklist and its dry run, your notes to the reviewer, delisting."
     },
     {
+      "name": "Ratings",
+      "description": "Merchants' ratings of your listed app: read them, reply once to each, report one that breaks the rules."
+    },
+    {
       "name": "Installations",
       "description": "Where your app is installed, and its webhooks' health."
     },
@@ -2849,6 +2853,701 @@
         "x-tassyir-auth": "developer"
       }
     },
+    "/developer/apps/{appId}/ratings": {
+      "get": {
+        "operationId": "listAppRatings",
+        "tags": [
+          "Ratings"
+        ],
+        "summary": "List your app's ratings",
+        "description": "The published ratings, newest first, with the average and count the marketplace shows. `limit` 1-50 (default 20). A rating Tassyir hid is not listed.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "maxLength": 200
+            },
+            "description": "The `nextCursor` of the previous page, unchanged, with the same filters."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Page size, 1 to 100. A value outside that range is 400."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppRatingPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/ratings/{ratingId}/reply": {
+      "put": {
+        "operationId": "replyToAppRating",
+        "tags": [
+          "Ratings"
+        ],
+        "summary": "Reply to a rating",
+        "description": "One reply per rating, shown under it; sending again replaces it. Plain text, 1-1,000 characters, without links, email addresses, phone numbers or insults. The merchant is told of your first reply.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "ratingId",
+            "in": "path",
+            "required": true,
+            "description": "A published rating of this app. Another app's, a hidden one, or a malformed id, is 404 `RATING_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyAppRatingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rating, with your reply.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppRatingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`, `REPLY_INVALID`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST",
+                                "REPLY_INVALID"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `RATING_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "RATING_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      },
+      "delete": {
+        "operationId": "deleteAppRatingReply",
+        "tags": [
+          "Ratings"
+        ],
+        "summary": "Delete your reply to a rating",
+        "description": "Takes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "ratingId",
+            "in": "path",
+            "required": true,
+            "description": "A published rating of this app. Another app's, a hidden one, or a malformed id, is 404 `RATING_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rating, without a reply.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppRatingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `RATING_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "RATING_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
+    "/developer/apps/{appId}/ratings/{ratingId}/report": {
+      "post": {
+        "operationId": "reportAppRating",
+        "tags": [
+          "Ratings"
+        ],
+        "summary": "Report a rating to Tassyir",
+        "description": "A rating that is off topic, shares personal data, comes from a competitor, is abusive or is spam. Tassyir decides; reporting again while your report is open changes nothing.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "security": [
+          {
+            "dashboardSession": []
+          },
+          {
+            "developerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "One of your apps' ids. Another developer's app, or a malformed id, is 404 `APP_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          },
+          {
+            "name": "ratingId",
+            "in": "path",
+            "required": true,
+            "description": "A published rating of this app. Another app's, a hidden one, or a malformed id, is 404 `RATING_NOT_FOUND`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,20}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportAppRatingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rating, `reportedByYou`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppRatingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: `BAD_REQUEST`; a field refused by validation (no `code`).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DeveloperError"
+                        },
+                        {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "BAD_REQUEST"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/DeveloperUnauthorized"
+          },
+          "403": {
+            "description": "Not allowed: `DEVELOPER_ACCOUNT_SUSPENDED`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DEVELOPER_ACCOUNT_SUSPENDED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: `APP_NOT_FOUND`, `DEVELOPER_ACCOUNT_NOT_FOUND`, `RATING_NOT_FOUND`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_NOT_FOUND",
+                            "DEVELOPER_ACCOUNT_NOT_FOUND",
+                            "RATING_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: `APP_READ_ONLY`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DeveloperError"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "APP_READ_ONLY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/DeveloperThrottled"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "x-tassyir-auth": "developer"
+      }
+    },
     "/developer/apps/{appId}/relist": {
       "post": {
         "operationId": "relistApp",
@@ -4196,7 +4895,7 @@
           "Versions"
         ],
         "summary": "Upload a version of the app's manifest",
-        "description": "The body is at most 128 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser); a larger body is 413 `PAYLOAD_TOO_LARGE` with `limitBytes`, `hostingAvailable` and a `fix` saying why (while hosting is off, only a version carrying a bundle is that large). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once, except for a LISTED app: there it must subscribe the three compliance topics and name a supported API version (400 `REVIEW_CHECKS_FAILED`, nothing stored), and a version that adds scopes, data hosts or storefront code waits `in_review` for a person (a `version` review case opens by itself). A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on and open to your developer account) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
+        "description": "The body is at most 328 KB (8 MB + 128 KB while Tassyir Hosting is on) and nests at most 16 levels (its own parser); a larger body is 413 `PAYLOAD_TOO_LARGE` with `limitBytes`, `hostingAvailable` and a `fix` saying why (while hosting is off, only a version carrying a bundle is that large). The validator checks the manifest (every error at once); `handle` must be the app's; a manifest identical to the latest version's (and, hosted, the same bundle) is refused. An external version is numbered latest + 1, approved and current at once, except for a LISTED app: there it must subscribe the three compliance topics and name a supported API version (400 `REVIEW_CHECKS_FAILED`, nothing stored), and a version that adds scopes, data hosts or storefront code waits `in_review` for a person (a `version` review case opens by itself). A hosted version (`hosting.mode = \"tassyir\"`, while Tassyir Hosting is on and open to your developer account) carries its `bundle`, stored before the version is created `scanning`; it is scanned, uploaded and released by the hosting pipeline. Storefront blocks (`[[storefront.blocks]]`, scope `write_storefront`): each block's template and stylesheet are read from the version's files (an external version's `assets`, a hosted version's `bundle.files`) and checked by `@tassyir/storefront-blocks`' `validateBlock`, the same function the CLI runs; the first block that fails is 400 `BLOCK_TEMPLATE_INVALID` with the package's errors (each with `line`, `column` and `fix`), a missing, unused or oversized file 400 `BLOCK_ASSETS_INVALID`, and nothing is stored. 30 uploads per developer per hour, 10 hosted a day.\n\nTakes the dashboard session or a developer token (`tsy_dt_…`); either way the caller is the signed-in user, and only their own account, apps and tokens are reachable.",
         "security": [
           {
             "dashboardSession": []
@@ -4244,7 +4943,7 @@
             }
           },
           "400": {
-            "description": "Bad request: `APP_BUNDLE_INVALID`, `APP_BUNDLE_NOT_ALLOWED`, `APP_BUNDLE_REQUIRED`, `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`, `REVIEW_CHECKS_FAILED`; a field refused by validation (no `code`).",
+            "description": "Bad request: `APP_BUNDLE_INVALID`, `APP_BUNDLE_NOT_ALLOWED`, `APP_BUNDLE_REQUIRED`, `APP_HOSTING_NOT_AVAILABLE`, `APP_MANIFEST_HANDLE_MISMATCH`, `APP_MANIFEST_INVALID`, `APP_MANIFEST_TOO_DEEP`, `BAD_REQUEST`, `BLOCK_ASSETS_INVALID`, `BLOCK_TEMPLATE_INVALID`, `REVIEW_CHECKS_FAILED`; a field refused by validation (no `code`).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -4271,6 +4970,8 @@
                                 "APP_MANIFEST_INVALID",
                                 "APP_MANIFEST_TOO_DEEP",
                                 "BAD_REQUEST",
+                                "BLOCK_ASSETS_INVALID",
+                                "BLOCK_TEMPLATE_INVALID",
                                 "REVIEW_CHECKS_FAILED"
                               ]
                             }
@@ -4624,6 +5325,9 @@
                 "products/deleted",
                 "inventory_levels/updated",
                 "customers/updated",
+                "offers/created",
+                "offers/updated",
+                "offers/deleted",
                 "app/installed",
                 "app/uninstalled",
                 "app/scopes_updated",
@@ -7208,6 +7912,242 @@
             ],
             "additionalProperties": false,
             "description": "Your app's delisting."
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AppRating": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "A Tassyir id: a string of digits."
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Plain text, at most 1,000 characters; null = stars only."
+          },
+          "author": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "business"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The business's name."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "anonymous"
+                  },
+                  "province": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "name",
+                          "nameAr"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The wilaya the merchant chose to show, or null."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "province"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "description": "Who wrote it: the business by name, or \"A Tassyir merchant in {wilaya}\"."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "False: the business has uninstalled your app since."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 date-time, UTC."
+          },
+          "editedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 date-time, UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merchant's last edit."
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string"
+                  },
+                  "repliedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                    "description": "ISO 8601 date-time, UTC."
+                  }
+                },
+                "required": [
+                  "body",
+                  "repliedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Your reply, or null."
+          },
+          "reportedByYou": {
+            "type": "boolean",
+            "description": "You have a report of this rating Tassyir has not decided yet."
+          }
+        },
+        "required": [
+          "id",
+          "stars",
+          "body",
+          "author",
+          "installed",
+          "createdAt",
+          "editedAt",
+          "reply",
+          "reportedByYou"
+        ],
+        "additionalProperties": false,
+        "description": "One published rating of your app."
+      },
+      "AppRatingPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppRating"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass it back as `cursor` for the next page; null on the last."
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "average": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The plain average of the published ratings, 2 decimals; null with none."
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "average",
+              "count"
+            ],
+            "additionalProperties": false,
+            "description": "What the marketplace shows (its stars only from 3 ratings)."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor",
+          "summary"
+        ],
+        "additionalProperties": false,
+        "description": "One page of published ratings, newest first."
+      },
+      "AppRatingResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AppRating"
           }
         },
         "required": [
@@ -10804,6 +11744,38 @@
         "type": "string",
         "description": "The platform-wide rate limit's refusal: a bare JSON string, not an object, sent only while that limit is enforced. A developer token's calls are counted by IP."
       },
+      "ReplyAppRatingInput": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "body"
+        ]
+      },
+      "ReportAppRatingInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "off_topic",
+              "personal_data",
+              "conflict_of_interest",
+              "abusive",
+              "spam"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "reason"
+        ]
+      },
       "ReviewCase": {
         "type": "object",
         "properties": {
@@ -11348,6 +12320,9 @@
               "products/deleted",
               "inventory_levels/updated",
               "customers/updated",
+              "offers/created",
+              "offers/updated",
+              "offers/deleted",
               "app/installed",
               "app/uninstalled",
               "app/scopes_updated",
@@ -11936,6 +12911,43 @@
                 "type": "null"
               }
             ]
+          },
+          "assets": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "An EXTERNAL version's storefront block files (refused on a hosted version, whose block files are modules of its `bundle`): `{ files: [{ path, content }] }`, `.liquid` templates and `.css` stylesheets only, at most 40 files and 100 KB together, every file named by a block of the manifest and every block's files present (400 `BLOCK_ASSETS_INVALID`).",
+                "required": [
+                  "files"
+                ],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "content"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -12016,6 +13028,9 @@
               "products/deleted",
               "inventory_levels/updated",
               "customers/updated",
+              "offers/created",
+              "offers/updated",
+              "offers/deleted",
               "app/installed",
               "app/uninstalled",
               "app/scopes_updated",
@@ -12272,6 +13287,9 @@
               "products/deleted",
               "inventory_levels/updated",
               "customers/updated",
+              "offers/created",
+              "offers/updated",
+              "offers/deleted",
               "app/installed",
               "app/uninstalled",
               "app/scopes_updated",

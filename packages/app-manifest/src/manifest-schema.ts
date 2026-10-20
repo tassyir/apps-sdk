@@ -14,6 +14,8 @@ import {
   HTTPS_URL_HINT,
   MANIFEST_FILE_NAME,
   MANIFEST_LIMITS,
+  OFFER_TYPE_CLASSES,
+  OFFER_TYPE_HANDLE_PATTERN,
   RELATIVE_PATH_HINT,
   SETTING_KEY_PATTERN,
   SETTING_OPTION_VALUE_PATTERN,
@@ -57,16 +59,16 @@ function httpsUrl() {
   return z.string().max(L.urlMaxLength).regex(HTTPS_URL_HINT);
 }
 
-function relativePath() {
-  return z.string().max(L.pathMaxLength).regex(RELATIVE_PATH_HINT);
+function relativePath(max: number = L.pathMaxLength) {
+  return z.string().max(max).regex(RELATIVE_PATH_HINT);
 }
 
 /** Text shown to merchants in both dashboard languages. */
-function label(description: string) {
+function label(description: string, max: number = L.labelMaxLength) {
   return z
     .strictObject({
-      ar: displayText(1, L.labelMaxLength),
-      en: displayText(1, L.labelMaxLength),
+      ar: displayText(1, max),
+      en: displayText(1, max),
     })
     .describe(description);
 }
@@ -347,6 +349,41 @@ export function buildManifestSchema(
             .max(L.storefrontBlocksMax)
             .describe(
               'Declarative storefront blocks: they need the write_storefront scope.',
+            )
+            .optional(),
+        })
+        .optional(),
+      offers: z
+        .strictObject({
+          types: z
+            .array(
+              z.strictObject({
+                handle: z
+                  .string()
+                  .regex(OFFER_TYPE_HANDLE_PATTERN)
+                  .describe(
+                    'Unique among the types: lowercase letters, digits and hyphens, at most 40.',
+                  ),
+                class: z
+                  .enum(OFFER_TYPE_CLASSES)
+                  .describe(
+                    'What the offers of this type do: "product" (money off lines, a gift), "order" (money off the goods) or "delivery" (a waived fee). Every rule of the type uses this class.',
+                  ),
+                path: relativePath(L.offerTypePathMaxLength).describe(
+                  "The app's page that configures one offer of this type: a path on the app's origin.",
+                ),
+                label: label(
+                  'The type as the merchant reads it in "From your apps".',
+                ),
+                description: label(
+                  'Optional: one sentence under the name.',
+                  L.offerTypeDescriptionMaxLength,
+                ).optional(),
+              }),
+            )
+            .max(L.offerTypesMax)
+            .describe(
+              'Offer types the merchant can create from the app: they need the write_offers scope.',
             )
             .optional(),
         })

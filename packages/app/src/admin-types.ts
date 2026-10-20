@@ -22,6 +22,14 @@ type Schemas = components['schemas'];
 // numbers: keep them strings, or use a decimal library, never parseFloat.
 export type Business = Schemas['Business'];
 export type Order = Schemas['Order'];
+/** One line of an order. `unitPrice` and `totalPrice` are NET of discounts; `originalPrice` is the gross unit price. */
+export type OrderItem = Order['items'][number];
+/**
+ * A discount an order got, grouped by title, code, class and source: on the
+ * order (`Order['discounts']`) or on a line (`OrderItem['discounts']`).
+ * `class: 'delivery'` is a shipping waiver and is not part of `discountTotal`.
+ */
+export type Discount = Order['discounts'][number];
 export type OrderComment = Schemas['OrderComment'];
 export type CancelReason = Schemas['CancelReason'];
 export type Checkout = Schemas['Checkout'];
@@ -30,6 +38,42 @@ export type ProductVariant = Schemas['ProductVariant'];
 export type Collection = Schemas['Collection'];
 export type InventoryLevel = Schemas['InventoryLevel'];
 export type Customer = Schemas['Customer'];
+export type Offer = Schemas['Offer'];
+/** The rule block of a `quantity` offer (`Offer['kind']`), `null` for any other kind. */
+export type OfferQuantity = NonNullable<Offer['quantity']>;
+/** `order_discount` offers only: `valueType` percent or fixed, the cap and the minimum. */
+export type OfferOrderDiscount = NonNullable<Offer['orderDiscount']>;
+/** `bxgy` (buy X, get Y) offers only. The buy and get products are the `targets` with role `buy` / `get`. */
+export type OfferBxgy = NonNullable<Offer['bxgy']>;
+/** `addon` offers only. The add-on products are the `targets` with role `addon`. */
+export type OfferAddon = NonNullable<Offer['addon']>;
+/**
+ * `app` offers only: the owning app's type and its rule. `rule` is `unknown`
+ * here (an app's rule is the JSON it wrote): narrow it to `AppOfferRule`.
+ */
+export type OfferAppRule = NonNullable<Offer['appRule']>;
+/**
+ * The kinds an app may name when it creates an offer (`write_offers`). What
+ * you READ is `Offer['kind']`, an open string: new kinds are added within the
+ * version, so ignore one you do not know.
+ */
+export type OfferKind = Schemas['CreateOfferInput']['kind'];
+/** The body of `POST /offers`; `config` is the rule as the Offers page stores it. */
+export type CreateOfferInput = Schemas['CreateOfferInput'];
+/** The body of `PATCH /offers/{id}`. */
+export type UpdateOfferInput = Schemas['UpdateOfferInput'];
+/** `{ role?, refType, refId? }`: what an offer applies to. */
+export type OfferTargetInput = Schemas['OfferTargetInput'];
+/** A code of an offer you own (`GET /offers/{id}/codes`). */
+export type OfferCode = Schemas['OfferCode'];
+/** One code to add: `{ code, usageLimit? }`. */
+export type OfferCodeInput = Schemas['OfferCodeInput'];
+/** What `POST /offers/{id}/codes/bulk` did, one entry per code sent. */
+export type OfferCodesBulkResult = Schemas['OfferCodesBulkResult'];
+/** One use of an offer you own on an order (`GET /offers/{id}/redemptions`). Never a buyer. */
+export type OfferRedemption = Schemas['OfferRedemption'];
+/** What `DELETE /offers/{id}` did: exactly one of `deleted` and `archived` is true. */
+export type OfferRemoval = Schemas['OfferRemoval'];
 export type Store = Schemas['Store'];
 export type DeliveryAgent = Schemas['DeliveryAgent'];
 export type DeliveryFeeGroup = Schemas['DeliveryFeeGroup'];
@@ -96,11 +140,21 @@ export type PathParams<O> = O extends { parameters: { path: infer X } }
 export type QueryParams<O> = O extends { parameters: { query?: infer Q } }
   ? NonNullable<Q>
   : never;
-export type RequestBody<O> = O extends {
-  requestBody: { content: { 'application/json': infer B } };
-}
-  ? B
+/** The JSON body an operation takes, required or optional; `never` when it takes none. */
+export type RequestBody<O> = O extends { requestBody?: infer R }
+  ? [NonNullable<R>] extends [never]
+    ? never
+    : NonNullable<R> extends { content: { 'application/json': infer B } }
+      ? B
+      : never
   : never;
+
+/** `{ body }` when the document marks the body required, `{ body? }` when it does not. */
+type BodyOption<O> = [RequestBody<O>] extends [never]
+  ? { body?: never }
+  : O extends { requestBody: unknown }
+    ? { body: RequestBody<O> }
+    : { body?: RequestBody<O> };
 
 type ResourceOf<B> = B extends { data: infer D }
   ? D extends readonly (infer Item)[]
@@ -132,9 +186,7 @@ export type RequestOptions<
     ([QueryParams<AdminOperation<M, P>>] extends [never]
       ? { query?: never }
       : { query?: Query<AdminOperation<M, P>> }) &
-    ([RequestBody<AdminOperation<M, P>>] extends [never]
-      ? { body?: never }
-      : { body: RequestBody<AdminOperation<M, P>> }) &
+    BodyOption<AdminOperation<M, P>> &
     (M extends 'get'
       ? unknown
       : {

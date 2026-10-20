@@ -116,9 +116,9 @@ the code.
 
 The **normalised manifest** is what the API stores for a version: the file's
 keys in a fixed order (`name`, `handle`, `api_version`, `access`, `hosting`,
-`auth`, `admin`, `webhooks`, `data`, `storefront`, `app_proxy`); every list
-present (empty when absent); `auth`, `admin`, `admin.actions` and `app_proxy`
-only when they hold a value; scopes, their reasons and each webhook's topics in
+`auth`, `admin`, `webhooks`, `data`, `storefront`, `offers`, `app_proxy`); every
+list present (empty when absent); `auth`, `admin`, `admin.actions`, `offers` and
+`app_proxy` only when they hold a value; scopes, their reasons and each webhook's topics in
 catalogue order, `allowed_hosts` and a block's `data` sorted; lists of tables in
 file order; a storefront block's `target` (`"any"` when absent), `data` and
 `settings` always present. Validating a normalised manifest returns it
@@ -208,6 +208,11 @@ its keys. One error per field. At most 50 errors, then
 | `MANIFEST_ACTION_HANDLE_DUPLICATE`          | Two admin actions with the same handle.                                                                                                                               |
 | `MANIFEST_ACTION_LABEL_INVALID`             | One language of an admin action's `label` breaks the `name` text rules.                                                                                               |
 | `MANIFEST_ACTION_SCOPE_MISSING`             | An admin action whose target needs a read scope the manifest does not request.                                                                                        |
+| `MANIFEST_OFFER_TYPES_NOT_AVAILABLE`        | `[[offers.types]]` against a vocabulary where `write_offers` is not offered.                                                                                          |
+| `MANIFEST_OFFER_TYPES_SCOPE_MISSING`        | `[[offers.types]]` without `write_offers` (in `scopes` or `optional_scopes`).                                                                                         |
+| `MANIFEST_OFFER_TYPE_HANDLE_INVALID`        | An offer type's `handle` is not `[a-z0-9][a-z0-9-]{0,39}`.                                                                                                            |
+| `MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE`      | Two offer types with the same handle.                                                                                                                                 |
+| `MANIFEST_OFFER_TYPE_LABEL_INVALID`         | One language of an offer type's `label` (50 characters) or `description` (200) breaks the text rules.                                                                 |
 
 ## API
 
@@ -225,7 +230,7 @@ its keys. One error per field. At most 50 errors, then
 | `MANIFEST_ERROR_CODES`, `MANIFEST_LIMITS`, …                | The error codes, the limits, the reserved handles, domains and hosted path prefix, and the fixed lists, as constants. |
 | `SETTING_TYPES`, `BLOCK_TARGETS`, `ADMIN_ACTION_TARGETS`, … | The Phase 2 lists: setting types, block targets and data owners, admin action targets and the scope each needs.       |
 
-## Storefront blocks, the app proxy and admin actions
+## Storefront blocks, the app proxy, admin actions and offer types
 
 This release validates the marketplace's manifest fields. They are **not
 live yet**: until the marketplace opens, a manifest that uses them passes here
@@ -242,6 +247,13 @@ and is refused on upload.
 - `[[data.definitions]]` takes a `label` (`{ ar, en }`);
 - `[[admin.actions]]`: `handle`, `target` (`ADMIN_ACTION_TARGETS`), `label`
   and `path`, at most 10;
+- `[[offers.types]]` (at most 10) declares an offer type the merchant can
+  create "from your apps": `handle` (`OFFER_TYPE_HANDLE_PATTERN`, unique),
+  `class` (`OFFER_TYPE_CLASSES`: `product`, `order` or `delivery`), `path` (the
+  app's page that configures one offer, at most 200 characters), `label` and an
+  optional `description` (`{ ar, en }`). Declaring any needs the
+  `write_offers` scope (`OFFER_TYPES_SCOPE`, which implies `read_offers`); the
+  rule of each offer is written through the Admin API, not in the manifest;
 - `[app_proxy]` (`path`) is part of the shape, refused until the platform
   forwards store requests to apps (`MANIFEST_PROXY_NOT_AVAILABLE`).
 

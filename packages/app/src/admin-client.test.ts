@@ -4,14 +4,31 @@ import type { AdminClientOptions, ResponseInfo } from './admin-client.js';
 import type {
   AdminApiErrorCode,
   AdminApiPaths,
+  CreateOfferInput,
+  Discount,
   FieldName,
   ListItem,
+  Offer,
+  OfferAddon,
+  OfferAppRule,
+  OfferBxgy,
+  OfferCode,
+  OfferCodesBulkResult,
+  OfferKind,
+  OfferOrderDiscount,
+  OfferRedemption,
+  OfferRemoval,
   Order,
+  OrderItem,
   Product,
+  RequestOptions,
   ResponseBody,
 } from './admin-types.js';
 import { TassyirApiError } from './errors.js';
+import { OFFER_CODES_BULK_MAX, addOfferCodes } from './offers.js';
+import type { AppOfferConfig, AppOfferRule } from './offers.js';
 import {
+  bodyOf,
   headerOf,
   jsonResponse,
   recordingFetch,
@@ -90,6 +107,54 @@ describe('AdminClient requests', () => {
     const { data } = await admin.get('/orders/{id}', { path: { id: '1' } });
     expect(data.total).toBe('2500.10');
     expect(data.shippingPrice).toBe('0.00');
+  });
+
+  it('reads the order money as decimal strings, with the discount entries', async () => {
+    const discount = {
+      title: 'Autumn sale',
+      code: null,
+      class: 'product',
+      source: 'offer',
+      amount: '500.00',
+      offerId: '741000000000000800',
+    };
+    const { admin, calls } = client(() =>
+      jsonResponse(200, {
+        data: {
+          ...ORDER,
+          total: '5000.00',
+          shippingPrice: '500.00',
+          subtotal: '5000.00',
+          discountTotal: '500.00',
+          discounts: [discount],
+          items: [
+            {
+              id: '11',
+              quantity: 1,
+              unitPrice: '4500.00',
+              totalPrice: '4500.00',
+              originalPrice: '5000.00',
+              discountAmount: '500.00',
+              discounts: [discount],
+            },
+          ],
+        },
+      }),
+    );
+    const { data } = await admin.get('/orders/{id}', {
+      path: { id: '1' },
+      query: { fields: ['subtotal', 'discountTotal', 'discounts'] },
+    });
+    expect(calls[0]?.url).toContain(
+      'fields=subtotal%2CdiscountTotal%2Cdiscounts',
+    );
+    const order = data;
+    expect(order.subtotal).toBe('5000.00');
+    expect(order.discountTotal).toBe('500.00');
+    expect(order.discounts[0]?.offerId).toBe('741000000000000800');
+    expect(order.items[0]?.originalPrice).toBe('5000.00');
+    expect(order.items[0]?.discountAmount).toBe('500.00');
+    expect(order.items[0]?.discounts[0]?.class).toBe('product');
   });
 
   it('sends a JSON body and a fresh Idempotency-Key on every write', async () => {
@@ -547,6 +612,234 @@ describe('AdminClient.paginate', () => {
     ]);
   });
 
+  it('lists offers with their filters, and reads one', async () => {
+    const offer = {
+      id: '741000000000002000',
+      storeId: '741000000000000100',
+      kind: 'a_kind_added_later',
+      method: 'automatic',
+      title: 'Buy 2, save 900',
+      status: 'active',
+      codeCount: 0,
+    };
+    const { admin, calls } = client((_url, _init, index) =>
+      jsonResponse(
+        200,
+        index === 0
+          ? { data: [offer], nextCursor: 'c1' }
+          : index === 1
+            ? { data: [], nextCursor: null }
+            : { data: offer },
+      ),
+    );
+    const seen: string[] = [];
+    for await (const item of admin.paginate('/offers', {
+      query: {
+        status: 'active',
+        method: 'automatic',
+        storeId: '741000000000000100',
+      },
+    }))
+      seen.push(`${item.kind} ${String(item.codeCount)}`);
+    expect(seen).toEqual(['a_kind_added_later 0']);
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
+      '/apps/2026-10/offers',
+      '/apps/2026-10/offers',
+    ]);
+    expect(calls.map((call) => new URL(call.url).search)).toEqual([
+      '?status=active&method=automatic&storeId=741000000000000100',
+      '?status=active&method=automatic&storeId=741000000000000100&cursor=c1',
+    ]);
+    const { data } = await admin.get('/offers/{id}', {
+      path: { id: offer.id },
+    });
+    expect(new URL(calls[2]?.url ?? '').pathname).toBe(
+      '/apps/2026-10/offers/741000000000002000',
+    );
+    expect(data.id).toBe(offer.id);
+  });
+
+  it('writes offers: create as a draft, publish, pause, resume and delete', async () => {
+    const offer = { id: '741000000000002000', status: 'draft', appOwned: true };
+    const { admin, calls } = client((_url, init, index) =>
+      index === 0
+        ? jsonResponse(201, { data: offer })
+        : init.method === 'DELETE'
+          ? jsonResponse(200, {
+              data: { id: offer.id, deleted: false, archived: true },
+            })
+          : jsonResponse(200, { data: { ...offer, status: 'active' } }),
+    );
+    const created = await admin.request('post', '/offers', {
+      body: {
+        storeId: '741000000000000100',
+        kind: 'product_discount',
+        method: 'code',
+        title: 'Influencer codes',
+        config: { valueType: 'percent', value: 10 },
+        targets: [{ refType: 'all' }],
+      },
+    });
+    expect(created.status).toBe(201);
+    await admin.post('/offers/{id}/publish', {
+      path: { id: offer.id },
+      body: { expectedVersion: 1 },
+    });
+    // The body of these three is optional: none is needed.
+    await admin.post('/offers/{id}/pause', {
+      path: { id: offer.id },
+    });
+    await admin.post('/offers/{id}/resume', {
+      path: { id: offer.id },
+    });
+    await admin.patch('/offers/{id}', {
+      path: { id: offer.id },
+      body: { title: 'Autumn influencers', endsAt: '2026-12-31' },
+    });
+    const removed = await admin.delete('/offers/{id}', {
+      path: { id: offer.id },
+    });
+    expect(removed.data).toEqual({
+      id: offer.id,
+      deleted: false,
+      archived: true,
+    });
+    expect(
+      calls.map(
+        (call) => `${call.init.method ?? ''} ${new URL(call.url).pathname}`,
+      ),
+    ).toEqual([
+      'POST /apps/2026-10/offers',
+      'POST /apps/2026-10/offers/741000000000002000/publish',
+      'POST /apps/2026-10/offers/741000000000002000/pause',
+      'POST /apps/2026-10/offers/741000000000002000/resume',
+      'PATCH /apps/2026-10/offers/741000000000002000',
+      'DELETE /apps/2026-10/offers/741000000000002000',
+    ]);
+    // Every write carries an Idempotency-Key of its own.
+    const keys = calls.map((call) => headerOf(call, 'idempotency-key'));
+    expect(new Set(keys).size).toBe(6);
+    expect(JSON.parse(bodyOf(calls[0]))).toMatchObject({
+      kind: 'product_discount',
+      config: { valueType: 'percent', value: 10 },
+    });
+  });
+
+  it('adds codes in batches of 250 and gathers the answers in order', async () => {
+    expect(OFFER_CODES_BULK_MAX).toBe(250);
+    const { admin, calls } = client((_url, init) => {
+      const { codes } = JSON.parse(
+        typeof init.body === 'string' ? init.body : '',
+      ) as {
+        codes: { code: string }[];
+      };
+      return jsonResponse(200, {
+        data: {
+          created: codes.filter((c) => c.code !== 'TAKEN1').length,
+          results: codes.map((c) => ({
+            code: c.code,
+            outcome: c.code === 'TAKEN1' ? 'taken' : 'created',
+          })),
+        },
+      });
+    });
+    const codes = Array.from({ length: 600 }, (_, i) => ({
+      code: i === 300 ? 'TAKEN1' : `INF${String(i).padStart(4, '0')}`,
+      usageLimit: 50,
+    }));
+    const result = await addOfferCodes(admin, '741000000000002000', codes);
+    expect(calls).toHaveLength(3);
+    expect(
+      calls.map(
+        (call) =>
+          (JSON.parse(bodyOf(call)) as { codes: unknown[] }).codes.length,
+      ),
+    ).toEqual([250, 250, 100]);
+    expect(new URL(calls[0]?.url ?? '').pathname).toBe(
+      '/apps/2026-10/offers/741000000000002000/codes/bulk',
+    );
+    expect(result.created).toBe(599);
+    expect(result.results.map((r) => r.code)).toEqual(codes.map((c) => c.code));
+    expect(result.results[300]).toEqual({ code: 'TAKEN1', outcome: 'taken' });
+    // Nothing to add: no call.
+    expect(await addOfferCodes(admin, '1', [])).toEqual({
+      created: 0,
+      results: [],
+    });
+    expect(calls).toHaveLength(3);
+  });
+
+  it('stops at the failing batch and throws its error', async () => {
+    const { admin, calls } = client((_url, _init, index) =>
+      index === 0
+        ? jsonResponse(200, {
+            data: {
+              created: 1,
+              results: [{ code: 'A1B', outcome: 'created' }],
+            },
+          })
+        : problem(403, 'OFFER_NOT_OWNED', { fix: 'Create your own offer.' }),
+    );
+    const codes = Array.from({ length: 300 }, (_, i) => ({ code: `C${i}XY` }));
+    const error: unknown = await addOfferCodes(admin, '9', codes).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(TassyirApiError);
+    expect((error as TassyirApiError).code).toBe('OFFER_NOT_OWNED');
+    expect(calls).toHaveLength(2);
+  });
+
+  it("walks an offer's codes and redemptions page by page", async () => {
+    const { admin, calls } = client((url) =>
+      jsonResponse(
+        200,
+        url.includes('cursor=')
+          ? { data: [], nextCursor: null }
+          : url.includes('/codes')
+            ? { data: [{ id: '1', code: 'SARA10' }], nextCursor: 'c1' }
+            : {
+                data: [{ id: '5', orderId: '77', state: 'held' }],
+                nextCursor: 'r1',
+              },
+      ),
+    );
+    const codes: string[] = [];
+    for await (const code of admin.paginate('/offers/{id}/codes', {
+      path: { id: '741000000000002000' },
+    }))
+      codes.push(code.code);
+    const redemptions: string[] = [];
+    for await (const redemption of admin.paginate('/offers/{id}/redemptions', {
+      path: { id: '741000000000002000' },
+      query: { state: 'held' },
+    }))
+      redemptions.push(`${redemption.orderId} ${redemption.state}`);
+    expect(codes).toEqual(['SARA10']);
+    expect(redemptions).toEqual(['77 held']);
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
+      '/apps/2026-10/offers/741000000000002000/codes',
+      '/apps/2026-10/offers/741000000000002000/codes',
+      '/apps/2026-10/offers/741000000000002000/redemptions',
+      '/apps/2026-10/offers/741000000000002000/redemptions',
+    ]);
+    expect(new URL(calls[2]?.url ?? '').search).toBe('?state=held');
+  });
+
+  it('turns an offer an app does not own into a TassyirApiError', async () => {
+    const { admin } = client(() =>
+      problem(403, 'OFFER_NOT_OWNED', {
+        fix: 'Create your own offer with POST /offers and change that one.',
+      }),
+    );
+    const error: unknown = await admin
+      .post('/offers/{id}/pause', { path: { id: '5' } })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TassyirApiError);
+    expect((error as TassyirApiError).status).toBe(403);
+    expect((error as TassyirApiError).code).toBe('OFFER_NOT_OWNED');
+    expect((error as TassyirApiError).fix).toContain('POST /offers');
+  });
+
   it('stops when the caller breaks', async () => {
     const { admin, calls } = client(() =>
       jsonResponse(200, {
@@ -564,11 +857,44 @@ describe('AdminClient.paginate', () => {
 
 describe('AdminClient types (checked by tsc)', () => {
   it('derive bodies, items, fields and error codes from the OpenAPI document', () => {
-    expectTypeOf<ResponseBody<'get', '/orders/{id}'>>().toEqualTypeOf<{
-      data: Order;
-    }>();
+    expectTypeOf<
+      ResponseBody<'get', '/orders/{id}'>['data']
+    >().toEqualTypeOf<Order>();
+    // POST /orders takes the buyer's codes; the answer lists the ones that
+    // did not apply, with the reason.
+    expectTypeOf<
+      NonNullable<ResponseBody<'post', '/orders'>['rejectedCodes']>[number]
+    >().toEqualTypeOf<{ code: string; reason: string }>();
     expectTypeOf<ListItem<'/products'>>().toEqualTypeOf<Product>();
+    // read_offers: `kind` is an open string (new kinds are added within the
+    // version), the codes are a count, money a decimal string.
+    expectTypeOf<ListItem<'/offers'>>().toEqualTypeOf<Offer>();
+    expectTypeOf<ResponseBody<'get', '/offers/{id}'>>().toEqualTypeOf<{
+      data: Offer;
+    }>();
+    expectTypeOf<Offer['kind']>().toEqualTypeOf<string>();
+    expectTypeOf<Offer['codeCount']>().toEqualTypeOf<number>();
+    expectTypeOf<Offer['storeId']>().toEqualTypeOf<string>();
+    expectTypeOf<'STORE_SCOPE_FORBIDDEN' | 'INVALID_CURSOR'>().toExtend<
+      AdminApiErrorCode<'get', '/offers'>
+    >();
     expectTypeOf<Order['total']>().toEqualTypeOf<string | null>();
+    // The order money: the goods, what the offers took off, and the entries
+    // that name them. Lines are net; `originalPrice` is the gross unit price.
+    expectTypeOf<Order['subtotal']>().toEqualTypeOf<string>();
+    expectTypeOf<Order['discountTotal']>().toEqualTypeOf<string>();
+    expectTypeOf<Order['discounts']>().toEqualTypeOf<Discount[]>();
+    expectTypeOf<OrderItem['originalPrice']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OrderItem['discountAmount']>().toEqualTypeOf<string>();
+    expectTypeOf<OrderItem['discounts']>().toEqualTypeOf<Discount[]>();
+    expectTypeOf<Discount['class']>().toEqualTypeOf<
+      'product' | 'order' | 'delivery'
+    >();
+    expectTypeOf<Discount['code']>().toEqualTypeOf<string | null>();
+    expectTypeOf<Discount['offerId']>().toEqualTypeOf<string | null>();
+    expectTypeOf<'subtotal' | 'discountTotal' | 'discounts'>().toExtend<
+      FieldName<NonNullable<AdminApiPaths['/orders']['get']>>
+    >();
     expectTypeOf<Product['price']>().toEqualTypeOf<string>();
     expectTypeOf<'total'>().toExtend<
       FieldName<NonNullable<AdminApiPaths['/orders']['get']>>
@@ -585,6 +911,74 @@ describe('AdminClient types (checked by tsc)', () => {
     >();
     expectTypeOf<'BUSINESS_RATE_LIMITED' | 'API_BUSY'>().toExtend<
       AdminApiErrorCode<'get', '/business'>
+    >();
+    // write_offers: the offers an app owns, their codes and redemptions.
+    expectTypeOf<OfferKind>().toEqualTypeOf<
+      | 'quantity'
+      | 'free_delivery'
+      | 'product_discount'
+      | 'order_discount'
+      | 'bxgy'
+      | 'addon'
+      | 'app'
+    >();
+    expectTypeOf<'OFFER_NOT_OWNED' | 'OFFER_INVALID'>().toExtend<
+      AdminApiErrorCode<'patch', '/offers/{id}'>
+    >();
+    expectTypeOf<'OFFER_NOT_OWNED' | 'PLAN_LIMIT_REACHED'>().toExtend<
+      AdminApiErrorCode<'post', '/offers/{id}/publish'>
+    >();
+    expectTypeOf<'OFFER_CODE_TAKEN' | 'OFFER_NOT_CODE_METHOD'>().toExtend<
+      AdminApiErrorCode<'post', '/offers/{id}/codes'>
+    >();
+    expectTypeOf<'OFFER_NOT_OWNED'>().toExtend<
+      AdminApiErrorCode<'get', '/offers/{id}/redemptions'>
+    >();
+    expectTypeOf<ResponseBody<'post', '/offers'>>().toEqualTypeOf<{
+      data: Offer;
+    }>();
+    expectTypeOf<ResponseBody<'delete', '/offers/{id}'>>().toEqualTypeOf<{
+      data: OfferRemoval;
+    }>();
+    expectTypeOf<
+      ResponseBody<'post', '/offers/{id}/codes/bulk'>
+    >().toEqualTypeOf<{
+      data: OfferCodesBulkResult;
+    }>();
+    expectTypeOf<ListItem<'/offers/{id}/codes'>>().toEqualTypeOf<OfferCode>();
+    expectTypeOf<
+      ListItem<'/offers/{id}/redemptions'>
+    >().toEqualTypeOf<OfferRedemption>();
+    // The Phase 2 kinds: exactly one block is set, the others are null.
+    expectTypeOf<
+      Offer['orderDiscount']
+    >().toEqualTypeOf<OfferOrderDiscount | null>();
+    expectTypeOf<Offer['bxgy']>().toEqualTypeOf<OfferBxgy | null>();
+    expectTypeOf<Offer['addon']>().toEqualTypeOf<OfferAddon | null>();
+    expectTypeOf<Offer['appRule']>().toEqualTypeOf<OfferAppRule | null>();
+    expectTypeOf<OfferAppRule['typeHandle']>().toEqualTypeOf<string>();
+    expectTypeOf<OfferAppRule['rule']>().toEqualTypeOf<unknown>();
+    expectTypeOf<OfferOrderDiscount['amount']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OfferBxgy['buyPieces']>().toEqualTypeOf<number>();
+    expectTypeOf<OfferBxgy['getPrice']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OfferAddon['afterSubmit']>().toEqualTypeOf<boolean>();
+    // publish, pause and resume take an optional body; a create needs its own.
+    expectTypeOf<
+      RequestOptions<'post', '/offers/{id}/pause'>['body']
+    >().toEqualTypeOf<{ expectedVersion?: number | null } | undefined>();
+    expectTypeOf<
+      RequestOptions<'post', '/offers'>['body']
+    >().toEqualTypeOf<CreateOfferInput>();
+    expectTypeOf<OfferCode['uses']>().toEqualTypeOf<number>();
+    expectTypeOf<OfferRedemption['amount']>().toEqualTypeOf<string>();
+    expectTypeOf<OfferRedemption['codeId']>().toEqualTypeOf<string | null>();
+    expectTypeOf<OfferRemoval['archived']>().toEqualTypeOf<boolean>();
+    // The rule of an app-owned offer is a plain object the create body takes.
+    expectTypeOf<AppOfferConfig>().toExtend<
+      NonNullable<CreateOfferInput['config']>
+    >();
+    expectTypeOf<AppOfferRule['class']>().toEqualTypeOf<
+      'product' | 'order' | 'delivery'
     >();
     // AP-B1.19: image uploads and their quota.
     expectTypeOf<'IMAGE_QUOTA_REACHED' | 'IMAGE_FETCH_FAILED'>().toExtend<
@@ -622,5 +1016,23 @@ function misuse(admin: AdminClient): void {
       // @ts-expect-error money is a string
       body: { price: 2500 },
     });
+    void admin.post('/offers', {
+      // @ts-expect-error an offer needs its store, kind, method and title
+      body: { title: 'No store' },
+    });
+    void admin.post('/offers/{id}/codes/bulk', {
+      path: { id: '1' },
+      // @ts-expect-error a code is a string
+      body: { codes: [{ code: 12345 }] },
+    });
+    const config: AppOfferConfig = {
+      typeHandle: 'mix-match',
+      rule: {
+        // @ts-expect-error a rule's class is product, order or delivery
+        class: 'cart',
+        then: [],
+      },
+    };
+    Object.keys(config);
   }
 }

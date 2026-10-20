@@ -98,6 +98,8 @@ mode), asks for consent again.
 | `read_costs`            | buy prices (sensitive)                                                             | `read_inventory`              |
 | `read_customers`        | customers: counts and delivery record, no contact fields                           | `read_orders`                 |
 | `read_customer_contact` | buyer name, phones, address on orders and customers (sensitive, every read logged) | needs `read_orders`           |
+| `read_offers`           | the merchant's pricing offers: rules, dates, code count, never a code or a buyer   |                               |
+| `write_offers`          | create, publish, pause, archive the offers the app owns, and their codes           | `read_offers`                 |
 | `read_analytics`        | analytics                                                                          |                               |
 | `read_finance`          | finance (sensitive)                                                                |                               |
 | `read_stores`           | stores                                                                             |                               |
@@ -113,6 +115,15 @@ mode), asks for consent again.
 - When the plan hides phones, they read `**********`. A **waiting** order
   (past the plan's monthly allowance, `waiting: true`) is masked whatever the
   scopes until it unlocks.
+- Order money: `subtotal` (goods before offers) − `discountTotal` +
+  `shippingPrice` = `total`; `discounts[]` names the offers; a line's
+  `unitPrice`/`totalPrice` are net, `originalPrice` is gross. Money is never
+  masked, and keep a default branch over `changed` on `orders/updated`.
+- `write_offers`: an app writes only the offers it created (403
+  `OFFER_NOT_OWNED` on any other). Codes go in 250 at a time
+  (`addOfferCodes`), a code is 3 to 30 letters, digits, `-` or `_`, unique in
+  the business. Its own offer kinds are `[[offers.types]]` in the manifest
+  and `kind: "app"` offers whose `config` is `{ typeHandle, rule }`.
 
 ## Tokens
 
@@ -288,6 +299,7 @@ topic:
 | `products/created`, `products/updated`, `products/deleted`                                                                             | `read_products`  |
 | `inventory_levels/updated`                                                                                                             | `read_inventory` |
 | `customers/updated`                                                                                                                    | `read_customers` |
+| `offers/created`, `offers/updated`, `offers/deleted`                                                                                   | `read_offers`    |
 | `app/installed`, `app/uninstalled`, `app/scopes_updated`                                                                               | nothing          |
 | `customers/data_request`, `customers/redact`, `business/redact` (compliance)                                                           | nothing          |
 

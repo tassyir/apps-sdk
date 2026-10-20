@@ -66,6 +66,7 @@ export type ManifestDataType =
   'string' | 'number' | 'integer' | 'boolean' | 'json';
 export type ManifestDataVisibility = 'app' | 'merchant' | 'storefront';
 export type ManifestBlockTarget = 'product' | 'any';
+export type ManifestOfferTypeClass = 'product' | 'order' | 'delivery';
 export type ManifestSettingType =
   | 'string'
   | 'text'
@@ -159,6 +160,23 @@ export interface ManifestAdminAction {
 }
 
 /**
+ * An offer type the app declares (`[[offers.types]]`): a kind of offer the
+ * merchant can create "from your apps", priced by the declarative rule the
+ * app writes through the Admin API (needs the `write_offers` scope).
+ * `description` only when declared.
+ */
+export interface ManifestOfferType {
+  /** Lowercase letters, digits and hyphens, at most 40; unique in the app. */
+  handle: string;
+  /** What the type's offers do: the class every rule of the type uses. */
+  class: ManifestOfferTypeClass;
+  /** The app's page that configures one offer of this type. */
+  path: string;
+  label: ManifestLabel;
+  description?: ManifestLabel;
+}
+
+/**
  * The normalised manifest: what the Tassyir API stores for an app version
  * (`app_versions.manifest`). Same keys as
  * the TOML file (snake_case). Every list is present (possibly empty); a
@@ -185,6 +203,8 @@ export interface AppManifest {
   webhooks: ManifestWebhook[];
   data: { definitions: ManifestDataDefinition[] };
   storefront: { blocks: ManifestStorefrontBlock[] };
+  /** Present only when it holds at least one type. */
+  offers?: { types: ManifestOfferType[] };
   app_proxy?: { path: string };
 }
 
@@ -271,6 +291,11 @@ export const MANIFEST_ERROR_CODES = [
   'MANIFEST_ACTION_HANDLE_DUPLICATE',
   'MANIFEST_ACTION_LABEL_INVALID',
   'MANIFEST_ACTION_SCOPE_MISSING',
+  'MANIFEST_OFFER_TYPES_NOT_AVAILABLE',
+  'MANIFEST_OFFER_TYPES_SCOPE_MISSING',
+  'MANIFEST_OFFER_TYPE_HANDLE_INVALID',
+  'MANIFEST_OFFER_TYPE_HANDLE_DUPLICATE',
+  'MANIFEST_OFFER_TYPE_LABEL_INVALID',
 ] as const;
 
 export type ManifestErrorCode = (typeof MANIFEST_ERROR_CODES)[number];

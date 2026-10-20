@@ -43,6 +43,18 @@ Dispatching to a carrier, labels and returns are not in API version
   "currency": "DZD",
   "total": "5000.00",
   "shippingPrice": "500.00",
+  "subtotal": "5000.00",
+  "discountTotal": "500.00",
+  "discounts": [
+    {
+      "title": "Autumn sale",
+      "code": null,
+      "class": "product",
+      "source": "offer",
+      "amount": "500.00",
+      "offerId": "741000000000000800"
+    }
+  ],
   "buyer": {
     "provinceCode": 16,
     "townOns": 1601,
@@ -67,7 +79,19 @@ Dispatching to a carrier, labels and returns are not in API version
       "sku": "RK-01-M",
       "quantity": 1,
       "unitPrice": "4500.00",
-      "totalPrice": "4500.00"
+      "totalPrice": "4500.00",
+      "originalPrice": "5000.00",
+      "discountAmount": "500.00",
+      "discounts": [
+        {
+          "title": "Autumn sale",
+          "code": null,
+          "class": "product",
+          "source": "offer",
+          "amount": "500.00",
+          "offerId": "741000000000000800"
+        }
+      ]
     }
   ],
   "source": "app:review-requests",
@@ -82,8 +106,10 @@ Dispatching to a carrier, labels and returns are not in API version
   as an open string. The flags `dispatched`, `delivered`, `returned`,
   `archived` and `waiting` say the rest. **A returned order keeps its status**
   (usually `pending`): read `returned`.
-- **Money:** `total`, `shippingPrice`, and each line's `unitPrice` and
-  `totalPrice` are decimal strings in `currency`.
+- **Money:** `total`, `shippingPrice`, `subtotal`, `discountTotal`, and each
+  line's `unitPrice`, `totalPrice`, `originalPrice` and `discountAmount` are
+  decimal strings in `currency`; `discounts[]` says which offers priced the
+  order ([Order money](#order-money)).
 - **Buyer:** `provinceCode` (the wilaya, 1 to 58) and `townOns` (the commune)
   always; `name`, `phone`, `phone2`, `email`, `address`, `address2`, and the
   order's `note` and `deliveryNote`, only with `read_customer_contact`.
@@ -102,6 +128,68 @@ source }`, and the times `scheduledFor`, `confirmedAt`, `dispatchedAt`,
 `null`) until it unlocks, which sends `orders/updated` with `waiting`. You may
 read, edit, cancel, schedule and comment on it; confirming it is 403
 `ORDER_LIMIT_REACHED`.
+
+## Order money
+
+Read an order's money in this order: the goods before any offer, what the
+offers took off, what the buyer pays for delivery, and what the courier
+collects.
+
+| Field                    | Meaning                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subtotal`               | The goods before every offer. Always present. An order with no discount data (older orders, exchanges, orders synced from another channel) reads `total − shippingPrice`. |
+| `discountTotal`          | What the product and order discounts took off. `"0.00"` when none. It **leaves out** a delivery waiver.                                                                   |
+| `shippingPrice`          | What the buyer pays for delivery: `"0.00"` when it was waived.                                                                                                            |
+| `total`                  | What the courier collects: `subtotal − discountTotal + shippingPrice`.                                                                                                    |
+| `discounts[]`            | Every discount the order got, one entry per title, code, class and source.                                                                                                |
+| `items[].originalPrice`  | The catalogue unit price before any offer. `null` on a line no discount was worked out for (older orders, exchanges, synced orders).                                      |
+| `items[].discountAmount` | The line's share of the product and order discounts. `"0.00"` when none.                                                                                                  |
+| `items[].discounts[]`    | The `product` entries that priced this line.                                                                                                                              |
+
+A `discounts[]` entry is `{ title, code, class, source, amount, offerId }`:
+
+- `title` is the offer or code's name, frozen when the order was placed: it
+  does not follow a later rename.
+- `class` is `product` (taken off lines), `order` (taken off the whole order)
+  or `delivery` (the delivery waiver, which is **not** part of `discountTotal`).
+- `source` is `offer`, `code`, `manual`, `app` or `import`; treat it as an open
+  string. `code` is the code the buyer typed, if any.
+- `offerId` is `null` for a manual, imported or older quantity-tier discount.
+  Read the offer through [Offers](/guides/offers) when it is set.
+
+**Lines are net.** A line's `unitPrice` and `totalPrice` are what was charged
+after the discounts; `originalPrice` is the gross unit price. For an order
+priced with discounts, `totalPrice = originalPrice × quantity − discountAmount`,
+`unitPrice = totalPrice / quantity`, and `discountTotal` is the sum of the
+lines' `discountAmount`. A discount that covers several lines is spread over
+them, so a line's `totalPrice` is its own amount, never the whole offer's.
+
+**"You saved"** is `discountTotal` plus the `amount` of the entries with
+`class: "delivery"`. Add them with a decimal library, never `parseFloat`.
+
+```ts
+const { data: order } = await admin.get('/orders/{id}', {
+  path: { id: '741000000000000001' },
+});
+
+for (const item of order.items) {
+  if (item.discountAmount === '0.00') continue;
+  const offers = item.discounts.map((discount) => discount.title).join(', ');
+  console.log(
+    `${item.name}: ${item.originalPrice ?? '?'} → ${item.unitPrice ?? '?'} (${offers})`,
+  );
+}
+console.log('goods', order.subtotal, 'off', order.discountTotal);
+```
+
+The fields come with or without `read_customer_contact`, and on a waiting
+order: money carries no contact data. `fields` accepts `subtotal`,
+`discountTotal` and `discounts`. The `orders/*` webhook bodies carry the same
+fields, and a change to one of them (a discount added or removed on an edit)
+sends `orders/updated` with `changed` naming `subtotal`, `discountTotal` or
+`discounts`: if you switch over `changed`, keep a default branch. An abandoned
+checkout's lines carry `originalPrice`, `discountAmount` and `discounts`, but
+the checkout itself has no order-level money fields.
 
 ## Which orders you can reach
 
@@ -180,13 +268,14 @@ else
   );
 ```
 
-| Field                  | Rule                                                                                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storeId`              | Optional for an installation with one store or every store (then resolved from the items). Required with several selected stores (400 `STORE_REQUIRED`).                                          |
-| `buyer`                | Required, may be `{}`. `phone`, `phone2`: `+213`, then 5, 6 or 7, then 8 digits. `provinceCode` 1 to 58, `townOns` a commune code, `name` up to 200, `address` and `address2` up to 500, `email`. |
-| `items`                | 1 to 50 lines of `productId`, optional `variantId`, `quantity` 1 to 999. Each product must be one you can list; same lines are merged.                                                            |
-| `delivery`             | Optional. `method`: `home` (default) or `stopdesk` (the desk of the buyer's commune). `speed`: `standard` (default) or `economy`.                                                                 |
-| `note`, `deliveryNote` | Optional, up to 1,000 characters.                                                                                                                                                                 |
+| Field                  | Rule                                                                                                                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storeId`              | Optional for an installation with one store or every store (then resolved from the items). Required with several selected stores (400 `STORE_REQUIRED`).                                                                      |
+| `buyer`                | Required, may be `{}`. `phone`, `phone2`: `+213`, then 5, 6 or 7, then 8 digits. `provinceCode` 1 to 58, `townOns` a commune code, `name` up to 200, `address` and `address2` up to 500, `email`.                             |
+| `items`                | 1 to 50 lines of `productId`, optional `variantId`, `quantity` 1 to 999. Each product must be one you can list; same lines are merged.                                                                                        |
+| `delivery`             | Optional. `method`: `home` (default) or `stopdesk` (the desk of the buyer's commune). `speed`: `standard` (default) or `economy`.                                                                                             |
+| `codes`                | Optional, **one offer code at most** (`["SARA10"]`). A code that does not apply never fails the order: it is listed in `rejectedCodes` beside `data` ([Write offers and codes](/guides/write-offers#applying-a-code-to-an-order)). |
+| `note`, `deliveryNote` | Optional, up to 1,000 characters.                                                                                                                                                                                             |
 
 Anything else is refused, on purpose: an order is created `pending` (confirm
 it with the route below), priced from the catalogue and the business's
