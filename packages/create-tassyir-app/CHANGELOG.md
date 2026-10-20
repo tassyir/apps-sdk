@@ -1,5 +1,16 @@
 # create-tassyir-app
 
+## 0.2.4
+
+### Patch Changes
+
+- 891045a: New projects name the releases that know `read_offers` and the `offers/*` topics, and the starter's `tassyir-app` skill lists them.
+- f6bb3c0: New projects name the releases that know `write_offers` and `[[offers.types]]`, and the starter's `tassyir-app` skill lists the scope and what an app may do with its own offers.
+- f744f56: New projects name the `@tassyir/app` and `tassyir` releases that know the order money fields, and the starter's `tassyir-app` skill says how `subtotal`, `discountTotal`, `total` and a line's net `unitPrice` relate.
+- Updated dependencies [79d20f8]
+- Updated dependencies [1b2ca05]
+  - @tassyir/app-manifest@0.4.0
+
 ## 0.2.3
 
 ### Patch Changes

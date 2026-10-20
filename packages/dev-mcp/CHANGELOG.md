@@ -1,5 +1,26 @@
 # @tassyir/dev-mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- 2e608d2: The server knows offers: the new Offers guide, `listOffers` and `getOffer` (`get_api_operation`), the `Offer` schema, and the `offers/created`, `offers/updated` and `offers/deleted` topics (`get_event_schema`), with the `read_offers` scope in the manifest vocabulary it checks against.
+- 0efc04c: The server knows writing offers: the new "Write offers and codes" guide (`search_docs`, `fetch_doc`), the `createOffer`, `updateOffer`, `deleteOffer`, `publishOffer`, `pauseOffer`, `resumeOffer`, `listOfferCodes`, `addOfferCode`, `addOfferCodes`, `disableOfferCode`, `enableOfferCode` and `listOfferRedemptions` operations (`get_api_operation`) with their schemas, `validate_manifest` checks `[[offers.types]]` and the `write_offers` scope, and `search_docs` ranks a section whose heading is the whole query ("create an order") above the guide it sits in.
+
+### Patch Changes
+
+- 304c3d1: The server knows the order money: the `Order` schema (`get_api_operation`) and the `orders/*` topics (`get_event_schema`) carry `subtotal`, `discountTotal`, `discounts` and the per-line `originalPrice`, `discountAmount` and `discounts`, and the Orders guide gains an "Order money" section.
+- Updated dependencies [d978cfe]
+- Updated dependencies [79d20f8]
+- Updated dependencies [891045a]
+- Updated dependencies [0efc04c]
+- Updated dependencies [1b2ca05]
+- Updated dependencies [f6bb3c0]
+- Updated dependencies [f744f56]
+  - tassyir@0.6.0
+  - @tassyir/app-manifest@0.4.0
+  - create-tassyir-app@0.2.4
+
 ## 0.2.0
 
 ### Minor Changes

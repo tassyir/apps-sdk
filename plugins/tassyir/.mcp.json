@@ -2,7 +2,7 @@
   "mcpServers": {
     "tassyir": {
       "command": "npx",
-      "args": ["-y", "@tassyir/dev-mcp@0.2.0"]
+      "args": ["-y", "@tassyir/dev-mcp@0.3.0"]
     }
   }
 }
