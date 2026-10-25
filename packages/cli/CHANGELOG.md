@@ -1,5 +1,11 @@
 # tassyir
 
+## 0.6.1
+
+### Patch Changes
+
+- 5e3fc7a: Re-vendor the Admin OpenAPI at backend d2fa3e63: products carry `isFragile` (read, and optional on create/update).
+
 ## 0.6.0
 
 ### Minor Changes

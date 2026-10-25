@@ -1,6 +1,6 @@
 {
   "name": "@tassyir/app",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Server SDK for Tassyir apps: token exchange and refresh, ID-token and webhook verification, and a typed Admin API client.",
   "license": "MIT",
   "repository": {

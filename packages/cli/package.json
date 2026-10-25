@@ -1,6 +1,6 @@
 {
   "name": "tassyir",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "The Tassyir developer CLI: sign in, create apps, validate and deploy tassyir.app.toml, manage client secrets, dev stores and test webhooks. --json on every command.",
   "license": "MIT",
   "repository": {
