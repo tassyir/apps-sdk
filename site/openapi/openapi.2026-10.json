@@ -2994,7 +2994,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `isFragile`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
           },
           {
             "name": "limit",
@@ -3200,7 +3200,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `isFragile`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -3562,7 +3562,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `isFragile`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
           }
         ],
         "responses": {
@@ -3756,7 +3756,7 @@
               "maxLength": 1000,
               "type": "string"
             },
-            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
+            "description": "Return only these top-level fields, separated by commas; the id is always kept. The response schema describes the whole resource. An unknown name is 400 `INVALID_FIELDS`. Fields: `id`, `storeId`, `name`, `slug`, `description`, `type`, `active`, `visible`, `currency`, `price`, `compareAtPrice`, `sku`, `barcode`, `image`, `images`, `weightKg`, `dimensionsCm`, `tracksInventory`, `allowOutOfStockOrders`, `isFragile`, `collectionIds`, `brandId`, `options`, `variants`, `createdAt`, `updatedAt`."
           },
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -18268,7 +18268,8 @@
               "TAG",
               "PRICE",
               "ON_SALE",
-              "TITLE"
+              "TITLE",
+              "VARIANT_OPTION"
             ]
           },
           "operator": {
@@ -18325,6 +18326,32 @@
               {
                 "maxLength": 200,
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optionName": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "optionValues": {
+            "anyOf": [
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "maxLength": 200,
+                  "type": "string"
+                }
               },
               {
                 "type": "null"
@@ -18955,7 +18982,7 @@
               "properties": {
                 "field": {
                   "type": "string",
-                  "description": "BRAND, TAG, PRICE, ON_SALE or TITLE."
+                  "description": "BRAND, TAG, PRICE, ON_SALE, TITLE or VARIANT_OPTION."
                 },
                 "operator": {
                   "type": "string",
@@ -19003,6 +19030,24 @@
                     }
                   ],
                   "description": "TITLE: the text to look for."
+                },
+                "optionName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "VARIANT_OPTION: the option, as the products name it (\"Size\")."
+                },
+                "optionValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "VARIANT_OPTION: its values; a product with an offered variant picking any of them matches."
                 }
               },
               "required": [
@@ -19011,7 +19056,9 @@
                 "valueRefIds",
                 "valueNumber",
                 "valueNumberMax",
-                "valueText"
+                "valueText",
+                "optionName",
+                "optionValues"
               ],
               "additionalProperties": false
             },
@@ -19583,6 +19630,9 @@
             "type": "boolean"
           },
           "allowOutOfStockOrders": {
+            "type": "boolean"
+          },
+          "isFragile": {
             "type": "boolean"
           },
           "brandId": {
@@ -23334,6 +23384,10 @@
           "allowOutOfStockOrders": {
             "type": "boolean"
           },
+          "isFragile": {
+            "type": "boolean",
+            "description": "Needs careful handling: an order holding it is marked fragile for its carrier at dispatch."
+          },
           "collectionIds": {
             "type": "array",
             "items": {
@@ -23417,6 +23471,7 @@
           "dimensionsCm",
           "tracksInventory",
           "allowOutOfStockOrders",
+          "isFragile",
           "collectionIds",
           "brandId",
           "options",
@@ -24475,6 +24530,9 @@
             "type": "boolean"
           },
           "allowOutOfStockOrders": {
+            "type": "boolean"
+          },
+          "isFragile": {
             "type": "boolean"
           },
           "brandId": {
@@ -26982,6 +27040,7 @@
                 "dimensionsCm",
                 "tracksInventory",
                 "allowOutOfStockOrders",
+                "isFragile",
                 "collectionIds",
                 "brandId",
                 "options",
@@ -27189,6 +27248,7 @@
                 "dimensionsCm",
                 "tracksInventory",
                 "allowOutOfStockOrders",
+                "isFragile",
                 "collectionIds",
                 "brandId",
                 "options",
