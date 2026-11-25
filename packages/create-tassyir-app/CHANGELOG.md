@@ -1,5 +1,11 @@
 # create-tassyir-app
 
+## 0.2.5
+
+### Patch Changes
+
+- c01ae0c: New projects name the `@tassyir/app` release that knows `OUT_OF_STOCK` on order create and the Admin API reads and codes vendored with it.
+
 ## 0.2.4
 
 ### Patch Changes
