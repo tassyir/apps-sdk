@@ -378,14 +378,15 @@ order, and earns no commission.
 
 ## Errors these routes add
 
-| Status | Code                                            | When                                            |
-| ------ | ----------------------------------------------- | ----------------------------------------------- |
-| 409    | `ORDER_NOT_EDITABLE`                            | The order is dispatched, delivered or returned. |
-| 409    | `ORDER_STATUS_CONFLICT`                         | Its status does not allow the move.             |
-| 409    | `ORDER_DUPLICATE`                               | A create folded into an order you cannot read.  |
-| 403    | `ORDER_LIMIT_REACHED`                           | Confirming a waiting order.                     |
-| 400    | `STORE_REQUIRED`                                | Several selected stores and no `storeId`.       |
-| 400    | `CANCEL_REASON_INVALID`, `CANCEL_NOTE_REQUIRED` | The cancel reason rules.                        |
-| 400    | `DELIVERY_SPEED_UNAVAILABLE`                    | Economy is not priced for that destination.     |
+| Status | Code                                            | When                                                                                                                                                                  |
+| ------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 409    | `ORDER_NOT_EDITABLE`                            | The order is dispatched, delivered or returned.                                                                                                                       |
+| 409    | `ORDER_STATUS_CONFLICT`                         | Its status does not allow the move.                                                                                                                                   |
+| 409    | `ORDER_DUPLICATE`                               | A create folded into an order you cannot read.                                                                                                                        |
+| 403    | `ORDER_LIMIT_REACHED`                           | Confirming a waiting order.                                                                                                                                           |
+| 400    | `STORE_REQUIRED`                                | Several selected stores and no `storeId`.                                                                                                                             |
+| 400    | `OUT_OF_STOCK`                                  | A create asks for more of a tracked item than it holds, and its product refuses out-of-stock orders. `lines` names each short item, with `requested` and `available`. |
+| 400    | `CANCEL_REASON_INVALID`, `CANCEL_NOTE_REQUIRED` | The cancel reason rules.                                                                                                                                              |
+| 400    | `DELIVERY_SPEED_UNAVAILABLE`                    | Economy is not priced for that destination.                                                                                                                           |
 
 See [Errors](/guides/errors) for the codes every route shares.
