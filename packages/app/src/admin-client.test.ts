@@ -905,6 +905,10 @@ describe('AdminClient types (checked by tsc)', () => {
     expectTypeOf<'RATE_LIMITED'>().toExtend<
       AdminApiErrorCode<'get', '/orders'>
     >();
+    // A create past a tracked item's stock names the short lines.
+    expectTypeOf<'OUT_OF_STOCK'>().toExtend<
+      AdminApiErrorCode<'post', '/orders'>
+    >();
     // AP-B1.11: the business ceiling and the in-flight cap, on every operation.
     expectTypeOf<'BUSINESS_RATE_LIMITED' | 'API_BUSY'>().toExtend<
       AdminApiErrorCode<'post', '/orders/{id}/confirm'>
@@ -965,7 +969,10 @@ describe('AdminClient types (checked by tsc)', () => {
     // publish, pause and resume take an optional body; a create needs its own.
     expectTypeOf<
       RequestOptions<'post', '/offers/{id}/pause'>['body']
-    >().toEqualTypeOf<{ expectedVersion?: number | null } | undefined>();
+    >().toEqualTypeOf<
+      | { expectedVersion?: number | null; pauseClashing?: boolean | null }
+      | undefined
+    >();
     expectTypeOf<
       RequestOptions<'post', '/offers'>['body']
     >().toEqualTypeOf<CreateOfferInput>();

@@ -231,7 +231,7 @@ now; nothing was sent. Try again later.
 
 ## Every Admin API code
 
-Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (55 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.
+Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app` is typed from (68 operations under `/apps/2026-10/`). An operation lists every code it can answer, per status, in that document; a status fallback (the code of a refusal that carries no more specific one) is in its error catalogue and may come from any operation.
 
 | Code                                    | HTTP     | Answered by                                                                                                                                                         |
 | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -261,7 +261,7 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `DELIVERY_SPEED_UNAVAILABLE`            | 400      | `PATCH /orders/{id}`, `POST /orders`                                                                                                                                |
 | `DELIVERY_SPEED_UNSUPPORTED`            | 400      | `PATCH /orders/{id}`                                                                                                                                                |
 | `DEV_STORE_ORDER_LIMIT_REACHED`         | 429      | `POST /orders`                                                                                                                                                      |
-| `FORBIDDEN`                             | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`, `POST /orders`                                                         |
+| `FORBIDDEN`                             | 403      | 9 operations                                                                                                                                                        |
 | `HOSTED_CALL_REFUSED`                   | 401      | every operation                                                                                                                                                     |
 | `HTML_NOT_ALLOWED`                      | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `POST /collections`, `POST /products`                                                                            |
 | `IDEMPOTENCY_KEY_INVALID`               | 400      | 28 operations                                                                                                                                                       |
@@ -275,13 +275,15 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `IMAGE_URL_NOT_ALLOWED`                 | 400      | `POST /images`                                                                                                                                                      |
 | `INSUFFICIENT_AT_LOCATION`              | 409      | `POST /inventory-levels/{id}/adjust`                                                                                                                                |
 | `INTERNAL_ERROR`                        | 500      | every operation                                                                                                                                                     |
-| `INVALID_CURSOR`                        | 400      | 13 operations                                                                                                                                                       |
-| `INVALID_FIELDS`                        | 400      | 49 operations                                                                                                                                                       |
+| `INVALID_CURSOR`                        | 400      | 17 operations                                                                                                                                                       |
+| `INVALID_DATE_RANGE`                    | 400      | `GET /analytics/marketing`, `GET /analytics/overview`, `GET /analytics/utm`, `GET /analytics/variants`, `GET /finance/products`, `GET /finance/transactions`        |
+| `INVALID_FIELDS`                        | 400      | 62 operations                                                                                                                                                       |
 | `LOCATION_NOT_FOUND`                    | 400, 404 | `POST /inventory-levels/{id}/adjust`                                                                                                                                |
 | `MEDIA_URL_NOT_ALLOWED`                 | 400      | `PATCH /collections/{id}`, `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /collections`, `POST /products`                               |
 | `METHOD_NOT_ALLOWED`                    | 405      | any operation, as a fallback                                                                                                                                        |
 | `NOT_FOUND`                             | 404      | 40 operations                                                                                                                                                       |
 | `OFFER_ARCHIVED`                        | 409      | `PATCH /offers/{id}`, `POST /offers/{id}/codes`, `POST /offers/{id}/codes/bulk`, `POST /offers/{id}/pause`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume` |
+| `OFFER_CLASH`                           | 409      | `PATCH /offers/{id}`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume`                                                                                       |
 | `OFFER_CODE_INVALID`                    | 400      | `POST /offers/{id}/codes`                                                                                                                                           |
 | `OFFER_CODE_NOT_FOUND`                  | 404      | `POST /offers/{id}/codes/{codeId}/disable`, `POST /offers/{id}/codes/{codeId}/enable`                                                                               |
 | `OFFER_CODE_TAKEN`                      | 409      | `POST /offers`, `POST /offers/{id}/codes`                                                                                                                           |
@@ -304,9 +306,10 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `ORDER_NOT_EDITABLE`                    | 409      | `PATCH /orders/{id}`, `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                         |
 | `ORDER_PRICING_LOCKED`                  | 400      | `PATCH /orders/{id}`                                                                                                                                                |
 | `ORDER_STATUS_CONFLICT`                 | 409      | `POST /orders/{id}/cancel`, `POST /orders/{id}/confirm`, `POST /orders/{id}/schedule`                                                                               |
+| `OUT_OF_STOCK`                          | 400      | `POST /orders`                                                                                                                                                      |
 | `PAYLOAD_TOO_LARGE`                     | 413      | 22 operations                                                                                                                                                       |
-| `PERMISSION_DENIED`                     | 403      | 54 operations                                                                                                                                                       |
-| `PLAN_FEATURE_REQUIRED`                 | 403      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                                                         |
+| `PERMISSION_DENIED`                     | 403      | 67 operations                                                                                                                                                       |
+| `PLAN_FEATURE_REQUIRED`                 | 403      | 8 operations                                                                                                                                                        |
 | `PLAN_LIMIT_REACHED`                    | 403      | `PATCH /offers/{id}`, `POST /offers/{id}/publish`, `POST /offers/{id}/resume`                                                                                       |
 | `PRODUCT_DEFAULT_VARIANT`               | 409      | `PATCH /products/{id}/variants/{variantId}`                                                                                                                         |
 | `PRODUCT_OPTIONS_REQUIRE_VARIANTS`      | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
@@ -316,6 +319,8 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `PRODUCT_OPTION_NO_VALUES`              | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
 | `PRODUCT_OPTION_VALUE_EMPTY`            | 400      | `PATCH /products/{id}`                                                                                                                                              |
 | `PRODUCT_OPTION_VALUE_NOT_FOUND`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
+| `PRODUCT_SKU_DUPLICATE_IN_PRODUCT`      | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
+| `PRODUCT_SKU_TAKEN`                     | 409      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
 | `PRODUCT_SLUG_INVALID`                  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
 | `PRODUCT_SLUG_TAKEN`                    | 409      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
 | `PRODUCT_VARIANT_COMBINATION_MISMATCH`  | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
@@ -329,15 +334,18 @@ Generated from the OpenAPI document of API version `2026-10` that `@tassyir/app`
 | `PRODUCT_VARIANT_UNKNOWN_OPTION`        | 400      | `PATCH /products/{id}`, `POST /products`                                                                                                                            |
 | `PRODUCT_WRITE_TIMEOUT`                 | 400      | `PATCH /products/{id}`, `PATCH /products/{id}/variants/{variantId}`, `POST /products`                                                                               |
 | `RATE_LIMITED`                          | 429      | every operation                                                                                                                                                     |
+| `REPORT_BUSY`                           | 503      | `GET /analytics/marketing`, `GET /analytics/overview`, `GET /analytics/utm`, `GET /analytics/variants`, `GET /finance/products`, `GET /finance/summary`             |
+| `REPORT_QUERY_TIMEOUT`                  | 503      | `GET /analytics/marketing`, `GET /analytics/overview`, `GET /analytics/utm`, `GET /analytics/variants`, `GET /finance/products`, `GET /finance/summary`             |
 | `REQUEST_FAILED`                        | 4xx      | any operation, as a fallback                                                                                                                                        |
 | `SERVICE_UNAVAILABLE`                   | 503      | every operation                                                                                                                                                     |
 | `STORE_REQUIRED`                        | 400      | `POST /orders`                                                                                                                                                      |
-| `STORE_SCOPE_FORBIDDEN`                 | 460      | 17 operations                                                                                                                                                       |
-| `SUBSCRIPTION_REQUIRED`                 | 422      | `GET /inventory-levels`, `GET /inventory-levels/{id}`, `POST /inventory-levels/{id}/adjust`                                                                         |
+| `STORE_SCOPE_FORBIDDEN`                 | 460      | 26 operations                                                                                                                                                       |
+| `STORE_SCOPE_RESTRICTED_SURFACE`        | 403      | `GET /business/setup`, `GET /expenses`, `GET /finance/summary`, `GET /finance/transactions`                                                                         |
+| `SUBSCRIPTION_REQUIRED`                 | 422      | 8 operations                                                                                                                                                        |
 | `UNAUTHORIZED`                          | 401      | any operation, as a fallback                                                                                                                                        |
 | `UNPROCESSABLE_ENTITY`                  | 422      | any operation, as a fallback                                                                                                                                        |
 | `UNSUPPORTED_MEDIA_TYPE`                | 415      | 22 operations                                                                                                                                                       |
-| `VALIDATION_FAILED`                     | 400      | 53 operations                                                                                                                                                       |
+| `VALIDATION_FAILED`                     | 400      | 66 operations                                                                                                                                                       |
 
 ## Token endpoint errors
 
